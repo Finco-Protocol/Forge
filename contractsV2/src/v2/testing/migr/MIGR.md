@@ -24,10 +24,9 @@
 | Core utility | Publish migration campaigns with a project bond; coordinate commitments and settlement |
 | Token standard, supply, decimals | Not deployed; supply and decimals have not been set |
 | V2 Official Migr Protocol mint address | HNazMWySREpLBoyEdsXPPzvvc4eZ6avQDwqBko3vpump |
-| V1 test mint address | 9bZQPrSbzNQhMnsmT5rMXhGodx5DwT5eXCGySZFKpump |
-| V1 test program ID | Standard SPL Token Program: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` |
+| V2 program ID | Standard SPL Token Program: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` |
 | V2 environment | Solana Mainnet (planned V1 test environment) |
-| V1 explorer links | [Devnet Token Program](https://explorer.solana.com/address/TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA?cluster=devnet); mint explorer link becomes available when the mint exists |
+| V2 explorer links | [Devnet Token Program](https://explorer.solana.com/address/TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA?cluster=devnet); mint explorer link becomes available when the mint exists |
 | Image | `migr.jpg` — place next to this Markdown file |
 | Status | Concept and proposed V1 scope; no deployed contract is asserted here |
 
