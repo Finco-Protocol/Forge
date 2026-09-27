@@ -21,6 +21,7 @@
 | Product | Wrapped representations of eligible Pons-origin tokens in Solana pools |
 | Canonical token location | Robinhood Chain |
 | Wrapped token location | Solana; one unique mint per registered source asset |
+| Wrapped Subdomain | warp.ponsfamily.com |
 | User entry point | Solana wallet and pool, without requiring a Robinhood Chain wallet for a Solana-only trade |
 | Redemption | Burn wrapped units on Solana, release the corresponding original units to a Robinhood Chain address |
 | Image | `warp.jpg` beside this Markdown file |
