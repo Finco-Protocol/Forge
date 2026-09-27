@@ -25,8 +25,8 @@
 | Token standard, supply, decimals | Not deployed; supply and decimals have not been set |
 | V2 Official mint address | ++ |
 | V1 test mint address | 9bZQPrSbzNQhMnsmT5rMXhGodx5DwT5eXCGySZFKpump |
-| V1 test program ID | No MIGR application program deployed; standard SPL Token Program: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` |
-| V1 test environment | Solana Devnet (planned V1 test environment) |
+| V1 test program ID | Standard SPL Token Program: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` |
+| V2 environment | Solana Mainnet (planned V1 test environment) |
 | V1 explorer links | [Devnet Token Program](https://explorer.solana.com/address/TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA?cluster=devnet); mint explorer link becomes available when the mint exists |
 | Image | `migr.jpg` — place next to this Markdown file |
 | Status | Concept and proposed V1 scope; no deployed contract is asserted here |
