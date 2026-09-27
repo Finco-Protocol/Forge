@@ -23,6 +23,7 @@
 | Primary users | Solana projects, token holders, liquidity providers, migration operators |
 | Core utility | Publish migration campaigns with a project bond; coordinate commitments and settlement |
 | Token standard, supply, decimals | Not deployed; supply and decimals have not been set |
+| V2 Official mint address | ++ |
 | V1 test mint address | 9bZQPrSbzNQhMnsmT5rMXhGodx5DwT5eXCGySZFKpump |
 | V1 test program ID | No MIGR application program deployed; standard SPL Token Program: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` |
 | V1 test environment | Solana Devnet (planned V1 test environment) |
