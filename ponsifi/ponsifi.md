@@ -4,7 +4,7 @@
 
 # Ponsifi
 
-Social trading on Robinhood Chain, with Solana next.
+Social trading on Robinhood Chain
 
 </div>
 
