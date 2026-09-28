@@ -3,14 +3,15 @@
 <img src="intro.png" alt="Ponsifi" width="100%" />
 
 # Ponsifi
- 
-Social trading on Robinhood Chain.
- 
+
+Social trading on Robinhood Chain, with Solana next.
+
 </div>
+
 Ponsifi is a social trading app where trading is a feed. You follow traders instead of charts, their buys and sells show up in your timeline as they confirm onchain, and every profile carries a record built from the chain. Launches happen in the same place through `/newdeploy`, so new tokens reach the network the moment they go live.
- 
+
 **Web:** [base.ponsfamily.com](https://base.ponsfamily.com) &nbsp;·&nbsp; **Chains:** Robinhood Chain, Solana (planned) &nbsp;·&nbsp; **Status:** in development
- 
+
 ---
 
 ## Contents
