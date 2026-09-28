@@ -29,6 +29,7 @@
 | V2 explorer links | [Devnet Token Program](https://explorer.solana.com/address/TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA?cluster=devnet); mint explorer link becomes available when the mint exists |
 | Image | `migr.jpg` — place next to this Markdown file |
 | Status | Concept and proposed V1 scope; no deployed contract is asserted here |
+| Canonical Test $PONS | BbVwLo5QZqLCjMSzYn3eAMPPNcxyizwcZYvEtVtFpump |
 | Official Protocol URL | beta.ponsfamily.com |
 
 
