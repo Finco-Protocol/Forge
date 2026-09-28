@@ -30,7 +30,7 @@ This repository holds the Solidity source for the [ponsfamily.com](https://ponsf
 
 Both generations are live source and both factories are verified on chain.
 
-Website: [ponsfamily.com](https://ponsfamily.com) · Twitter/X: [@ponsdotfamily](https://x.com/ponsdotfamily)
+Website: [ponsfamily.com](https://ponsfamily.com) · Twitter/X: [@ponsdotfamily](https://x.com/ponsdotfamily) · Trading Terminal Ponstation: [BETA](beta.ponsfamily.com)
 
 ## Table of contents
 
