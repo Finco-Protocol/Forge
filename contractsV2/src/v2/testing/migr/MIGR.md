@@ -30,7 +30,7 @@
 | Image | `migr.jpg` — place next to this Markdown file |
 | Status | Concept and proposed V1 scope; no deployed contract is asserted here |
 | Canonical Test $PONS | BbVwLo5QZqLCjMSzYn3eAMPPNcxyizwcZYvEtVtFpump |
-| Official Protocol URL | beta.ponsfamily.com |
+| Official Protocol URL | beta.ponsfamily.com Ponstation Trading Terminal |
 
 
 
