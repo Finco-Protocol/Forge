@@ -26,7 +26,7 @@
 | Redemption | Burn wrapped units on Solana, release the corresponding original units to a Robinhood Chain address |
 | Image | `warp.jpg` beside this Markdown file |
 | Deployment status | Architecture proposal; no live bridge, token mint, pool or Pons integration is asserted |
-| Canonical Test WCASHCAT | ** |
+| Canonical Test WCASHCAT | 49iVobDE9KqQpmJyvgDuKgjBc73Gf6MjnhzDi5UBbjtJ |
 
 ---
 
