@@ -16,7 +16,7 @@
 | Token overview | Details |
 |---|---|
 | Project | Pons Warp |
-| Native Test Token | `$WARP` on Solana |
+| Native TEST Token | `$WARP` on Solana |  
 | Native Test Mint | 64tUZQBCDKhkxPYNey9PXdV8Hz36ra28FuDhMMULpump |
 | Product | Wrapped representations of eligible Pons-origin tokens in Solana pools |
 | Canonical token location | Robinhood Chain |
