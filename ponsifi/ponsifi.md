@@ -251,9 +251,8 @@ Launch creation on Robinhood Chain is currently limited to whitelisted wallets. 
 
 Solana is planned as the second chain, so a creator can pick where to launch while keeping one profile and one audience.
 
-On Solana, `/newdeploy` deploys tokens through **Pump.fun**. Ponsifi doesn't run its own Solana launch contracts: the token is created on Pump.fun and follows Pump.fun's curve, fee and graduation rules. What Ponsifi adds is the social side. The launch is posted to the global feed, it appears on the creator's profile next to their Robinhood Chain launches, and trades on it count toward the same leaderboards.
+On Solana, `/newdeploy` deploys tokens through **Pump.fun**. Ponsifi doesn't run its own Solana launch contracts: the token is created on Pump.fun and follows Pump.fun's curve, fee and graduation rules. What Ponsifi adds is the social side. The launch is posted to the global feed, it appears on the creator's profile next to their Robinhood Chain launches, and trades on it count toward the same leaderboards. Tokens will end with "pons".
 
-BETA TEST: 4ioYUvNC89Ygp5gd2xu3WYbwPhczFQKwz8bjtwTXpons
 
 ```mermaid
 flowchart LR
