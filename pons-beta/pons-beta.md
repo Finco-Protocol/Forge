@@ -198,6 +198,8 @@ Fields in the `/launchpad/create` form:
 
 A hybrid integration is in testing that lets `/launchpad/create` launch tokens on **Solana** as well as Robinhood Chain, so Pons becomes a full 360° launchpad: one create flow, one board, two chains.
 
+EXAMPLE: 46aTUyzBpVYFKqVi1zkQ2SffAHviMgkP9KXvgKadpons
+
 | | Robinhood Chain | Solana (testing) |
 |---|---|---|
 | Launch venue | pons v2 launch contracts | In collaboration with **Pump.fun** |
