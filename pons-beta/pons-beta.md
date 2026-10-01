@@ -53,7 +53,7 @@ Pons Beta is the invite-only beta of Pons, a noncustodial token launchpad on Rob
 | **Custody** | Noncustodial. Your wallet signs every launch and every trade |
 | **Built by** | Pons Labs, LLC |
 | **Contact** | contact@ponsfamily.com |
-| **Social** | [X @ponsdotfamily](https://x.com/ponsdotfamily) · [GitHub pons-labs](https://github.com/pons-labs) |
+| **Social** | [X @ponsdotfamily](https://x.com/ponsdotfamily) · [GitHub pons-labs](https://github.com/ponsdotfamily/ponsdotfamily) |
 
 ---
 
