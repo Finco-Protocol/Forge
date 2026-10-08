@@ -14,7 +14,7 @@ Pons Beta is the invite-only beta of Pons, a noncustodial token launchpad on Rob
 
 --- 
   
-## Contents
+## Contents 
 
 - [At a glance](#at-a-glance)
 - [Access: opening in waves](#access-opening-in-waves)
