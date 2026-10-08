@@ -204,7 +204,7 @@ EXAMPLE:
 |---|---|---|
 | Launch venue | pons v2 launch contracts | In collaboration with **Pump.fun** |
 | Token addresses | CREATE2, deterministic | Vanity addresses ending in **`pons`** |
-| Status | Live, whitelisted launchers | 🧪 In testing |
+| Status | Live, whitelisted launchers | 🧪 In testing | 
 
 ```mermaid
 flowchart LR
