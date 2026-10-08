@@ -1,0 +1,12 @@
+# Foundry
+out/
+cache/
+broadcast/
+forge-cache/
+
+# Local canary logs
+canary.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
