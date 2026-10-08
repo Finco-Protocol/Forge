@@ -58,13 +58,16 @@ contract PonsV2GraduationMathTest is Test {
         uint160 sqrtPriceX96 = PonsV2GraduationMath.sqrtPriceX96FromAmounts(amount0, amount1);
         assertGt(uint256(sqrtPriceX96), 0);
 
-        // sqrtPrice^2/2^96 must approximate (amount1/amount0) * 2^96. The
-        // square of a floored sqrt loses relative precision as the price
-        // itself shrinks, so the tolerance scales with the price magnitude.
+        // sqrtPrice^2/2^96 must approximate (amount1/amount0) * 2^96. Both
+        // sides carry floor-division error: the library's floored sqrt puts
+        // price^2 just under the exact value, and dividing floors it again,
+        // which can eat a whole unit when the quotient itself is small.
+        // Allow the absolute rounding band plus a relative term for large
+        // prices.
         uint256 priceSquaredOverQ96 = FullMath.mulDiv(uint256(sqrtPriceX96), uint256(sqrtPriceX96), Q96);
         uint256 expected = FullMath.mulDiv(uint256(amount1), Q96, uint256(amount0));
-        uint256 tolerance = uint256(sqrtPriceX96) < 1e18 ? 5e16 : 1e15;
-        assertApproxEqRel(priceSquaredOverQ96, expected, tolerance);
+        uint256 diff = priceSquaredOverQ96 > expected ? priceSquaredOverQ96 - expected : expected - priceSquaredOverQ96;
+        assertLe(diff, 2 + expected / 1e14, "sqrt price inconsistent with amounts");
     }
 
     function test_seedPriceDeterminism_exactPair() public pure {
