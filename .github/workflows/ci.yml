@@ -1,5 +1,9 @@
 name: CI
 
+# Exact-head CI is the final authority for this branch. One consolidated
+# workflow; the concurrency group cancels superseded runs so every verdict
+# belongs to a live head.
+
 on:
   push:
     branches: ["**"]
@@ -13,7 +17,22 @@ env:
   FOUNDRY_VERSION: v1.8.5
 
 jobs:
-  # ── The passing harness: V2 minus the uncompilable factory, plus tests ──
+  # ── REQUIRED: formatting of Forge-authored files ─────────────────────────
+  # Scope is test/ only — 100% Forge-authored. Upstream PONS sources are
+  # deliberately NOT reformatted; their formatting is inherited as-is.
+  fmt-forge-code:
+    name: forge fmt --check (test/, required)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge fmt --check test
+
+  # ── REQUIRED: the passing harness ────────────────────────────────────────
   build-and-test:
     name: forge build + test (testable profile)
     runs-on: ubuntu-latest
@@ -24,11 +43,10 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
-      - name: Build (testable profile)
-        run: forge build --profile testable
-      - name: Test (87 tests + invariants)
-        run: forge test --profile testable -vvv
+      - run: forge build --profile testable
+      - run: forge test --profile testable -vvv
 
+  # ── REQUIRED: V1 generation compiles ─────────────────────────────────────
   v1-build:
     name: forge build (V1 generation)
     runs-on: ubuntu-latest
@@ -41,16 +59,33 @@ jobs:
           version: ${{ env.FOUNDRY_VERSION }}
       - run: forge build --profile v1
 
-  # ── Upstream source-integrity canary ────────────────────────────────────
-  # `forge build` on the full V2 tree is EXPECTED to fail at this HEAD:
-  # PonsV2LaunchFactory references PonsV2BondingCurve.exemptFromSnipeTax,
-  # which the published curve does not define (docs/BUILD.md, F-01). This
-  # job records the failure loudly and alerts when the failure CHANGES —
-  # if it goes green, upstream repaired the tree and the canary must be
-  # converted into a hard gate. It is NOT a signal that anything is broken
-  # by this fork; the fork modifies no production contract.
+  # ── REQUIRED: vendored dependency integrity ──────────────────────────────
+  dep-integrity:
+    name: vendored dependency integrity (pinned evidence)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: bash scripts/check-vendored-deps.sh
+
+  # ── CONTROLLED CANARY: full V2 build ─────────────────────────────────────
+  # Upstream finding F-01 (docs/SECURITY-REVIEW.md): the published V2 tree
+  # cannot compile — PonsV2LaunchFactory references
+  # PonsV2BondingCurve.exemptFromSnipeTax, which the published curve does
+  # not define. This job does NOT suppress that failure: it CLASSIFIES the
+  # build result. Only one verdict is accepted —
+  # UPSTREAM_V2_FACTORY_BLOCKED — and it means exactly "the documented
+  # upstream defect is unchanged". It is NOT a passing build of the PONS V2
+  # protocol. Unexpected success, new/different compiler failures,
+  # infrastructure errors, and ambiguous results all FAIL this job.
+  #
+  # Non-blocking for this documentation/test-foundation PR only. Any future
+  # PR claiming deployable financial-contract readiness must flip
+  # `continue-on-error` below to a hard gate and extend the test suite to
+  # the factory (docs/ROADMAP.md G1).
   canary-full-build:
-    name: canary — full V2 build (expected failure, F-01)
+    name: "canary: full V2 build — UPSTREAM_V2_FACTORY_BLOCKED (F-01, expected; not a passing build)"
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -60,48 +95,71 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
-      - name: Full build (expected to fail on upstream defect)
+      - name: Full V2 build (capture exit code and log)
         id: build
-        continue-on-error: true
-        run: forge build > canary.log 2>&1 || true
-      - name: Verify the failure is still the known upstream defect
         run: |
-          if grep -q 'exemptFromSnipeTax' canary.log; then
-            echo "::error::UPSTREAM DEFECT STILL PRESENT (F-01): full V2 tree does not compile — PonsV2LaunchFactory references PonsV2BondingCurve.exemptFromSnipeTax which the published curve does not define. See docs/BUILD.md and docs/SECURITY-REVIEW.md."
-            exit 0
-          elif grep -qi 'Compiler run successful' canary.log; then
-            echo "::error::FULL BUILD NOW SUCCEEDS — upstream repaired the F-01 defect. Convert this canary into a hard gate and extend the test suite to the factory."
-            exit 1
-          else
-            echo "::error::FULL BUILD FAILURE CHANGED — new compiler error, not the known F-01 defect. Investigate:"
-            tail -30 canary.log
+          set +e
+          forge build > canary.log 2>&1
+          code=$?
+          set -e
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Classify build result
+        env:
+          CANARY_EXITCODE: ${{ steps.build.outputs.exitcode }}
+        run: |
+          bash scripts/canary-classify.sh "$CANARY_EXITCODE" canary.log | tee canary-verdict.txt
+          grep -q "CANARY_VERDICT=UPSTREAM_V2_FACTORY_BLOCKED" canary-verdict.txt \
+            || { echo "::error::canary verdict was not UPSTREAM_V2_FACTORY_BLOCKED — see log above"; exit 1; }
+      - name: Upload canary evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-build-canary-evidence
+          path: |
+            canary.log
+            canary-verdict.txt
+          if-no-files-found: warn
+
+  # ── STATIC ANALYSIS ──────────────────────────────────────────────────────
+  # Two separately classified scopes; failures are never silently swallowed.
+  static-analysis:
+    name: forge lint (test/ required-zero; upstream advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - name: Lint Forge-authored test code (required: zero findings)
+        run: |
+          forge lint test --json > test-lint.json
+          count=$(grep -c '"$message_type":"diagnostic"' test-lint.json || true)
+          if [ "$count" -ne 0 ]; then
+            echo "::error::forge lint reported $count finding(s) in test/ — fix them; no baseline exceptions are granted"
+            cat test-lint.json
             exit 1
           fi
-
-  # ── Vendored dependency integrity ───────────────────────────────────────
-  dep-integrity:
-    name: vendored dependency integrity
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Lint inherited upstream sources (advisory, reported in full)
+        if: always()
+        run: |
+          # Inherited upstream code carries its own lint posture; reformatting
+          # or "fixing" it is out of scope for a fork-intake PR. Findings are
+          # recorded verbatim as annotations + artifacts so nothing is
+          # silently swallowed.
+          forge lint contractsV1/src contractsV2/src > upstream-lint.log 2>&1 || true
+          count=$(grep -cE "warning\[|error\[" upstream-lint.log || true)
+          echo "UPSTREAM_LINT_FINDINGS=$count" >> "$GITHUB_ENV"
+          echo "::notice::inherited upstream lint findings: $count (advisory; upstream sources are unmodified in this fork — see docs/LICENSE-INVENTORY.md)"
+          tail -40 upstream-lint.log || true
+      - name: Upload lint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          submodules: recursive
-      - name: Blob-hash every vendored file against pinned upstream refs
-        run: bash scripts/check-vendored-deps.sh
-
-  # ── Static analysis (advisory) ──────────────────────────────────────────
-  static-analysis:
-    name: forge lint + fmt check (advisory)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: ${{ env.FOUNDRY_VERSION }}
-      - name: Lint the first-party sources
-        run: forge lint contractsV2/src contractsV1/src || true
-      - name: Formatting check (added harness files only; upstream code is untouched)
-        run: forge fmt --check test scripts || true
+          name: lint-evidence
+          path: |
+            test-lint.json
+            upstream-lint.log
+          if-no-files-found: warn

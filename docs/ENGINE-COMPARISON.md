@@ -48,6 +48,14 @@ on Robinhood Chain)
 
 ## Recommendation
 
+> **Correction A note (fee authority):** fee arrangements mentioned in this
+> comparison describe what each engine *can express*, not what FINCO can
+> configure. On the original PONS factory the fee policy belongs to the
+> PONS owner (MODEL A in docs/FORGE-CHANGE-MAP.md §6); a Forge-governed fee
+> policy presupposes the future Forge-owned factory (MODEL B) and is
+> currently **`FORGE_FEE_POLICY_AUTHORITY_UNPROVEN`**. No 70/20/10 (or any)
+> Forge distribution is implemented anywhere in this repository.
+
 **PONS V2 remains the preferred engine on product merit — it is the only
 candidate with a bonding curve, quote-denominated fee splits, a buyback
 vault, and verified V4 wiring on chain 4663 — but it must not receive any

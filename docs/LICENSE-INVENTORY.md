@@ -1,9 +1,12 @@
 # License & Source-Provenance Inventory
 
-Per-file/per-component license inventory of every source tree in this
-repository, produced by Workflow 01 (2026-10-08). Method: SPDX header scan
-of all 123 tracked files, plus byte-level blob-hash comparison of every
-vendored file against the upstream tagged release it matches.
+Per-file/per-component license and provenance inventory of every source
+tree in this repository. Originally produced by Workflow 01 (2026-10-08);
+**reconciled and corrected by Correction A (2026-10-08)** — the earlier
+revision understated the vendor file counts (68/70 vs the true 89) and
+characterized the non-identical OZ files imprecisely. This revision is
+generated from the full classification in `scripts/vendor-pins.tsv`, which
+CI verifies on every run.
 
 **Headline:** the first-party PONS contracts are uniformly MIT, but the V2
 dependency tree **links BUSL-1.1 Uniswap v4 code** (`Pool.sol`,
@@ -46,78 +49,96 @@ commercial fork requires legal review of both before any production use.
 **Do not infer the whole system is MIT from these headers.** The MIT
 first-party code is compiled and deployed together with the vendored
 dependencies below; the deployed system's licensing follows the
-combination.
+combination. Root-level notices: [`LICENSE`](../LICENSE) and
+[`NOTICE`](../NOTICE).
 
-## 2. Vendored dependencies — integrity + license per component
+## 2. Vendored dependency ledger (exact, mutually exclusive categories)
 
-Byte-identical counts are from `git hash-object` comparison against the
-matching upstream tree (see method note at bottom).
+Every tracked vendored Solidity file carries a pin row in
+`scripts/vendor-pins.tsv`; `scripts/check-vendored-deps.sh` re-verifies
+each row against the pinned upstream reference on every CI run and fails on
+any drift, new file, or deleted file.
 
-### OpenZeppelin Contracts (`contractsV2/lib/openzeppelin-contracts/`, 24 files)
+**Tracked vendor `.sol` files: 89** (V1 lib: 18, V2 lib: 71; forge-std is a
+separate submodule, not counted). Mutually exclusive categories:
 
-- **License:** MIT (per-file SPDX + upstream LICENSE).
-- **Version:** v5.5.0 tree; three files match the newer v5.6.0 revisions
-  (`Math.sol`, `SafeCast.sol` — comment/gas-level changes; `SafeERC20.sol`
-  — adds `tryGetDecimals`, additive).
-- **Integrity:** 21/24 byte-identical to OpenZeppelin v5.5.0; the 3
-  exceptions are byte-identical to upstream v5.6.0-era revisions. **No
-  behavioral modification detected in any vendored OZ file.**
-- Oddity (cosmetic, not code): two markdown easter-egg files and two JPEGs
-  sit inside the vendored tree (`sweet/toto.*`, `introspection/truth.md`)
-  — narrative content only, no code impact.
+| Category | V1 | V2 | Total | Meaning |
+| --- | --- | --- | --- | --- |
+| `BYTE_IDENTICAL` | 3 | 69 | **72** | `git hash-object` equals the pinned upstream reference |
+| `WHITESPACE_ONLY` | 15 | 1 | **16** | differs from the pinned upstream reference by whitespace only (`diff -w` clean — semantically identical) |
+| `UNRESOLVED` | 0 | 1 | **1** | no public upstream located (`BaseHook.sol`); content hash pinned |
+| **Total** | **18** | **71** | **89** | |
 
-### Uniswap v4-core (`contractsV2/lib/v4-core/`, 40 files: interfaces, libraries, types)
+Non-Solidity vendor files (not code, listed for completeness): 5 —
+`toto.jpg`, `toto.md`, `truth.md` (V1 lib), `oz.jpg`, `ozz.md` (V2 lib) —
+all easter-egg/narrative content, no code impact. forge-std is a submodule
+pinned at `f3dae6e6ee381f25eb6a246f7da9b85c91a68219` (v1.17.0, test-only).
+
+### 2.1 OpenZeppelin Contracts — 38 files (V1 18, V2 20) — MIT
+
+- **Byte-identical (22):** to released revisions — v5.0.2 (6), v5.1.0 (6),
+  v5.5.0 (8), v5.6.0 (2).
+- **Whitespace-only (16):** to v5.0.2 (2), v5.1.0 (3), v5.5.0 (7), v5.6.0
+  (2), and master commit `dab8611521b481c8801ef7811eec5f9661869ce1` (2).
+  These are formatter-normalized copies of exact upstream revisions;
+  `diff -w` against the pinned revision is empty.
+- **`SafeERC20.sol` (both generations) — provenance note:** the vendored
+  content includes upstream's `tryGetDecimals` helper, which exists in **no
+  OpenZeppelin release** (v5.5.0–v5.7.0 and main all differ). Blob-history
+  search proved it byte-identical (V2) / whitespace-identical (V1) to
+  OpenZeppelin **master commit `dab86115`** ("Use IERC20 as input type in
+  tryGetDecimals (#6486)", 2026-04-23) — an authentic mid-release upstream
+  revision, **not a PONS modification**. (Correction A supersedes the
+  earlier "v5.6.0-era additive revision" characterization.)
+- Upstream commits referenced: tags v5.0.2 / v5.1.0 / v5.5.0 / v5.6.0,
+  master `dab86115`. **No behavioral modification detected in any vendored
+  OZ file.**
+
+### 2.2 Uniswap v4-core — 34 files (V2) — MIT except 2× BUSL-1.1
 
 - **License:** MIT per-file **except `libraries/Pool.sol` and
   `libraries/Position.sol`, which carry `BUSL-1.1` upstream and here**.
-  Verified: current Uniswap v4-core main (46c6834698c4, 2026-04-02) ships
-  those two files as BUSL-1.1 — the Pons copies are faithful, the BUSL
-  originates with Uniswap, not with Pons.
-- **Integrity:** 40/40 byte-identical to v4-core main @ `46c68346`.
-- **Why it matters:** `PonsV2GraduationGuard` links `Pool.tickSpacingToMaxLiquidityPerTick`
-  and the guard/factory/hook all compile against v4 types. FINCO's
-  commercial fork would build on BUSL-1.1 source. Uniswap's BUSL carries a
-  Change Date (conversion to GPL) and usage-grant language that must be
-  reviewed by counsel before any production/commercial use. The deployed
-  PoolManager on Robinhood Chain is Uniswap's own deployment; the license
-  question here concerns the **source we vendor and compile**, which the
-  workflow flags for legal review.
+  Verified: Uniswap v4-core ships those two files as BUSL-1.1 — the PONS
+  copies are faithful; the BUSL originates with Uniswap.
+- **Integrity:** 34/34 byte-identical to v4-core commit
+  `46c6834698c48bc4a463a86d8420f4eb1d7f3b75` (2026-04-02).
+- **Why it matters:** `PonsV2GraduationGuard` links
+  `Pool.tickSpacingToMaxLiquidityPerTick`; FINCO's commercial fork would
+  build on BUSL-1.1 source. Counsel must review Uniswap's BUSL use grant
+  and Change Date before commercial use.
 
-### Uniswap v4-periphery (`contractsV2/lib/v4-periphery/`, 21 files incl. permit2 interfaces)
+### 2.3 Uniswap v4-periphery — 14 files (V2) — MIT
 
-- **License:** MIT (upstream LICENSE: "Copyright 2023 Universal Navigation
-  Inc.", MIT text).
-- **Version:** current periphery main (9969eec, 2026-09-19); `Actions.sol`
-  matches a newer revision than the rest (adds SUBSCRIBE/UNSUBSCRIBE —
-  additive constants).
-- **Integrity:** 20/21 byte-identical; `Actions.sol` differs only by the
-  additive action constants. **No behavioral modification detected.**
+- **13 files byte-identical** to commit `9969eec44cfdf07e24b41de47f40276a58401976`
+  (2026-09-19).
+- **`Actions.sol`** byte-identical to commit
+  `363226d9e1e2180b67bf6857023dbaad751010c5` (2026-05-27, PR #476) — an
+  exact earlier upstream revision carrying the `SUBSCRIBE`/`UNSUBSCRIBE`
+  constants (pinned by blob-history search; the newer `9969eec` revision
+  reworked the file).
+- **No behavioral modification detected.**
 
-### Permit2 interfaces (`contractsV2/lib/v4-periphery/lib/permit2/`, 2 files)
+### 2.4 Uniswap Permit2 interfaces — 2 files (V2) — MIT
 
-- **License:** MIT.
-- **Integrity:** 2/2 byte-identical to Uniswap/permit2 master (cc56ad0,
-  2023-09-29). Interfaces only; the deployed Permit2
-  (`0x000000000022D473030F116dDEE9F6B43aC78BA3`) is Uniswap's canonical
-  deployment, verified on chain 4663.
+Byte-identical to Uniswap/permit2 commit `cc56ad0f3439c502c246fc5cfcc3db92bb8b7219`
+(2023-09-29). Interfaces only; the deployed Permit2
+(`0x000000000022D473030F116dDEE9F6B43aC78BA3`) is canonical, verified on
+chain 4663.
 
-### v4-hooks-public (`contractsV2/lib/v4-hooks-public/src/base/BaseHook.sol`, 1 file)
+### 2.5 `v4-hooks-public/BaseHook.sol` — 1 file — **UNRESOLVED**
 
-- **License:** MIT SPDX header.
-- **Provenance: UNRESOLVED.** No public repository named "v4-hooks-public"
-  exists, and the file does not byte-match the BaseHook in Uniswap's
-  v4-template or hook libraries we compared. Content matches the canonical
-  Uniswap BaseHook pattern (IHooks + ImmutableState, `HookNotImplemented`,
-  address-flag validation) and no behavioral modification is apparent from
-  reading, but **no upstream blob exists to hash-verify it**. Recommendation:
-  replace with a pinned, hash-verified copy of a public BaseHook before
-  production (tracked in `docs/ROADMAP.md`).
+MIT SPDX header; content matches the canonical Uniswap BaseHook pattern
+(IHooks + ImmutableState, `HookNotImplemented`, address-flag validation)
+and no behavioral modification is apparent from reading, but **no upstream
+repository or commit matches this file's content**. It is pinned to its
+current content hash (`bd6e08e0…`) so any edit is detected, and provenance
+must be established — or the file replaced from a verifiable source —
+before production (docs/ROADMAP.md G3).
 
-### forge-std (`contractsV2/lib/forge-std/`, added by this PR — test-only)
+### 2.6 forge-std — submodule — MIT OR Apache-2.0 (test-only)
 
-- **License:** MIT OR Apache-2.0 (dual).
-- v1.17.0, pinned as a git submodule. **Never compiled into production
-  artifacts** — test harness only.
+Pinned at `f3dae6e6ee381f25eb6a246f7da9b85c91a68219` (v1.17.0). Never
+compiled into production artifacts; excluded from the 89-file count.
 
 ## 3. Non-code files inside dependency trees
 
@@ -140,7 +161,7 @@ signal a commercial fork should not inherit silently.
 | `PonsV2FeeEscrow` source (deployed at `0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e`) | The fee escrow that holds protocol+creator revenue has no published source. Only the `IPonsV2FeeEscrow` interface exists here. |
 | `PonsV2LaunchAndBuy` router source (deployed at `0xe33E9E479dF8802cb0866d5d05258bEc4cF62948`) | The atomic launch-and-buy router (documented in `pons-beta.md`, discussed in upstream issue #26 as "deleted rather than renamed") is absent. |
 | V2 deployment metadata (solc/settings for the live V2 factory) | Byte-exact rebuild of the deployed stack is impossible; the Hackerbane audit reports the live factory was compiled with solc 0.8.35. |
-| LICENSE file at repository root | README §License asserts MIT-for-first-party, but no root LICENSE exists for the fork to inherit. Forge should add one (MIT for first-party, with explicit third-party notices). |
+| Root LICENSE / NOTICE before Correction A | Addressed by this correction: `LICENSE` (MIT for Forge additions + upstream first-party MIT attribution, with explicit third-party carve-outs) and `NOTICE` (per-component third-party notices incl. BUSL/GPL). Third-party BUSL/GPL components are **not** blanket-licensed as MIT. |
 
 ## 5. Legal-review flags for a commercial fork
 
@@ -156,12 +177,24 @@ signal a commercial fork should not inherit silently.
    notices. `PonsV2BondingCurveMath` notes adaptation from an MIT
    code4rena reference — attribution retained.
 
-## Method note
+## Method note (Correction A)
 
-Vendored-file comparison used `git hash-object` on each of the 68 vendored
-`.sol` files against shallow clones of: OpenZeppelin v5.0.2 / v5.1.0 /
-v5.5.0, Uniswap v4-core main, Uniswap v4-periphery main, Uniswap/permit2
-master, and Uniswap v4-template. Result: **66/68 byte-identical** to their
-matching upstream; 4 OZ/periphery files match newer upstream revisions
-(additive/comment-level); 1 file (BaseHook.sol) has no verifiable public
-upstream. Clones were made 2026-10-08.
+Classification method, 2026-10-08:
+
+1. Enumerate tracked vendor files: `git ls-files contractsV1/lib
+   contractsV2/lib`, filtered to `.sol` → 89 files. (forge-std is a
+   submodule; its files are not part of this repository's tree.)
+2. Compare each file's `git hash-object` blob against pinned upstream
+   references: shallow clones of OpenZeppelin tags v5.0.2, v5.1.0, v5.5.0,
+   v5.6.0 (plus v5.6.1/v5.7.0 checked for SafeERC20), Uniswap v4-core
+   `46c68346`, v4-periphery `9969eec`, Uniswap/permit2 `cc56ad0`.
+3. Files matching no release were searched against the **full upstream
+   object database / commit history** (`git log --all --find-object`,
+   `cat-file --batch-all-objects`) to distinguish "authentic mid-release
+   upstream revision" (pin to the exact commit) from "modified"
+   (no upstream blob exists).
+4. Byte-different-but-semantically-identical files were characterized with
+   `diff -w`; every OZ file classified `WHITESPACE_ONLY` has an empty
+   `diff -w` against its pinned reference.
+5. Result: 72 BYTE_IDENTICAL + 16 WHITESPACE_ONLY + 1 UNRESOLVED = 89.
+   Zero unexplained modifications in any vendored file.

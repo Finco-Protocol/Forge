@@ -17,7 +17,9 @@ contract PonsV2LauncherTokenTest is Test {
             "TEST",
             "https://logo",
             "a description",
-            PonsV2LauncherToken.Socials({twitter: "t", telegram: "g", discord: "d", website: "w", farcaster: "f"}),
+            PonsV2LauncherToken.Socials({
+                twitter: "t", telegram: "g", discord: "d", website: "w", farcaster: "f"
+            }),
             creator,
             curve,
             factory,
@@ -38,16 +40,25 @@ contract PonsV2LauncherTokenTest is Test {
     }
 
     function test_metadataRoundTrip() public view {
-        (address deployer, string memory logo, string memory description, PonsV2LauncherToken.Socials memory socials) =
-            token.getTokenInfo();
+        (
+            address deployer,
+            string memory logo,
+            string memory description,
+            PonsV2LauncherToken.Socials memory socials
+        ) = token.getTokenInfo();
         assertEq(deployer, creator);
         assertEq(logo, "https://logo");
         assertEq(description, "a description");
         assertEq(socials.twitter, "t");
         assertEq(socials.farcaster, "f");
 
-        (string memory twitter, string memory telegram, string memory discord, string memory website, string memory fc) =
-            token.socials();
+        (
+            string memory twitter,
+            string memory telegram,
+            string memory discord,
+            string memory website,
+            string memory fc
+        ) = token.socials();
         assertEq(twitter, "t");
         assertEq(telegram, "g");
         assertEq(discord, "d");

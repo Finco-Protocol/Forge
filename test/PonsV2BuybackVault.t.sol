@@ -65,7 +65,8 @@ contract PonsV2BuybackVaultTest is Test {
         _lock(1000e18);
         assertEq(vault.totalLocked(address(token)), 1000e18);
         assertEq(token.balanceOf(address(vault)), 1000e18);
-        (address creatorRecipient, address protocolRecipient_, uint16 shareBps) = vault.vestingTerms(address(token));
+        (address creatorRecipient, address protocolRecipient_, uint16 shareBps) =
+            vault.vestingTerms(address(token));
         assertEq(creatorRecipient, creator);
         assertEq(protocolRecipient_, protocolRecipient);
         assertEq(shareBps, SHARE);
@@ -76,19 +77,23 @@ contract PonsV2BuybackVaultTest is Test {
     function test_vestingIsLinearOverFiveYears() public {
         _lock(1000e18);
         assertEq(vault.releasable(address(token)), 0);
-        vm.warp(block.timestamp + (365 days * 5) / 2);
-        assertApproxEqRel(vault.releasable(address(token)), 500e18, 1e15, "half the vest must be releasable");
-        vm.warp(block.timestamp + 365 days * 5);
+        uint256 start = vm.getBlockTimestamp();
+        vm.warp(start + (365 days * 5) / 2);
+        assertApproxEqRel(
+            vault.releasable(address(token)), 500e18, 1e15, "half the vest must be releasable"
+        );
+        vm.warp(start + 365 days * 5);
         assertEq(vault.releasable(address(token)), 1000e18, "full vest after five years");
     }
 
     function test_topUpShiftsClockByWeightedAverage() public {
         _lock(1000e18);
-        uint256 firstEnd = block.timestamp + VEST;
+        uint256 start = vm.getBlockTimestamp();
+        uint256 firstEnd = start + VEST;
 
         uint256 delta = 365 days;
-        vm.warp(block.timestamp + delta);
-        uint256 topUpAt = block.timestamp;
+        vm.warp(start + delta);
+        uint256 topUpAt = vm.getBlockTimestamp();
         _lock(1000e18);
 
         // The checkpoint banks the fraction vested before the top-up:
@@ -97,14 +102,15 @@ contract PonsV2BuybackVaultTest is Test {
         uint256 banked = (1000e18 * delta) / VEST;
         uint256 unvested = 1000e18 - banked;
         uint256 remaining = VEST - delta;
-        uint256 combined = (unvested * remaining + 1000e18 * VEST)
-            / (unvested + 1000e18);
+        uint256 combined = (unvested * remaining + 1000e18 * VEST) / (unvested + 1000e18);
         assertEq(vault.vestingStart(address(token)), topUpAt - (VEST - combined));
         assertEq(vault.totalLocked(address(token)), 2000e18);
 
         // Fully vested when the combined clock matures.
         vm.warp(topUpAt + combined + 1);
-        assertEq(vault.releasable(address(token)), 2000e18, "combined clock must cover both deposits");
+        assertEq(
+            vault.releasable(address(token)), 2000e18, "combined clock must cover both deposits"
+        );
     }
 
     function test_releaseSplitsAcrossBeneficiariesThroughEscrow() public {
@@ -114,7 +120,9 @@ contract PonsV2BuybackVaultTest is Test {
         vm.prank(creator);
         vault.release(address(token));
         assertEq(escrow.balanceOfToken(creator, address(token)), 700e18, "creator leg 70%");
-        assertEq(escrow.balanceOfToken(protocolRecipient, address(token)), 300e18, "protocol leg 30%");
+        assertEq(
+            escrow.balanceOfToken(protocolRecipient, address(token)), 300e18, "protocol leg 30%"
+        );
         assertEq(vault.totalReleased(address(token)), 1000e18);
         assertEq(token.balanceOf(address(vault)), 0);
     }
@@ -152,7 +160,7 @@ contract PonsV2BuybackVaultTest is Test {
         token.approve(address(vault), 1e18);
         vault.lock(address(token), 1e18, creator, protocolRecipient, 4_000);
         vm.stopPrank();
-        (, , uint16 shareBps) = vault.vestingTerms(address(token));
+        (,, uint16 shareBps) = vault.vestingTerms(address(token));
         assertEq(shareBps, 4_000, "fresh epoch re-seeds protocol terms from the lock call");
     }
 
@@ -193,14 +201,16 @@ contract PonsV2BuybackVaultTest is Test {
         // 950e18 arrived after the 5% tax; the vest must schedule 950e18,
         // never 1000e18 it cannot pay out.
         vm.warp(block.timestamp + VEST + 1);
-        assertEq(vault.releasable(address(taxed)), 950e18, "vest must track received, not requested");
+        assertEq(
+            vault.releasable(address(taxed)), 950e18, "vest must track received, not requested"
+        );
         assertEq(vault.totalLocked(address(taxed)), 950e18);
     }
 
     function test_vestedNeverExceedsLocked() public {
         _lock(500e18);
         for (uint256 i = 1; i <= 20; ++i) {
-            vm.warp(block.timestamp + (VEST / 10));
+            vm.warp(vm.getBlockTimestamp() + (VEST / 10));
             assertLe(vault.vestedAmount(address(token)), vault.totalLocked(address(token)));
             if (i % 4 == 0) {
                 _lock(100e18);

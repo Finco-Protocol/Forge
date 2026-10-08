@@ -73,7 +73,15 @@ contract CurveInvariants is Test {
             THRESHOLD
         );
         token = new PonsV2LauncherToken(
-            "MEME", "MEME", "", "", PonsV2LauncherToken.Socials("", "", "", "", ""), creator, address(curve), address(this), SUPPLY
+            "MEME",
+            "MEME",
+            "",
+            "",
+            PonsV2LauncherToken.Socials("", "", "", "", ""),
+            creator,
+            address(curve),
+            address(this),
+            SUPPLY
         );
         curve.initialize(address(token));
         launchRecord.setCurve(address(token), address(curve));
@@ -125,10 +133,20 @@ contract CurveInvariants is Test {
                 _sweep();
             }
 
-            assertEq(address(curve).balance, curve.trackedQuote(), "native balance must equal tracked quote");
-            assertEq(token.balanceOf(address(curve)), curve.trackedTokens(), "token balance must equal tracked tokens");
+            assertEq(
+                address(curve).balance,
+                curve.trackedQuote(),
+                "native balance must equal tracked quote"
+            );
+            assertEq(
+                token.balanceOf(address(curve)),
+                curve.trackedTokens(),
+                "token balance must equal tracked tokens"
+            );
             assertLe(
-                curve.realQuoteReserve(), curve.trackedQuote(), "tradeable quote cannot exceed physical holdings"
+                curve.realQuoteReserve(),
+                curve.trackedQuote(),
+                "tradeable quote cannot exceed physical holdings"
             );
             assertLe(ghost_tokenOutstanding, SUPPLY, "outstanding supply can never exceed the mint");
             (, uint256 tRes) = curve.getReserves();

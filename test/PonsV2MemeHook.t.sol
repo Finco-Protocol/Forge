@@ -89,13 +89,19 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         // LP fee (the hook charges instead), tick spacing 10.
         memecoinIsCurrency0 = address(memecoin) < address(quote);
         key = PoolKey({
-            currency0: memecoinIsCurrency0 ? Currency.wrap(address(memecoin)) : Currency.wrap(address(quote)),
-            currency1: memecoinIsCurrency0 ? Currency.wrap(address(quote)) : Currency.wrap(address(memecoin)),
+            currency0: memecoinIsCurrency0
+                ? Currency.wrap(address(memecoin))
+                : Currency.wrap(address(quote)),
+            currency1: memecoinIsCurrency0
+                ? Currency.wrap(address(quote))
+                : Currency.wrap(address(memecoin)),
             fee: 0,
             tickSpacing: 10,
             hooks: hook
         });
-        hook.registerPool(key, address(memecoin), creator, creator, CREATOR_TAX_BPS, true, _policy());
+        hook.registerPool(
+            key, address(memecoin), creator, creator, CREATOR_TAX_BPS, true, _policy()
+        );
 
         // Seed 1 quote : 1000 token and publish the matching slot0 price so
         // the hook's internal price-impact bound operates on a real figure.
@@ -127,8 +133,10 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
             abi.encode(IPoolManager(address(pm)), escrow, protocolRecipient, hookOwner)
         );
         bytes32 initCodeHash = keccak256(initCode);
-        uint160 flags =
-            uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        uint160 flags = uint160(
+            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG
+                | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        );
         bytes32 salt = 0;
         while (uint160(_create2Address(salt, initCodeHash, address(deployer))) & 0x3FFF != flags) {
             salt = bytes32(uint256(salt) + 1);
@@ -141,12 +149,18 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         pure
         returns (address)
     {
-        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
+        return address(
+            uint160(
+                uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))
+            )
+        );
     }
 
     function test_hookAddressCarriesPermissionFlags() public view {
-        uint160 flags =
-            uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        uint160 flags = uint160(
+            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG
+                | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        );
         assertEq(uint160(address(hook)) & 0x3FFF, flags, "hook address must encode its permissions");
     }
 
@@ -207,12 +221,16 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         assertGt(pendingFee, 0, "hook fee must accrue in the output currency");
         assertGt(pendingTax, 0, "creator tax must accrue in the output currency");
         assertEq(pendingFee, (grossOut * HOOK_FEE_BPS) / 10_000, "fee must be the configured cut");
-        assertEq(pendingTax, (grossOut * CREATOR_TAX_BPS) / 10_000, "tax must be the configured cut");
+        assertEq(
+            pendingTax, (grossOut * CREATOR_TAX_BPS) / 10_000, "tax must be the configured cut"
+        );
         // The trader received exactly gross output minus both cuts.
         assertEq(received, grossOut - pendingFee - pendingTax, "swapper must pay the hook's cuts");
         // Buyback earmark: (fee - fee*30%) * 50%
         uint256 creatorSlice = pendingFee - (pendingFee * PROTOCOL_SHARE) / 10_000;
-        assertEq(hook.pendingBuyback(poolId, address(memecoin)), (creatorSlice * BUYBACK_SHARE) / 10_000);
+        assertEq(
+            hook.pendingBuyback(poolId, address(memecoin)), (creatorSlice * BUYBACK_SHARE) / 10_000
+        );
     }
 
     function test_afterSwap_quoteDenominatedFeesAccrueInQuote() public {
@@ -224,7 +242,9 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         assertGt(pendingFee, 0, "sell-side fee must accrue in quote");
         assertEq(pendingFee, (grossOut * HOOK_FEE_BPS) / 10_000);
         assertEq(received, grossOut - pendingFee - pendingTax);
-        assertEq(hook.pendingFees(poolId, address(memecoin)), 0, "no memecoin-denominated fee on sells");
+        assertEq(
+            hook.pendingFees(poolId, address(memecoin)), 0, "no memecoin-denominated fee on sells"
+        );
     }
 
     // ── Sweep / distribute ───────────────────────────────────────────────
@@ -235,13 +255,19 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         // the earmark rides the fee bucket and demands the operator.)
         MockERC20 quote2 = new MockERC20("QUOTE2", "Q2", 18, address(0), 0);
         PoolKey memory k2 = PoolKey({
-            currency0: memecoinIsCurrency0 ? Currency.wrap(address(memecoin)) : Currency.wrap(address(quote2)),
-            currency1: memecoinIsCurrency0 ? Currency.wrap(address(quote2)) : Currency.wrap(address(memecoin)),
+            currency0: memecoinIsCurrency0
+                ? Currency.wrap(address(memecoin))
+                : Currency.wrap(address(quote2)),
+            currency1: memecoinIsCurrency0
+                ? Currency.wrap(address(quote2))
+                : Currency.wrap(address(memecoin)),
             fee: 0,
             tickSpacing: 10,
             hooks: hook
         });
-        hook.registerPool(k2, address(memecoin), creator, creator, CREATOR_TAX_BPS, false, _policy());
+        hook.registerPool(
+            k2, address(memecoin), creator, creator, CREATOR_TAX_BPS, false, _policy()
+        );
         quote2.mint(address(this), 110e18);
         quote2.approve(address(pm), type(uint256).max);
         pm.fundToken(address(quote2), 10e18);
@@ -254,7 +280,9 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         uint256 tax = hook.pendingCreatorTax(poolId2, address(quote2));
         assertGt(fee, 0);
         assertEq(received, grossOut - fee - tax);
-        assertEq(hook.pendingBuyback(poolId2, address(quote2)), 0, "no earmark while buyback is off");
+        assertEq(
+            hook.pendingBuyback(poolId2, address(quote2)), 0, "no earmark while buyback is off"
+        );
 
         vm.prank(creator);
         hook.sweepPoolFees(poolId2, 0, 0);
@@ -317,7 +345,11 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         vm.expectRevert();
         hook.sweepPoolFees(poolId, type(uint256).max / 2, 0);
 
-        assertEq(hook.pendingFees(poolId, address(memecoin)), pendingFee, "fee bucket must survive the revert");
+        assertEq(
+            hook.pendingFees(poolId, address(memecoin)),
+            pendingFee,
+            "fee bucket must survive the revert"
+        );
         assertEq(hook.pendingCreatorTax(poolId, address(memecoin)), pendingTax);
         assertEq(hook.pendingBuyback(poolId, address(memecoin)), pendingBuyback);
     }
@@ -344,7 +376,9 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         uint256 protocolAmount = (fee * PROTOCOL_SHARE) / 10_000;
 
         vm.prank(stranger);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger)
+        );
         hook.rescuePoolFees(poolId);
 
         vm.prank(hookOwner);
@@ -365,7 +399,7 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
 
         address next = makeAddr("nextCreator");
         hook.setCreatorFeeRecipient(poolId, next);
-        (, , , , address creatorNow, , , , , , , ,) = hook.launches(poolId);
+        (,,,, address creatorNow,,,,,,,,) = hook.launches(poolId);
         assertEq(creatorNow, next);
     }
 
@@ -376,7 +410,7 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         hook.setBuybackEnabled(poolId, false);
 
         hook.setBuybackEnabled(poolId, false);
-        (bool registered, , , , , , , , , , , , bool buybackNow) = hook.launches(poolId);
+        (bool registered,,,,,,,,,,,, bool buybackNow) = hook.launches(poolId);
         assertTrue(registered);
         assertFalse(buybackNow);
     }
@@ -388,7 +422,8 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         // unlock context, and V4's unlock only ever calls the unlocker's own
         // callback — so the hook's callback is reachable only through its own
         // operator/creator-gated sweep path.
-        bytes memory data = abi.encode(key.toId(), PonsV2MemeHook.SwapDirection.MemecoinToQuote, 1e18);
+        bytes memory data =
+            abi.encode(key.toId(), PonsV2MemeHook.SwapDirection.MemecoinToQuote, 1e18);
         vm.expectRevert(ImmutableState.NotPoolManager.selector);
         hook.unlockCallback(data);
     }
@@ -428,7 +463,10 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         return _sellTokensOn(key, amountIn);
     }
 
-    function _buyTokensOn(PoolKey memory k, uint256 amountIn) internal returns (uint256 grossOut, uint256 received) {
+    function _buyTokensOn(PoolKey memory k, uint256 amountIn)
+        internal
+        returns (uint256 grossOut, uint256 received)
+    {
         bool zfo = Currency.unwrap(k.currency0) != address(memecoin);
         grossOut = _quoteGross(k, zfo, amountIn);
         uint256 balBefore = memecoin.balanceOf(address(this));
@@ -441,7 +479,10 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
         received = memecoin.balanceOf(address(this)) - balBefore;
     }
 
-    function _sellTokensOn(PoolKey memory k, uint256 amountIn) internal returns (uint256 grossOut, uint256 received) {
+    function _sellTokensOn(PoolKey memory k, uint256 amountIn)
+        internal
+        returns (uint256 grossOut, uint256 received)
+    {
         bool zfo = Currency.unwrap(k.currency0) == address(memecoin);
         grossOut = _quoteGross(k, zfo, amountIn);
         uint256 balBefore = quoteCurrencyOf(k).balanceOf(address(this));
@@ -460,7 +501,11 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
             : MockERC20(Currency.unwrap(k.currency0));
     }
 
-    function _quoteGross(PoolKey memory k, bool zeroForOne_, uint256 amountIn) internal view returns (uint256) {
+    function _quoteGross(PoolKey memory k, bool zeroForOne_, uint256 amountIn)
+        internal
+        view
+        returns (uint256)
+    {
         address inputCurrency = Currency.unwrap(zeroForOne_ ? k.currency0 : k.currency1);
         address outputCurrency = Currency.unwrap(zeroForOne_ ? k.currency1 : k.currency0);
         uint256 inReserve = pm.poolReserve(inputCurrency);
@@ -471,8 +516,9 @@ contract PonsV2MemeHookTest is Test, IUnlockCallback {
     function unlockCallback(bytes calldata) external returns (bytes memory) {
         require(msg.sender == address(pm), "only manager");
         if (!swapMode) return "";
-        SwapParams memory p =
-            SwapParams({zeroForOne: zeroForOne, amountSpecified: -int256(swapAmountIn), sqrtPriceLimitX96: 0});
+        SwapParams memory p = SwapParams({
+            zeroForOne: zeroForOne, amountSpecified: -int256(swapAmountIn), sqrtPriceLimitX96: 0
+        });
         BalanceDelta delta = pm.swap(swapKey, p, "");
         _settleLeg(delta);
         return "";

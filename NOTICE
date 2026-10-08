@@ -1,0 +1,62 @@
+NOTICE
+======
+
+FINCO Forge — https://github.com/Finco-Protocol/Forge
+An independent FINCO Protocol project; a GitHub-native fork of
+ponsdotdev/pons-labs (upstream commit 18da08d944ee4bed41d43dada3f4c29f5f524e57).
+
+This product is provided AS IS, with no deployment and no production use.
+See README.md ("Status and disclaimers") and docs/SECURITY-REVIEW.md.
+
+1. UPSTREAM PROJECT
+-------------------
+The PONS launchpad contracts (V1 and V2) are Copyright (c) 2026 Pons Labs,
+LLC, licensed MIT per the SPDX headers of contractsV1/src and
+contractsV2/src. They are retained here unmodified. FINCO Protocol is not
+affiliated with, sponsored, or endorsed by Pons Labs. No upstream audit
+coverage, verification, or support applies to this fork.
+
+2. THIRD-PARTY VENDORED COMPONENTS
+----------------------------------
+Per-file licensing and byte-level provenance evidence:
+docs/LICENSE-INVENTORY.md and scripts/vendor-pins.tsv.
+
+  OpenZeppelin Contracts (vendored subsets in contractsV1/lib and
+    contractsV2/lib) ......................... MIT. (c) OpenZeppelin.
+    38 files: byte-identical or whitespace-only variants of upstream
+    releases v5.0.2 / v5.1.0 / v5.5.0 / v5.6.0 / master@dab86115.
+
+  Uniswap v4-core (vendored subset, 34 files)  MIT, except:
+    src/libraries/Pool.sol ................... BUSL-1.1 (upstream and here)
+    src/libraries/Position.sol ............... BUSL-1.1 (upstream and here)
+    Pinned to Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75.
+    The BUSL-1.1 files are NOT MIT-licensed; commercial use requires legal
+    review of the Uniswap BUSL terms (license text governs; Change Date
+    applies per that license).
+
+  Uniswap v4-periphery (vendored subset, 14 files) ... MIT.
+    (c) Universal Navigation Inc. (Uniswap Labs).
+    Pinned to commits 9969eec44cfdf07e24b41de47f40276a58401976 (13 files)
+    and 363226d9e1e2180b67bf6857023dbaad751010c5 (Actions.sol).
+
+  Uniswap Permit2 interfaces (2 files) ............... MIT. Uniswap Labs.
+    Pinned to commit cc56ad0f3439c502c246fc5cfcc3db92bb8b7219.
+
+  BaseHook.sol (contractsV2/lib/v4-hooks-public) ..... MIT SPDX header.
+    Upstream origin UNRESOLVED — no public source repository matched this
+    file's content. Provenance must be established before production use.
+
+  PonsTickMath.sol (contractsV1/src) ................. GPL-2.0-or-later.
+    Uniswap V3 TickMath lineage; NOT MIT-licensed. V1-only; excluded from
+    the V2 build path.
+
+  forge-std (test-only submodule, contractsV2/lib/forge-std) .. MIT OR
+    Apache-2.0. Pinned to f3dae6e6ee381f25eb6a246f7da9b85c91a68219 (v1.17.0).
+    Never compiled into production artifacts.
+
+3. TRADEMARKS AND AFFILIATION
+-----------------------------
+"PONS", "Pons", "ponsfamily", "Uniswap", "OpenZeppelin", "Permit2", and
+"Robinhood" are marks of their respective owners. This fork's use of their
+open-source code does not imply affiliation with, sponsorship, or endorsement
+by any of them. FINCO Protocol is not affiliated with Robinhood Markets, Inc.

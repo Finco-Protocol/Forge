@@ -38,18 +38,29 @@ contract development (Workflow-01 acceptance condition).
 
 - [ ] `ForgeBindingRegistry` + EIP-712 launch gate against the mock
       factory harness (can start immediately — factory ABI only).
-- [ ] GitHub App attestation service (repo admin verification, webhook
+- [ ] GitHub App attestation service (repo-ID identity, freshness, webhook
       revocation).
-- [ ] Coordination item: Pons owner closes public launches (`canLaunch`
-      currently open) and whitelists the gate — otherwise the gate is
-      bypassable.
+- [ ] Deploy the **Forge-owned factory** configured-closed (launchEnabled
+      false from genesis, whitelist = gate only) — the Forge venue never
+      depends on PONS-owner configuration. The original PONS factory
+      remains PONS-operated and is used only for the separate FINCO token
+      issuance track.
+- [ ] Factory modification M-ELIG (eligibility authority enforced inside
+      `_launchToken`): design → independent review → deploy, so the
+      no-launch-without-authorization invariant is structural rather than
+      owner-trust-based (docs/FORGE-CHANGE-MAP.md §4.4).
 
 ## N2. Forge economics add-ons
 
-- [ ] Fee-collection route decision (creator-tax claimant vs buyback
-      vesting) with counsel review of BUSL exposure (F-09).
+- [ ] Fee-model decision per docs/FORGE-CHANGE-MAP.md §6: MODEL B is the
+      only route to the illustrative 70/20/10 distribution and remains
+      **`FORGE_FEE_POLICY_AUTHORITY_UNPROVEN`** until deployed from
+      reviewed source; MODEL C (creator delegation) is not equivalent to a
+      protocol-wide distribution and must never be reported as such.
 - [ ] `ForgeBuybackBurner` — build with `FINCO_BURN_ENABLED=false`;
-      flip only by later, explicit governance action.
+      flip only by later, explicit governance action. PONS five-year
+      buyback vesting is locking, not burning; keep the two distinct in
+      all reporting.
 
 ## Maintenance
 

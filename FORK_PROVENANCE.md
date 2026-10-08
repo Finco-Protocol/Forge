@@ -61,3 +61,28 @@ completed third-party audit (Hackerbane HB-AR-2026.2, draft v0.5) reviewed
 the live deployed tree via a Blockscout snapshot precisely because git HEAD
 does not build to the live factory. These findings are recorded in
 `docs/SECURITY-REVIEW.md` as F-01 (blocking) and F-02.
+
+## Correction A addendum (2026-10-08)
+
+- **CI integrity:** the full-build canary is now a controlled classifier
+  (`scripts/canary-classify.sh`) that accepts only the verdict
+  `UPSTREAM_V2_FACTORY_BLOCKED` — the exact documented F-01 compiler
+  failure — and hard-fails on unexpected success, new/different compiler
+  errors, infrastructure errors, or ambiguous results. Formatting of
+  Forge-authored test code and zero-finding lint on test code are now
+  required CI gates; upstream-source lint stays advisory and fully
+  reported.
+- **Fork attribution:** the README now identifies this repository as an
+  independent FINCO Protocol fork of `ponsdotdev/pons-labs`; root
+  `LICENSE` (MIT, with third-party carve-outs) and `NOTICE` (per-component
+  third-party notices incl. BUSL-1.1/GPL) were added.
+- **Dependency-integrity reconciliation:** the vendor ledger was recomputed
+  from actual repository content — **89 tracked vendored `.sol` files**
+  (V1 18 + V2 71; the earlier 68/70 figures were wrong), classified as
+  72 byte-identical + 16 whitespace-only + 1 unresolved (`BaseHook.sol`),
+  with exact pinned upstream evidence per file
+  (`scripts/vendor-pins.tsv`). The previously "unexplained" non-identical
+  OZ files are now proven authentic: `SafeERC20.sol` matches OpenZeppelin
+  master commit `dab86115`, `Actions.sol` matches v4-periphery commit
+  `363226d9`; the remaining whitespace-only files are formatter-normalized
+  copies of exact upstream revisions.

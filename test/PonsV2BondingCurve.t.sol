@@ -109,7 +109,15 @@ contract PonsV2BondingCurveTest is Test {
         fresh.initialize(address(token));
 
         PonsV2LauncherToken tk = new PonsV2LauncherToken(
-            "M2", "M2", "", "", PonsV2LauncherToken.Socials("", "", "", "", ""), creator, address(fresh), address(this), SUPPLY
+            "M2",
+            "M2",
+            "",
+            "",
+            PonsV2LauncherToken.Socials("", "", "", "", ""),
+            creator,
+            address(fresh),
+            address(this),
+            SUPPLY
         );
         fresh.initialize(address(tk));
         vm.expectRevert(PonsV2BondingCurve.AlreadyInitialized.selector);
@@ -125,10 +133,29 @@ contract PonsV2BondingCurveTest is Test {
 
     function test_initializeRejectsRoundedAwayAllocation() public {
         PonsV2BondingCurve tiny = new PonsV2BondingCurve(
-            address(0), creator, address(this), feePolicy, _policy(), escrow, vault, 1, FEE_BPS, TAX_BPS, true, 1e30
+            address(0),
+            creator,
+            address(this),
+            feePolicy,
+            _policy(),
+            escrow,
+            vault,
+            1,
+            FEE_BPS,
+            TAX_BPS,
+            true,
+            1e30
         );
         PonsV2LauncherToken tk = new PonsV2LauncherToken(
-            "M3", "M3", "", "", PonsV2LauncherToken.Socials("", "", "", "", ""), creator, address(tiny), address(this), SUPPLY
+            "M3",
+            "M3",
+            "",
+            "",
+            PonsV2LauncherToken.Socials("", "", "", "", ""),
+            creator,
+            address(tiny),
+            address(this),
+            SUPPLY
         );
         vm.expectRevert(PonsV2BondingCurve.InvalidLaunchEconomics.selector);
         tiny.initialize(address(tk));
@@ -141,7 +168,8 @@ contract PonsV2BondingCurveTest is Test {
         uint256 fee = (quoteIn * FEE_BPS) / 10_000;
         uint256 tax = (quoteIn * TAX_BPS) / 10_000;
         (uint256 qRes, uint256 tRes) = curve.getReserves();
-        uint256 expectedOut = (quoteIn * (10_000 - FEE_BPS - TAX_BPS) * tRes) / (10_000 * qRes + quoteIn * (10_000 - FEE_BPS - TAX_BPS));
+        uint256 expectedOut = (quoteIn * (10_000 - FEE_BPS - TAX_BPS) * tRes)
+            / (10_000 * qRes + quoteIn * (10_000 - FEE_BPS - TAX_BPS));
 
         vm.deal(buyer, quoteIn);
         vm.prank(buyer);
@@ -178,7 +206,9 @@ contract PonsV2BondingCurveTest is Test {
 
         assertEq(got, SUPPLY - reservedTokens, "fill must stop at the reserved allocation");
         assertLt(address(curve).balance, huge, "unused quote must be refunded");
-        assertEq(address(curve).balance, curve.trackedQuote(), "curve balance must equal tracked quote");
+        assertEq(
+            address(curve).balance, curve.trackedQuote(), "curve balance must equal tracked quote"
+        );
         assertEq(curve.readyToGraduate(), true, "sellable exhaustion must arm graduation");
         // Trading is closed on both sides once the allocation is exhausted.
         vm.deal(buyer, 1e18);
@@ -197,7 +227,9 @@ contract PonsV2BondingCurveTest is Test {
         vm.deal(buyer, quoteIn);
         vm.prank(buyer);
         vm.expectRevert(
-            abi.encodeWithSelector(PonsV2BondingCurve.SlippageExceeded.selector, expectedOut, expectedOut + 1)
+            abi.encodeWithSelector(
+                PonsV2BondingCurve.SlippageExceeded.selector, expectedOut, expectedOut + 1
+            )
         );
         curve.buy{value: quoteIn}(quoteIn, expectedOut + 1, buyer);
     }
@@ -259,7 +291,9 @@ contract PonsV2BondingCurveTest is Test {
         vm.startPrank(buyer);
         token.approve(address(curve), type(uint256).max);
         vm.expectRevert(
-            abi.encodeWithSelector(PonsV2BondingCurve.SlippageExceeded.selector, quoteOut, type(uint256).max)
+            abi.encodeWithSelector(
+                PonsV2BondingCurve.SlippageExceeded.selector, quoteOut, type(uint256).max
+            )
         );
         curve.sell(tokensIn, type(uint256).max, buyer);
         vm.stopPrank();
@@ -331,10 +365,29 @@ contract PonsV2BondingCurveTest is Test {
         aggressivePolicy.setBuybackBurnBps(10_000);
 
         PonsV2BondingCurve c = new PonsV2BondingCurve(
-            address(0), creator, address(this), aggressivePolicy, _aggressiveSnapshot(), escrow, vault, 1e18, 1_000, 0, true, 1e18
+            address(0),
+            creator,
+            address(this),
+            aggressivePolicy,
+            _aggressiveSnapshot(),
+            escrow,
+            vault,
+            1e18,
+            1_000,
+            0,
+            true,
+            1e18
         );
         PonsV2LauncherToken tk = new PonsV2LauncherToken(
-            "M6", "M6", "", "", PonsV2LauncherToken.Socials("", "", "", "", ""), creator, address(c), address(this), SUPPLY
+            "M6",
+            "M6",
+            "",
+            "",
+            PonsV2LauncherToken.Socials("", "", "", "", ""),
+            creator,
+            address(c),
+            address(this),
+            SUPPLY
         );
         c.initialize(address(tk));
         launchRecord.setCurve(address(tk), address(c));
@@ -347,7 +400,9 @@ contract PonsV2BondingCurveTest is Test {
         assertEq(fee, 0.1e18, "10% fee on the 1 ETH spent");
         // Reserve movement would be ~0.1/(1.0+0.9) = ~526bps > 300bps.
         (uint256 qRes,) = c.getReserves();
-        assertGt((fee * 10_000) / (qRes + fee), 300, "test must size the earmark past the impact bound");
+        assertGt(
+            (fee * 10_000) / (qRes + fee), 300, "test must size the earmark past the impact bound"
+        );
 
         vm.prank(operator);
         c.sweepFees(1);
@@ -355,7 +410,11 @@ contract PonsV2BondingCurveTest is Test {
         // Whole creator bucket paid out; nothing locked in the vault. The
         // earmark is a marker on part of the bucket, not an addition: the
         // fold-back returns it, so the creator nets exactly their bucket.
-        assertEq(vault.totalLocked(address(tk)), 0, "buyback must fold back when impact bound cannot hold");
+        assertEq(
+            vault.totalLocked(address(tk)),
+            0,
+            "buyback must fold back when impact bound cannot hold"
+        );
         assertEq(escrow.balanceOf(protocolRecipient), 0, "zero protocol share");
         assertEq(escrow.balanceOf(creator), 0.1e18, "creator bucket with the earmark folded back");
         assertEq(c.quoteFeeBalance(), 0);
@@ -477,10 +536,29 @@ contract PonsV2BondingCurveTest is Test {
     function test_erc20Pair_endToEndAccounting() public {
         MockERC20 pair = new MockERC20("PAIR", "PAIR", 18, address(0), 0);
         PonsV2BondingCurve c = new PonsV2BondingCurve(
-            address(pair), creator, address(this), feePolicy, _policy(), escrow, vault, PHANTOM_QUOTE, FEE_BPS, TAX_BPS, false, THRESHOLD
+            address(pair),
+            creator,
+            address(this),
+            feePolicy,
+            _policy(),
+            escrow,
+            vault,
+            PHANTOM_QUOTE,
+            FEE_BPS,
+            TAX_BPS,
+            false,
+            THRESHOLD
         );
         PonsV2LauncherToken tk = new PonsV2LauncherToken(
-            "M4", "M4", "", "", PonsV2LauncherToken.Socials("", "", "", "", ""), creator, address(c), address(this), SUPPLY
+            "M4",
+            "M4",
+            "",
+            "",
+            PonsV2LauncherToken.Socials("", "", "", "", ""),
+            creator,
+            address(c),
+            address(this),
+            SUPPLY
         );
         c.initialize(address(tk));
 
@@ -507,10 +585,29 @@ contract PonsV2BondingCurveTest is Test {
     function test_erc20PairFeeOnTransfer_creditsWhatArrived() public {
         MockERC20 pair = new MockERC20("FOF", "FOF", 18, makeAddr("sink"), 1_000); // 10% tax
         PonsV2BondingCurve c = new PonsV2BondingCurve(
-            address(pair), creator, address(this), feePolicy, _policy(), escrow, vault, PHANTOM_QUOTE, 0, 0, false, THRESHOLD
+            address(pair),
+            creator,
+            address(this),
+            feePolicy,
+            _policy(),
+            escrow,
+            vault,
+            PHANTOM_QUOTE,
+            0,
+            0,
+            false,
+            THRESHOLD
         );
         PonsV2LauncherToken tk = new PonsV2LauncherToken(
-            "M5", "M5", "", "", PonsV2LauncherToken.Socials("", "", "", "", ""), creator, address(c), address(this), SUPPLY
+            "M5",
+            "M5",
+            "",
+            "",
+            PonsV2LauncherToken.Socials("", "", "", "", ""),
+            creator,
+            address(c),
+            address(this),
+            SUPPLY
         );
         c.initialize(address(tk));
 

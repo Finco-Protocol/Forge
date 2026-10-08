@@ -69,10 +69,17 @@ deployed system contains snipe-tax logic this repository's curve lacks.
 Corroboration: upstream issue #10 and the Hackerbane audit, which reviewed
 a Blockscout-verified snapshot instead of git HEAD for the same reason.
 
-CI therefore runs the full build as a `continue-on-error` **canary job**
-that fails loudly with these errors and flips green if upstream ever
-repairs the tree (at which point the canary should be converted into a
-gate).
+CI therefore runs the full build as a **controlled canary job**
+(`scripts/canary-classify.sh`) that classifies the result rather than
+suppressing it. The only accepted verdict is
+`UPSTREAM_V2_FACTORY_BLOCKED` — the exact documented F-01 compiler failure
+(solc 9582, `exemptFromSnipeTax` on `PonsV2BondingCurve`, raised from
+`PonsV2LaunchFactory.sol`, with no other compiler errors). An unexpected
+successful build, a new or different compilation failure, an
+infrastructure/tool error, or any ambiguous result fails the job. A green
+canary records only that the upstream defect is unchanged; it is **not** a
+successful build of the PONS V2 protocol, and it must be converted into a
+hard gate before any PR claiming deployable financial-contract readiness.
 
 ### Stack-too-deep note
 

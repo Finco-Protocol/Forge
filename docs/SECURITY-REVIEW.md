@@ -187,9 +187,14 @@ tests. Callers should compute floors off an independent price.
 
 Easter-egg markdown/JPEG files inside vendored dependency trees
 (`toto.*`, `truth.md`, `oz.jpg`, `ozz.md`); `BaseHook.sol` with no
-verifiable public upstream; markdown inside `src/v2/testing/` describing
+verifiable public upstream (content-pinned; replaced on a verifiable
+source before production); markdown inside `src/v2/testing/` describing
 two undeployed Solana-bridge concepts. No code impact found; replace/
-prune in any production tree.
+prune in any production tree. Correction A additionally reconciled the
+vendored-file ledger (89 files: 72 byte-identical, 16 whitespace-only
+variants of exact upstream revisions, 1 unresolved) and proved the
+previously "unexplained" OZ diffs authentic via upstream commit pins —
+see `docs/LICENSE-INVENTORY.md` §2/§Method.
 
 ### F-15 · CONSIDERED AND DISMISSED · Forced fee conversion via `unlockCallback`
 

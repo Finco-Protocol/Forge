@@ -1,24 +1,100 @@
 <div align="center">
 
+# FINCO Forge
+
+**A GitHub-native fork of PONS Labs, independently operated by FINCO Protocol.**
+
+*Engineering foundation — not a production launchpad. Nothing here is deployed.*
+
+</div>
+
+---
+
+## About this repository
+
+This repository (`Finco-Protocol/Forge`) is an **independent FINCO Protocol
+project**: a GitHub-native fork of [`ponsdotdev/pons-labs`](https://github.com/ponsdotdev/pons-labs)
+(the "PONS" token-launchpad contracts, upstream commit
+`18da08d944ee4bed41d43dada3f4c29f5f524e57`). Fork provenance is recorded in
+[`FORK_PROVENANCE.md`](./FORK_PROVENANCE.md).
+
+**Status and disclaimers — read before relying on anything here:**
+
+- **PONS V2 is the current preferred technical candidate** for Forge's
+  engine, based on the engineering comparison in
+  [`docs/ENGINE-COMPARISON.md`](./docs/ENGINE-COMPARISON.md). This is an
+  engineering preference, not a production decision.
+- **The launchpad is not production-ready.** The full product is
+  **`PRODUCTION_BLOCKED`**. No FINCO Forge contracts have been deployed to
+  any chain, and none may be deployed from this repository's current state.
+- **The published PONS V2 source has unresolved blockers** documented as
+  F-01/F-02 in [`docs/SECURITY-REVIEW.md`](./docs/SECURITY-REVIEW.md):
+  the published V2 tree does not compile, and required deployed components
+  (including the fee escrow) are not published. The published source has
+  not been tied to deployed bytecode.
+- **GitHub verification and FINCO burn are proposed future features,**
+  design-only, in [`docs/FORGE-CHANGE-MAP.md`](./docs/FORGE-CHANGE-MAP.md).
+  They are **not shipped functionality**.
+- **FINCO token issuance through original PONS V2 is a separate track,**
+  operated independently of this repository. No FINCO token contract
+  address is defined or implied here.
+- **No affiliation or endorsement is implied.** FINCO Protocol is not
+  affiliated with, sponsored by, endorsed by, or audited by Pons Labs,
+  PONS, Uniswap Labs, OpenZeppelin, or Robinhood Markets. No upstream or
+  third-party audit coverage transfers to this fork.
+
+## What this fork changes
+
+Nothing in the upstream production contract trees. This fork adds a
+reproducible Foundry harness (87 passing tests, invariants, mocks), CI
+including a controlled full-build canary, a per-file license/provenance
+inventory, an independent security review with findings register, chain
+validation, an engine comparison, and design-only documentation — see
+[`FORK_PROVENANCE.md`](./FORK_PROVENANCE.md) and [`docs/BUILD.md`](./docs/BUILD.md).
+
+## License and attribution
+
+Forge-authored additions (build harness, tests, scripts, CI, docs) are MIT
+— see [`LICENSE`](./LICENSE). Third-party notices, including required
+attribution for upstream PONS code and the vendored OpenZeppelin / Uniswap
+v4 (incl. BUSL-1.1 components) / Permit2 dependencies, are in
+[`NOTICE`](./NOTICE) and [`docs/LICENSE-INVENTORY.md`](./docs/LICENSE-INVENTORY.md).
+Upstream first-party PONS contracts remain MIT per their SPDX headers;
+BUSL-1.1 and GPL components keep their own licenses and are flagged for
+legal review.
+
+## Original upstream documentation
+
+The original PONS README follows, unmodified below the divider, for
+reference. Upstream documentation lives at
+[github.com/ponsdotdev/pons-labs](https://github.com/ponsdotdev/pons-labs)
+and [ponsfamily.com](https://ponsfamily.com).
+
+---
+
+<!-- BEGIN ORIGINAL UPSTREAM README (ponsdotdev/pons-labs @ 18da08d944ee4bed41d43dada3f4c29f5f524e57) -->
+
+<div align="center">
+
 <img src="media/logo.png" alt="Pons Family" width="96" height="96" />
- 
+
 # Pons Launchpad Contracts — V1 & V2
-     
+
 <a href="https://ponsfamily.com">
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=500&size=20&duration=2800&pause=900&color=1a2740&center=true&vCenter=true&width=680&lines=Token+launchpad+contracts+for+ponsfamily.com;V1%3A+CREATE2+factory+%2B+locked+Uniswap+V3+liquidity;V2%3A+bonding+curve+that+graduates+into+Uniswap+V4;Shared+fee+policy%2C+buyback+vault+and+permanent+locks;Deployed+on+Robinhood+Chain" alt="Typing SVG" />
-</a>                
-                        
+</a>
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-1a2740?style=for-the-badge)](LICENSE)
 [![Solidity](https://img.shields.io/badge/solidity-%5E0.8.26%20%7C%20%5E0.8.30-1a2740?style=for-the-badge&logo=solidity&logoColor=white)](#repository-layout)
 [![Chain](https://img.shields.io/badge/chain-Robinhood%20Chain-1a2740?style=for-the-badge)](#stack)
 [![Website](https://img.shields.io/badge/website-ponsfamily.com-1a2740?style=for-the-badge&logo=googlechrome&logoColor=white)](https://ponsfamily.com)
 [![X](https://img.shields.io/badge/follow-%40ponsdotfamily-1a2740?style=for-the-badge&logo=x&logoColor=white)](https://x.com/ponsdotfamily)
- 
+
 [![OpenZeppelin](https://img.shields.io/badge/security-OpenZeppelin-1a2740?style=flat-square)](#vendor-dependencies)
 [![Uniswap V3](https://img.shields.io/badge/v1%20liquidity-Uniswap%20V3-1a2740?style=flat-square)](#v1--createmm2-factory--locked-uniswap-v3-liquidity)
 [![Uniswap V4](https://img.shields.io/badge/v2%20liquidity-Uniswap%20V4-1a2740?style=flat-square)](#v2--bonding-curve--graduated-uniswap-v4-pool)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-1a2740?style=flat-square)](#contributing)
-     
+
 </div>
 
 <img src="https://capsule-render.vercel.app/api?type=rect&color=0:1a2740,100:05070d&height=3&section=header" width="100%" />
@@ -254,3 +330,5 @@ Issues and pull requests are welcome.
 
 If this project is useful to you, consider starring the repository.
 </div>
+
+<!-- END ORIGINAL UPSTREAM README -->

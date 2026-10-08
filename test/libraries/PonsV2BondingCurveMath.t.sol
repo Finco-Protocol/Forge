@@ -11,11 +11,19 @@ contract PonsV2BondingCurveMathTest is Test {
 
     /// @notice External wrapper so library reverts happen at a lower call
     /// depth, where vm.expectRevert can intercept them.
-    function callGetAmountOut(uint256 a, uint256 ri, uint256 ro, uint256 f) external pure returns (uint256) {
+    function callGetAmountOut(uint256 a, uint256 ri, uint256 ro, uint256 f)
+        external
+        pure
+        returns (uint256)
+    {
         return PonsV2BondingCurveMath.getAmountOut(a, ri, ro, f);
     }
 
-    function callGetAmountIn(uint256 o, uint256 ri, uint256 ro, uint256 f) external pure returns (uint256) {
+    function callGetAmountIn(uint256 o, uint256 ri, uint256 ro, uint256 f)
+        external
+        pure
+        returns (uint256)
+    {
         return PonsV2BondingCurveMath.getAmountIn(o, ri, ro, f);
     }
 
@@ -60,7 +68,8 @@ contract PonsV2BondingCurveMathTest is Test {
         uint256 out = PonsV2BondingCurveMath.getAmountOut(amountIn, 10_000e18, 5_000e18, 300);
         assertGe(out, 1e18, "getAmountIn must round up to cover the exact output");
         // And one wei less must not.
-        uint256 outLess = PonsV2BondingCurveMath.getAmountOut(amountIn - 1, 10_000e18, 5_000e18, 300);
+        uint256 outLess =
+            PonsV2BondingCurveMath.getAmountOut(amountIn - 1, 10_000e18, 5_000e18, 300);
         assertLt(outLess, 1e18, "input one wei lower must undershoot");
     }
 
@@ -90,8 +99,11 @@ contract PonsV2BondingCurveMathTest is Test {
 
         // Use the non-reverting variant: dust trades against huge reserves
         // legitimately round to zero output.
-        uint256 out1 = PonsV2BondingCurveMath.quoteAmountOut(amountIn, reserveIn, reserveOut, feeBps);
-        uint256 out2 = PonsV2BondingCurveMath.quoteAmountOut(uint256(amountIn) + 1, reserveIn, reserveOut, feeBps);
+        uint256 out1 =
+            PonsV2BondingCurveMath.quoteAmountOut(amountIn, reserveIn, reserveOut, feeBps);
+        uint256 out2 = PonsV2BondingCurveMath.quoteAmountOut(
+            uint256(amountIn) + 1, reserveIn, reserveOut, feeBps
+        );
         assertGe(out2, out1, "output must be monotonic in input");
         assertLe(out2, reserveOut, "output can never exceed the output reserve");
     }

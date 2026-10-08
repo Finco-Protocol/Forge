@@ -71,7 +71,12 @@ contract MockFeeEscrow is IPonsV2FeeEscrow {
         return ledger[recipient][address(0)];
     }
 
-    function balanceOfToken(address recipient, address token) external view override returns (uint256) {
+    function balanceOfToken(address recipient, address token)
+        external
+        view
+        override
+        returns (uint256)
+    {
         return ledger[recipient][token];
     }
 
@@ -151,7 +156,11 @@ contract MockLaunchRecord {
         curveForToken[token] = curve;
     }
 
-    function getLaunchedToken(address token) external view returns (IPonsV2LaunchFactory.LaunchedToken memory) {
+    function getLaunchedToken(address token)
+        external
+        view
+        returns (IPonsV2LaunchFactory.LaunchedToken memory)
+    {
         return IPonsV2LaunchFactory.LaunchedToken({
             token: token,
             curve: curveForToken[token],

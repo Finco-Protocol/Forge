@@ -85,7 +85,8 @@ contract MiniPoolManager {
         uint256 amountIn = uint256(-params.amountSpecified);
         uint256 inputReserve = reserves[inputCurrency];
         uint256 outputReserve = reserves[outputCurrency];
-        uint256 amountOut = (amountIn * 997 * outputReserve) / (inputReserve * 1000 + amountIn * 997);
+        uint256 amountOut =
+            (amountIn * 997 * outputReserve) / (inputReserve * 1000 + amountIn * 997);
 
         reserves[inputCurrency] = inputReserve + amountIn;
         reserves[outputCurrency] = outputReserve - amountOut;
@@ -109,7 +110,8 @@ contract MiniPoolManager {
             return delta;
         }
 
-        (bytes4 selector, int128 hookDelta) = IHooks(key.hooks).afterSwap(msg.sender, key, params, delta, hookData);
+        (bytes4 selector, int128 hookDelta) =
+            IHooks(key.hooks).afterSwap(msg.sender, key, params, delta, hookData);
         require(selector == IHooks.afterSwap.selector, "MiniPoolManager: bad afterSwap selector");
 
         if (hookDelta != 0) {
@@ -117,7 +119,8 @@ contract MiniPoolManager {
             // debited this ledger); report the net delta to the swapper by
             // subtracting the cut from the unspecified leg.
             bool specifiedIsCurrency0 = (params.amountSpecified < 0) == params.zeroForOne;
-            address feeCurrency = Currency.unwrap(specifiedIsCurrency0 ? key.currency1 : key.currency0);
+            address feeCurrency =
+                Currency.unwrap(specifiedIsCurrency0 ? key.currency1 : key.currency0);
             uint256 cut = hookDelta < 0 ? uint256(uint128(-hookDelta)) : uint256(uint128(hookDelta));
             if (feeCurrency == inputCurrency) {
                 delta = zeroForOne
@@ -154,7 +157,8 @@ contract MiniPoolManager {
         if (!locked) revert NotUnlocked();
         address c = Currency.unwrap(currency);
         lastSyncedCurrency[msg.sender] = c;
-        syncedBalance[msg.sender][c] = c == address(0) ? address(this).balance : IERC20(c).balanceOf(address(this));
+        syncedBalance[msg.sender][c] =
+            c == address(0) ? address(this).balance : IERC20(c).balanceOf(address(this));
     }
 
     function settle() external payable returns (uint256 paid) {

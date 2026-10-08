@@ -48,7 +48,9 @@ contract PonsV2LaunchLockerTest is Test {
 
     function test_factoryWiringOnlyOwner() public {
         vm.prank(factory);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, factory));
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, factory)
+        );
         locker.setFactory(makeAddr("other"));
     }
 
