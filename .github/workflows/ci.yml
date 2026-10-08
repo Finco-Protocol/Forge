@@ -133,7 +133,7 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
-      - name: Lint Forge-authored test code (required: zero findings)
+      - name: "Lint Forge-authored test code (required: zero findings)"
         run: |
           forge lint test --json > test-lint.json
           count=$(grep -c '"$message_type":"diagnostic"' test-lint.json || true)
