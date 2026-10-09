@@ -91,6 +91,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
       - name: Classifier regression tests (fixtures A–G)
         run: bash scripts/test-canary-classifier.sh
       - name: Full V2 build (capture exit code and log)

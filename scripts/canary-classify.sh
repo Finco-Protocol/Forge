@@ -39,7 +39,7 @@ fail() { # $1 = verdict, $2 = human message
 [ -f "$log" ] || fail UNCLASSIFIED "build log missing — cannot classify"
 
 # 1. Infrastructure / tool-invocation errors are never compiler results.
-if grep -qiE "failed to download|could not resolve|connection refused|compilation skipped|not found or not installed|permission denied" "$log"; then
+if grep -qiE "failed to download|could not resolve|connection refused|compilation skipped|not found or not installed|permission denied|command not found" "$log"; then
   fail INFRASTRUCTURE_ERROR "tool or environment failure detected in build log (see job log)"
 fi
 
