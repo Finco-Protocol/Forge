@@ -58,8 +58,10 @@ fi
 
 # 4. Every solc error must be the single documented F-01 error.
 EXPECTED_ID="Error (9582)"
-total=$(grep -c "^Error (" "$log")
-expected=$(grep -c "^${EXPECTED_ID}:" "$log")
+# grep -c exits 1 when the count is zero; neutralize so set -e cannot kill
+# the classifier silently mid-classification.
+total=$(grep -c "^Error (" "$log" || true)
+expected=$(grep -c "^${EXPECTED_ID}:" "$log" || true)
 if [ "$total" -ne "$expected" ]; then
   echo "::error::canary: unexpected additional compiler errors (total $total, expected-class $expected):"
   grep "^Error (" "$log" | grep -v "^${EXPECTED_ID}:" || true
