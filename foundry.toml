@@ -1,0 +1,90 @@
+[profile.default]
+# ── Forge layout ─────────────────────────────────────────────────────────────
+# This repository is a fork of ponsdotdev/pons-labs, which ships two
+# generations of source (contractsV1/, contractsV2/) and partial vendored
+# dependency trees under each generation's lib/ directory. There is no
+# upstream build system: no foundry.toml, no hardhat config, no package.json.
+# This file establishes the reproducible harness added by FINCO Forge.
+src = "contractsV2/src"
+test = "test"
+out = "out/v2"
+libs = ["contractsV2/lib"]
+solc = "0.8.30"
+optimizer = true
+optimizer_runs = 300
+# The legacy pipeline stack-too-deeps on PonsV2LaunchDeployer.deployLaunch and
+# V1's PonsLaunchFactory.launchToken; upstream's own comment on the deployer
+# (see PonsV2LaunchDeployer.sol) expects the IR pipeline for ordinary builds
+# and only `forge coverage` to run without it.
+via_ir = true
+evm_version = "cancun"
+# Only the first-party and vendored sources of the generation under test may
+# resolve; the other generation's lib/ tree is never on the remap path.
+remappings = [
+    "@openzeppelin/contracts/=contractsV2/lib/openzeppelin-contracts/contracts/",
+    "@uniswap/v4-core/=contractsV2/lib/v4-core/",
+    "@uniswap/v4-periphery/=contractsV2/lib/v4-periphery/",
+    "@uniswap/v4-hooks-public/=contractsV2/lib/v4-hooks-public/",
+    "permit2/=contractsV2/lib/v4-periphery/lib/permit2/",
+    "forge-std/=contractsV2/lib/forge-std/src/",
+]
+# The upstream V2 source tree currently does not compile as a whole; see
+# docs/BUILD.md for the exact errors and docs/SECURITY-REVIEW.md for the
+# disposition. The full-build canary is the DEFAULT profile: `forge build`
+# is expected to fail until upstream repairs the curve/deployer/factory
+# mismatch. Use the `testable` profile for the passing harness:
+#   forge build --profile testable && forge test --profile testable
+skip = []
+
+[profile.testable]
+src = "contractsV2/src"
+test = "test"
+out = "out/v2-testable"
+libs = ["contractsV2/lib"]
+solc = "0.8.30"
+optimizer = true
+optimizer_runs = 300
+via_ir = true
+evm_version = "cancun"
+remappings = [
+    "@openzeppelin/contracts/=contractsV2/lib/openzeppelin-contracts/contracts/",
+    "@uniswap/v4-core/=contractsV2/lib/v4-core/",
+    "@uniswap/v4-periphery/=contractsV2/lib/v4-periphery/",
+    "@uniswap/v4-hooks-public/=contractsV2/lib/v4-hooks-public/",
+    "permit2/=contractsV2/lib/v4-periphery/lib/permit2/",
+    "forge-std/=contractsV2/lib/forge-std/src/",
+]
+# PonsV2LaunchFactory is excluded because it references two members that do
+# not exist in the current source tree (PonsV2BondingCurve.exemptFromSnipeTax
+# and LaunchDeployment.salt). Everything the tests cover compiles without it.
+skip = ["contractsV2/src/v2/PonsV2LaunchFactory.sol"]
+
+[profile.v1]
+src = "contractsV1/src"
+test = "test-v1"
+out = "out/v1"
+libs = ["contractsV1/lib"]
+solc = "0.8.30"
+optimizer = true
+optimizer_runs = 300
+via_ir = true
+evm_version = "cancun"
+remappings = [
+    "@openzeppelin/contracts/=contractsV1/lib/openzeppelin-contracts/contracts/",
+]
+skip = []
+
+[fmt]
+line_length = 100
+
+[rpc_endpoints]
+# Robinhood Chain (Arbitrum Orbit, chain ID 4663). Public endpoint; may be
+# rate limited. Verify before relying on it (docs/ROBINHOOD-CHAIN-VALIDATION.md).
+robinhood = "${ROBINHOOD_RPC_URL}"
+
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 64
+depth = 32

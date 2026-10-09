@@ -1,0 +1,51 @@
+MIT License
+
+Copyright (c) 2026 FINCO Protocol — Forge-authored additions
+(build harness, tests, mocks, scripts, CI workflows, documentation)
+
+Copyright (c) 2026 Pons Labs, LLC — upstream first-party PONS contracts
+(contractsV1/src, contractsV2/src), licensed MIT per their SPDX headers
+and retained here unmodified.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------
+THIRD-PARTY COMPONENTS — NOT COVERED BY THE ABOVE MIT GRANT AS A WHOLE
+
+This repository vendors third-party source under each component's own
+license. The MIT grant above applies to Forge-authored additions and to the
+upstream first-party PONS contracts (which are MIT per SPDX headers); it does
+NOT relicense vendored third-party code. See NOTICE and
+docs/LICENSE-INVENTORY.md for the complete, per-file inventory. In summary:
+
+- OpenZeppelin Contracts (vendored subset) — MIT. Copyright OpenZeppelin.
+- Uniswap v4-core (vendored subset) — MIT, EXCEPT src/libraries/Pool.sol and
+  src/libraries/Position.sol, which are Business Source License 1.1
+  (BUSL-1.1) upstream and here. The BUSL-1.1 components are NOT MIT-licensed
+  and their use in a commercial fork requires separate legal review.
+- Uniswap v4-periphery (vendored subset) — MIT. Copyright Universal
+  Navigation Inc. (Uniswap Labs).
+- Uniswap Permit2 interfaces (vendored subset) — MIT.
+- Uniswap v3 TickMath lineage (contractsV1 PonsTickMath.sol) —
+  GPL-2.0-or-later. NOT MIT-licensed; V1-only, not in the V2 build path.
+- forge-std (test-only submodule) — MIT OR Apache-2.0.
+- v4-hooks-public BaseHook.sol — MIT SPDX header; upstream origin unresolved
+  (see docs/LICENSE-INVENTORY.md §2).
+
+SPDX headers in each vendored file are authoritative for that file.

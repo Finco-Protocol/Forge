@@ -1,0 +1,90 @@
+path	class	ref	evidence	local_blob
+contractsV1/lib/openzeppelin-contracts/contracts/access/Ownable.sol	WHITESPACE_ONLY	OZ v5.0.2	OZ v5.0.2	4eae273f2a21324d614a5a4b4340cda7a4250830
+contractsV1/lib/openzeppelin-contracts/contracts/access/Ownable2Step.sol	WHITESPACE_ONLY	OZ v5.1.0	OZ v5.1.0	f736650d5b347b19f85a6f4b070f1081dd11baed
+contractsV1/lib/openzeppelin-contracts/contracts/interfaces/IERC1363.sol	WHITESPACE_ONLY	OZ v5.5.0	OZ v5.5.0	116fa681b0f904f714767c8e4d621b53c105404e
+contractsV1/lib/openzeppelin-contracts/contracts/interfaces/IERC165.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	d2c99a5bdfe9611dcfc67e8f0c40164d64ab5dd3
+contractsV1/lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	078e9ec9b403252bd480873adf10add00076eb0b
+contractsV1/lib/openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	adffeb5f8c6e4e2d4e45d072dc9f82d310714023
+contractsV1/lib/openzeppelin-contracts/contracts/interfaces/draft-IERC6093.sol	WHITESPACE_ONLY	OZ v5.5.0	OZ v5.5.0	ed780b719878fefaea800b94fd833e7ec5fe6da0
+contractsV1/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol	WHITESPACE_ONLY	OZ v5.5.0	OZ v5.5.0	b95914a55218baf1e83340fd4a09d9b121a8cf81
+contractsV1/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol	WHITESPACE_ONLY	OZ v5.5.0	OZ v5.5.0	c4b45fbe6fb027f34b2227db807215046009a067
+contractsV1/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol	WHITESPACE_ONLY	OZ v5.5.0	OZ v5.5.0	b0e62da4eb55ca5fd847e94b9f6743fe6c901e40
+contractsV1/lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol	WHITESPACE_ONLY	OZ master@dab86115	OZ master@dab86115	61d7cc69040aec8448aed462af8c737def5eae7f
+contractsV1/lib/openzeppelin-contracts/contracts/utils/Context.sol	WHITESPACE_ONLY	OZ v5.0.2	OZ v5.0.2	77a0510fbd1beabccfb097aacfdd1bdbeec1e48d
+contractsV1/lib/openzeppelin-contracts/contracts/utils/Panic.sol	WHITESPACE_ONLY	OZ v5.1.0	OZ v5.1.0	bd10a9f36a1d37f4a77cd45c044bcc16820eafb1
+contractsV1/lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol	WHITESPACE_ONLY	OZ v5.5.0	OZ v5.5.0	b7a7c2eaf9c1ab65e1339838da5754141db6ff3c
+contractsV1/lib/openzeppelin-contracts/contracts/utils/StorageSlot.sol	WHITESPACE_ONLY	OZ v5.1.0	OZ v5.1.0	76ecbe4145a3532b9e4def880e1726e7a4369c83
+contractsV1/lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol	WHITESPACE_ONLY	OZ v5.5.0	OZ v5.5.0	36c8787ed5eeda79abda817d9089e6d72dddf65f
+contractsV1/lib/openzeppelin-contracts/contracts/utils/math/Math.sol	WHITESPACE_ONLY	OZ v5.6.0	OZ v5.6.0	e6cb18adf1ff6d9423420145d3e541e7a3efb8e4
+contractsV1/lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol	WHITESPACE_ONLY	OZ v5.6.0	OZ v5.6.0	cb44a65b1baa6e40b9137843778b00cc241d288e
+contractsV2/lib/openzeppelin-contracts/contracts/access/Ownable.sol	BYTE_IDENTICAL	OZ v5.0.2	OZ v5.0.2	bd96f6661dcbf7b2d4948823ac0e7bfb4ba31fb1
+contractsV2/lib/openzeppelin-contracts/contracts/access/Ownable2Step.sol	BYTE_IDENTICAL	OZ v5.1.0	OZ v5.1.0	3a0747ce7cd58d3848fb178ed68333409fcd2b47
+contractsV2/lib/openzeppelin-contracts/contracts/interfaces/IERC1363.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	7bf3e1f7bbe9a20d1bef5468a55786556c6525aa
+contractsV2/lib/openzeppelin-contracts/contracts/interfaces/IERC165.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	d2c99a5bdfe9611dcfc67e8f0c40164d64ab5dd3
+contractsV2/lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	078e9ec9b403252bd480873adf10add00076eb0b
+contractsV2/lib/openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	adffeb5f8c6e4e2d4e45d072dc9f82d310714023
+contractsV2/lib/openzeppelin-contracts/contracts/interfaces/draft-IERC6093.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	e9d6249ef521e073253a8681aa8f022af7640850
+contractsV2/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	4d9d6b6d1c1f33e7cc3013d70e6c5af900bcbe9a
+contractsV2/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	b493743a10c4fba04d91014cbdb7f69b639480c1
+contractsV2/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Burnable.sol	BYTE_IDENTICAL	OZ v5.0.2	OZ v5.0.2	4d482d8ec83617f74febf13917b283c14ebb7760
+contractsV2/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	87bbafa84b834af1da027455bdc2e8a87beeb438
+contractsV2/lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol	WHITESPACE_ONLY	OZ master@dab86115	OZ master@dab86115	4d5e45fde83dad355bc5d8d8664ff59c7cc7d8d9
+contractsV2/lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	749820344394b37798268501b6999e7171ffb2e8
+contractsV2/lib/openzeppelin-contracts/contracts/utils/Context.sol	BYTE_IDENTICAL	OZ v5.0.2	OZ v5.0.2	4e535fe03c243f864568b8f4430c17c25dbadb47
+contractsV2/lib/openzeppelin-contracts/contracts/utils/Panic.sol	BYTE_IDENTICAL	OZ v5.1.0	OZ v5.1.0	e168824d34b3f0ba0be33317fb34b9e74fc148b6
+contractsV2/lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	c156fa1cc9656ba278ca90270707848524bf0d25
+contractsV2/lib/openzeppelin-contracts/contracts/utils/StorageSlot.sol	BYTE_IDENTICAL	OZ v5.1.0	OZ v5.1.0	aebb10524a2c82aa78ceb8394e5f3c1b0e5abeea
+contractsV2/lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol	BYTE_IDENTICAL	OZ v5.5.0	OZ v5.5.0	be1932f267f9c794f21d934a6bc21a322c6d2709
+contractsV2/lib/openzeppelin-contracts/contracts/utils/math/Math.sol	BYTE_IDENTICAL	OZ v5.6.0	OZ v5.6.0	e7288595b6539e986aef1a7a524884d86fc2d643
+contractsV2/lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol	BYTE_IDENTICAL	OZ v5.6.0	OZ v5.6.0	ccb979f61c9577e6338276cff49625d5a2191eb3
+contractsV2/lib/v4-core/src/interfaces/IExtsload.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	600402d7971db4ea9ed78fc85bee8bdd95842a3c
+contractsV2/lib/v4-core/src/interfaces/IExttload.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	1e0482e84d3d0f930e01eddc0e529c77bb866458
+contractsV2/lib/v4-core/src/interfaces/IHooks.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	5a44a9189012f176fb0702619de19336d42042d1
+contractsV2/lib/v4-core/src/interfaces/IPoolManager.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	7cd319aefee9deb74f44d3982ae055d2d63eca8a
+contractsV2/lib/v4-core/src/interfaces/IProtocolFees.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	2c2af59442bb9096e8c02a511c3c538bb61e9691
+contractsV2/lib/v4-core/src/interfaces/callback/IUnlockCallback.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	7957de5cffa9f877f4798be76e775764c5631900
+contractsV2/lib/v4-core/src/interfaces/external/IERC20Minimal.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	11e1db4e9e69a7aeddd014add0205a9d7723b473
+contractsV2/lib/v4-core/src/interfaces/external/IERC6909Claims.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	f32ac97fe9df9628ccc9e1037483872ddac32c03
+contractsV2/lib/v4-core/src/libraries/BitMath.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	6c20495bbfd7b98c0c44fe6dbaa1029906794e1c
+contractsV2/lib/v4-core/src/libraries/CustomRevert.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	5d707330828005298943c462f0e294f0eb4c6b55
+contractsV2/lib/v4-core/src/libraries/FixedPoint128.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	ef69ae80e691fd9d3245d0ed711a6270b9aeb916
+contractsV2/lib/v4-core/src/libraries/FixedPoint96.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	8e704cb34edd85da4130aa3c2d9fd219a4084253
+contractsV2/lib/v4-core/src/libraries/FullMath.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	2dc13788debe3ae13fd07d7afcfa402343965e74
+contractsV2/lib/v4-core/src/libraries/Hooks.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	15e5a38cd9803c1213ab5de060c84473049f0116
+contractsV2/lib/v4-core/src/libraries/LPFeeLibrary.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	5a68f963e6346082ebf5633c8c5cc7ce5501cc22
+contractsV2/lib/v4-core/src/libraries/LiquidityMath.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	ce5cfcd4f63b002ac36017f9e2259da8b5cecabd
+contractsV2/lib/v4-core/src/libraries/ParseBytes.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	3503fe4a496f194d02e2bcf722b803a17b378891
+contractsV2/lib/v4-core/src/libraries/Pool.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	65a77a20344b700c200ea4d81e1dca050cc5a647
+contractsV2/lib/v4-core/src/libraries/Position.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	40821ae31e9d9f30c317d6aca01618cca81ca0ae
+contractsV2/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	c155b86aae9b4aee580db976f77582f7b52d3579
+contractsV2/lib/v4-core/src/libraries/SafeCast.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	118b02cd1bdafa7333785b4b081e9d411e8afc85
+contractsV2/lib/v4-core/src/libraries/SqrtPriceMath.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	0b706ba1397d9f489cfbda35598cd82848318d1b
+contractsV2/lib/v4-core/src/libraries/StateLibrary.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	a8cd6213745dd18f80455c514008f37575766064
+contractsV2/lib/v4-core/src/libraries/SwapMath.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	92599e5d328df9ebdcc576afb355bddbf982c710
+contractsV2/lib/v4-core/src/libraries/TickBitmap.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	15104a199cb80346661763a6af8357906bc77238
+contractsV2/lib/v4-core/src/libraries/TickMath.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	e5dc4adca2983dae7cd159dcd321477973656104
+contractsV2/lib/v4-core/src/libraries/UnsafeMath.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	ed88beca38d5ff65eff1532d5b3cf256231bb013
+contractsV2/lib/v4-core/src/types/BalanceDelta.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	4dca00e0bab69e1620830bdd7fcff1d284bfd6a8
+contractsV2/lib/v4-core/src/types/BeforeSwapDelta.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	30fd9cef82ad61454b032cb8370d585d16b24499
+contractsV2/lib/v4-core/src/types/Currency.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	771653400999d12c630563e0fc495b2cacc3fb26
+contractsV2/lib/v4-core/src/types/PoolId.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	22a0b4f91c8d0fb63cfb6a7b1d88a7cb5a472715
+contractsV2/lib/v4-core/src/types/PoolKey.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	0fa66f93733e30c6af7b8f184b6f278c9fdff59e
+contractsV2/lib/v4-core/src/types/PoolOperation.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	4982097dbd7520db5a3d942c3f0ccb123bab445c
+contractsV2/lib/v4-core/src/types/Slot0.sol	BYTE_IDENTICAL	v4-core@46c6834698c48bc4a463a86d8420f4eb1d7f3b75	Uniswap v4-core commit 46c6834698c48bc4a463a86d8420f4eb1d7f3b75 (2026-04-02)	bd440d586a20ff483c0fcf93a04fb4794e54d10e
+contractsV2/lib/v4-hooks-public/src/base/BaseHook.sol	UNRESOLVED	none	No public upstream repository located; provenance unresolved (docs/LICENSE-INVENTORY.md)	bd6e08e099739bfe41d6272c7e70e0aece5d0ea5
+contractsV2/lib/v4-periphery/lib/permit2/src/interfaces/IAllowanceTransfer.sol	BYTE_IDENTICAL	permit2@cc56ad0f3439c502c246fc5cfcc3db92bb8b7219	Uniswap permit2 commit cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 (2023-09-29)	712aa9d8b885df5d34ef3c73fdf811267d32d67b
+contractsV2/lib/v4-periphery/lib/permit2/src/interfaces/IEIP712.sol	BYTE_IDENTICAL	permit2@cc56ad0f3439c502c246fc5cfcc3db92bb8b7219	Uniswap permit2 commit cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 (2023-09-29)	355c443f7a9bf436a315b8255c628366f6232814
+contractsV2/lib/v4-periphery/src/base/ImmutableState.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	4b35794f3c4ba5982b06d2a17e56e3416c3e9d18
+contractsV2/lib/v4-periphery/src/interfaces/IEIP712_v4.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	8e78c5865d360936843ccd9fb988d3f029b4e546
+contractsV2/lib/v4-periphery/src/interfaces/IERC721Permit_v4.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	b45a7d818c3bceefc5c2ee21e9601b196104e0ec
+contractsV2/lib/v4-periphery/src/interfaces/IImmutableState.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	4d2651649afadb6dc8aad3882ed73d41f67f596a
+contractsV2/lib/v4-periphery/src/interfaces/IMulticall_v4.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	3caddb721e101c515fb9380dd5277bda33fd7947
+contractsV2/lib/v4-periphery/src/interfaces/INotifier.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	e7b61487d1dcebc5b5de574e721d06733ce3ff3f
+contractsV2/lib/v4-periphery/src/interfaces/IPermit2Forwarder.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	98403ac88f50171cd34a1363ff19e7677935e5a9
+contractsV2/lib/v4-periphery/src/interfaces/IPoolInitializer_v4.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	ad0e14b1d1168f7d73e93c16bf2e105d6ce626e5
+contractsV2/lib/v4-periphery/src/interfaces/IPositionManager.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	4e18c4c2c425a6e6ee318a23bc37747621777b64
+contractsV2/lib/v4-periphery/src/interfaces/ISubscriber.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	d98099e4606a5267a055db2de7aa275eaa7490df
+contractsV2/lib/v4-periphery/src/interfaces/IUnorderedNonce.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	022afb3481f5382dd71ab571e1a6bdd156c1385b
+contractsV2/lib/v4-periphery/src/libraries/Actions.sol	BYTE_IDENTICAL	periphery@363226d9e1e2180b67bf6857023dbaad751010c5	Uniswap v4-periphery commit 363226d9e1e2180b67bf6857023dbaad751010c5 (2026-05-27, PR #476)	57cde9f6d0763bafb1b52cfd774b6dd46915faea
+contractsV2/lib/v4-periphery/src/libraries/LiquidityAmounts.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	a06e91fa95c48dfc40b53b0b007a668c5f59c426
+contractsV2/lib/v4-periphery/src/libraries/PositionInfoLibrary.sol	BYTE_IDENTICAL	periphery@9969eec44cfdf07e24b41de47f40276a58401976	Uniswap v4-periphery commit 9969eec44cfdf07e24b41de47f40276a58401976 (2026-09-19)	a42330b6894d5000f7734d7eb3c85d0fa126f371
