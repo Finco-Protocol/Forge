@@ -267,7 +267,7 @@ contract ForgeLaunchAuthTest is Test {
     // ── B8: binding expired (stale evidence) ─────────────────────────────
 
     function test_b8_expired_binding_reverts() public {
-        vm.warp(block.timestamp + 31 days);
+        vm.warp(vm.getBlockTimestamp() + 31 days);
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         bytes memory consent = _consentSig(intent, creatorPk);
         bytes memory goodAtt = _goodAttestation();
