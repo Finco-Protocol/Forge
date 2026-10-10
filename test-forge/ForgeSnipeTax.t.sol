@@ -230,7 +230,7 @@ contract ForgeSnipeTaxTest is Test {
         assertLt(sniperOutLaunch * 20, creatorOut, "launch-second sniper must be heavily taxed");
 
         // After the decay window the same-size buy is untaxed.
-        vm.warp(block.timestamp + 2 days);
+        vm.warp(vm.getBlockTimestamp() + 2 days);
         vm.deal(sniper, 1e18);
         vm.prank(sniper);
         uint256 sniperOutLate = curve.buy{value: 1e18}(1e18, 0, sniper);
