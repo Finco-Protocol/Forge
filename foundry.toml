@@ -7,6 +7,7 @@
 # This file establishes the reproducible harness added by FINCO Forge.
 src = "contractsV2/src"
 test = "test"
+script = "script-w01"
 out = "out/v2"
 libs = ["contractsV2/lib"]
 solc = "0.8.30"
@@ -39,6 +40,7 @@ skip = []
 [profile.testable]
 src = "contractsV2/src"
 test = "test"
+script = "script-w01"
 out = "out/v2-testable"
 libs = ["contractsV2/lib"]
 solc = "0.8.30"
