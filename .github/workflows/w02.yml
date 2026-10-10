@@ -1,0 +1,121 @@
+name: W02 Protocol Core
+
+# Exact-head CI for the Forge-owned W02 stack. All gates REQUIRED; no
+# continue-on-error, no || true.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: v1.8.5
+
+jobs:
+  build-forge-stack:
+    name: forge build (deployed + forge profiles)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge build --profile deployed
+      - run: forge build --profile forge
+
+  forge-authz-tests:
+    name: M-ELIG adversarial authorization tests (17)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge test --profile forge --match-contract ForgeLaunchAuthTest -vvv
+
+  forge-lifecycle-tests:
+    name: full lifecycle + snipe tax E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge test --profile forge --match-contract "ForgeLifecycleTest|ForgeSnipeTaxTest" -vvv
+
+  w01-regression:
+    name: W01 regression (87 tests, testable profile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge test --profile testable -vvv
+
+  v1-build:
+    name: forge build (V1 generation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge build --profile v1
+
+  gates:
+    name: formatter + lint + classifier + vendor gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - name: forge fmt --check (Forge-authored trees, required)
+        run: forge fmt --check test-forge
+      - name: forge lint (Forge-authored test code, required zero)
+        run: |
+          forge lint test-forge --json > w02-lint.json
+          count=$(grep -c '"$message_type":"diagnostic"' w02-lint.json || true)
+          if [ "$count" -ne 0 ]; then
+            echo "::error::forge lint reported $count finding(s) in test-forge/"
+            cat w02-lint.json
+            exit 1
+          fi
+      - name: Canary classifier regression tests (fixtures A–G)
+        run: bash scripts/test-canary-classifier.sh
+      - name: Vendor checker negative tests (V1–V10)
+        run: bash scripts/test-vendor-checker.sh
+      - name: Lint gate parser tests (L1–L9)
+        run: bash scripts/test-lint-gate.sh
+      - name: Deploy-time tree integrity (Sourcify parity baseline)
+        run: |
+          # The recovered deploy-time sources must remain byte-identical to
+          # their Sourcify extraction — any drift invalidates the parity
+          # evidence in docs/W02-SOURCE-RECOVERY.md.
+          bad=0
+          while IFS= read -r f; do
+            rel="${f#contractsV2-deployed/}"
+            src=".w02-recovery/PonsV2LaunchFactory-src/$rel"
+            if [ -f "$src" ] && [ "$(git hash-object "$f")" != "$(git hash-object "$src")" ]; then
+              echo "::error::deploy-time source drifted from Sourcify extraction: $rel"
+              bad=1
+            fi
+          done < <(git ls-files "contractsV2-deployed/*.sol" "contractsV2-deployed/**/*.sol")
+          exit $bad

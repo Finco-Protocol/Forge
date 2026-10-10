@@ -1,0 +1,10 @@
+# Enforce LF for all source files (forge fmt --check requires LF; CI
+# checks out with LF, local Windows checkouts must match).
+* text=auto eol=lf
+*.sol text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.sh text eol=lf
+*.pl text eol=lf
+*.tsv text eol=lf
