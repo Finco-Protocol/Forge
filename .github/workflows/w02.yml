@@ -91,7 +91,7 @@ jobs:
         run: forge fmt --check test-forge
       - name: forge lint (Forge-authored test code, required zero)
         run: |
-          forge lint test-forge --json > w02-lint.json
+          forge lint --profile forge test-forge --json > w02-lint.json
           count=$(grep -c '"$message_type":"diagnostic"' w02-lint.json || true)
           if [ "$count" -ne 0 ]; then
             echo "::error::forge lint reported $count finding(s) in test-forge/"
