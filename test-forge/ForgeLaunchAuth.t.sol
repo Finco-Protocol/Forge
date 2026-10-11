@@ -10,15 +10,12 @@ import {IForgeLaunchAuthorizer} from "contractsV2-forge/src/v2/forge/IForgeLaunc
 
 /**
  * @title ForgeLaunchAuthTest
- * @notice Adversarial suite for the M-ELIG authorization core: every bypass
- * vector in the W02 spec is exercised against the REAL on-chain verifier.
- * The factory-facing path is driven through the factory's exact call shape
- * (the full factory integration is ForgeLifecycleTest).
- *
- * NOTE: every argument to requireAuthorizedLaunch (including view calls to
- * the authorizer's digest helpers) is fully evaluated into locals BEFORE
- * vm.prank/vm.expectRevert, so argument evaluation cannot consume pranks or
- * eat expected-revert interceptions.
+ * @notice Adversarial suite for the M-ELIG authorization core, including
+ * the Correction A regression scenarios (registry op sequencing, creator
+ * tax binding, exemption list binding, attestation encoding/time validity).
+ * All call arguments are evaluated into locals BEFORE vm.prank /
+ * vm.expectRevert so argument evaluation cannot consume pranks or eat
+ * expected-revert interceptions.
  */
 contract ForgeLaunchAuthTest is Test {
     using ECDSA for bytes32;
@@ -52,53 +49,75 @@ contract ForgeLaunchAuthTest is Test {
         authorizer.setForgeFactory(FACTORY);
         vm.stopPrank();
 
-        // Bind the repo to the creator (fresh evidence, 30-day horizon).
         _bind(REPO_ID, creator, uint64(block.timestamp + 30 days));
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Registry helpers ─────────────────────────────────────────────────
 
-    function _bind(uint64 repoId, address who, uint64 expiresAt) internal {
-        ForgeBindingRegistry.BindingOp memory op = ForgeBindingRegistry.BindingOp({
+    function _op(uint64 repoId, address who, uint64 bindingExpiresAt, uint64 opNonce, bool revoke)
+        internal
+        view
+        returns (ForgeBindingRegistry.BindingOp memory op)
+    {
+        op = ForgeBindingRegistry.BindingOp({
             githubRepoId: repoId,
             creator: who,
-            expiresAt: expiresAt,
-            opNonce: 0,
-            repoFullName: "org/repo",
-            revoke: false
+            bindingExpiresAt: bindingExpiresAt,
+            opDeadline: uint64(block.timestamp + 5 minutes),
+            opNonce: opNonce,
+            repoFullName: revoke ? "" : "org/repo",
+            revoke: revoke
         });
-        bytes32 digest = registry.attestationDigestForBindingOp(
-            op.githubRepoId,
-            op.creator,
-            op.expiresAt,
-            op.opNonce,
-            keccak256(bytes(op.repoFullName)),
-            op.revoke
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorityPk, digest);
-        registry.applyBindingOp(op, abi.encodePacked(r, s, v));
     }
 
-    function _revoke(uint64 repoId) internal {
-        ForgeBindingRegistry.BindingOp memory op = ForgeBindingRegistry.BindingOp({
-            githubRepoId: repoId,
-            creator: creator,
-            expiresAt: uint64(block.timestamp + 10 minutes),
-            opNonce: uint64(vm.randomUint(1, type(uint64).max)),
-            repoFullName: "",
-            revoke: true
-        });
+    function _sign(ForgeBindingRegistry.BindingOp memory op) internal view returns (bytes memory) {
         bytes32 digest = registry.attestationDigestForBindingOp(
             op.githubRepoId,
             op.creator,
-            op.expiresAt,
+            op.bindingExpiresAt,
+            op.opDeadline,
             op.opNonce,
             keccak256(bytes(op.repoFullName)),
             op.revoke
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorityPk, digest);
-        registry.applyBindingOp(op, abi.encodePacked(r, s, v));
+        return abi.encodePacked(r, s, v);
     }
+
+    /// @notice Applies an authority-signed bind at the NEXT sequence.
+    function _bind(uint64 repoId, address who, uint64 bindingExpiresAt) internal {
+        _bindAt(repoId, who, bindingExpiresAt, registry.operationSequence(repoId) + 1);
+    }
+
+    function _bindAt(uint64 repoId, address who, uint64 bindingExpiresAt, uint64 opNonce) internal {
+        ForgeBindingRegistry.BindingOp memory op =
+            _op(repoId, who, bindingExpiresAt, opNonce, false);
+        registry.applyBindingOp(op, _sign(op));
+    }
+
+    /// @notice Applies an authority-signed revoke at the NEXT sequence.
+    function _revoke(uint64 repoId) internal {
+        _revokeAt(repoId, creator, registry.operationSequence(repoId) + 1);
+    }
+
+    function _revokeAt(uint64 repoId, address who, uint64 opNonce) internal {
+        ForgeBindingRegistry.BindingOp memory op =
+            _op(repoId, who, uint64(block.timestamp + 10 minutes), opNonce, true);
+        registry.applyBindingOp(op, _sign(op));
+    }
+
+    /// @notice Builds (but does not apply) an op at an arbitrary sequence —
+    /// used to demonstrate the stale-signature reactivation vector.
+    function _staleOp(uint64 repoId, address who, uint64 opNonce, bool revoke)
+        internal
+        view
+        returns (ForgeBindingRegistry.BindingOp memory op, bytes memory sig)
+    {
+        op = _op(repoId, who, uint64(block.timestamp + 9 minutes), opNonce, revoke);
+        sig = _sign(op);
+    }
+
+    // ── Authorization helpers ────────────────────────────────────────────
 
     function _intent() internal view returns (IForgeLaunchAuthorizer.LaunchIntent memory intent) {
         intent = IForgeLaunchAuthorizer.LaunchIntent({
@@ -111,7 +130,9 @@ contract ForgeLaunchAuthTest is Test {
             economicsDigest: keccak256("economics"),
             salt: keccak256("salt"),
             expiresAt: uint64(block.timestamp + 10 minutes),
-            nonce: 0
+            nonce: 0,
+            creatorTaxBps: 100,
+            exemptionListHash: keccak256(abi.encode(new address[](0)))
         });
     }
 
@@ -125,14 +146,8 @@ contract ForgeLaunchAuthTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
-    function _attestationPayload(uint64 issuedAt, uint64 expiresAt, uint256 pk)
-        internal
-        view
-        returns (bytes memory)
-    {
-        return _attestationPayloadFor(REPO_ID, creator, issuedAt, expiresAt, pk);
-    }
-
+    /// @notice Canonical packed attestation payload:
+    /// abi.encodePacked(uint64 issuedAt, uint64 expiresAt, bytes65 sig).
     function _attestationPayloadFor(
         uint64 repoId,
         address who,
@@ -142,20 +157,13 @@ contract ForgeLaunchAuthTest is Test {
     ) internal view returns (bytes memory) {
         bytes32 digest = authorizer.attestationDigest(repoId, who, issuedAt, expiresAt);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
-        // abi.encodePacked(uint64 issuedAt, uint64 expiresAt, bytes65 sig):
-        // each uint64 sits in the LOW 8 bytes of its 32-byte word, matching
-        // the contract's bytes8(payload[24:32]) decode.
-        return
-            abi.encodePacked(
-                bytes32(uint256(issuedAt)), bytes32(uint256(expiresAt)), r, s, bytes1(v)
-            );
+        return abi.encodePacked(uint64(issuedAt), uint64(expiresAt), r, s, bytes1(v));
     }
 
     function _goodAttestation() internal view returns (bytes memory) {
-        return
-            _attestationPayload(
-                uint64(block.timestamp), uint64(block.timestamp + 1 days), authorityPk
-            );
+        return _attestationPayloadFor(
+            REPO_ID, creator, uint64(block.timestamp), uint64(block.timestamp + 1 days), authorityPk
+        );
     }
 
     // ── Positive: the full dual-layer authorization accepts ─────────────
@@ -164,31 +172,136 @@ contract ForgeLaunchAuthTest is Test {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         bytes memory consent = _consentSig(intent, creatorPk);
         bytes memory goodAtt = _goodAttestation();
-        bytes32 metaHash = authorizer.metadataDigest(intent.tokenMetadataHash, creator, true);
+        bytes32 metaHash = authorizer.metadataDigest(
+            intent.tokenMetadataHash, creator, true, intent.creatorTaxBps
+        );
         vm.expectEmit(true, true, false, true, address(authorizer));
         emit ForgeLaunchAuthorizer.LaunchAuthorized(
             creator, REPO_ID, metaHash, intent.economicsDigest
         );
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
-        // Nonce consumed.
         assertTrue(authorizer.nonceUsed(creator, 0));
         assertFalse(authorizer.nonceUsed(creator, 1));
     }
 
-    // ── B1: direct call with no creator signature ────────────────────────
+    // ── Registry P1-1 regression scenarios ───────────────────────────────
+
+    /// @notice Scenario 1: an OLD BIND signed before a revocation executes
+    /// AFTER the revocation — must be REJECTED (the W02 replay vector).
+    function test_r1_old_bind_after_revoke_reverts() public {
+        // Attacker obtains a signed re-bind op (seq 2) BEFORE the revoke...
+        (ForgeBindingRegistry.BindingOp memory staleBind, bytes memory staleSig) =
+            _staleOp(REPO_ID, attacker, registry.operationSequence(REPO_ID) + 1, false);
+        // ...the authority revokes (seq 2 — consumed before the stale op)...
+        _revoke(REPO_ID);
+        // ...then submits the stale bind: rejected by sequencing.
+        vm.expectRevert(ForgeBindingRegistry.NonceNotMonotonic.selector);
+        registry.applyBindingOp(staleBind, staleSig);
+        assertFalse(registry.isActive(REPO_ID, attacker), "attacker must not gain the binding");
+    }
+
+    /// @notice Scenario 2: an OLD BIND signed before a repo transfer to a
+    /// new creator executes AFTER the transfer — REJECTED.
+    function test_r2_old_bind_after_transfer_reverts() public {
+        (ForgeBindingRegistry.BindingOp memory staleBind, bytes memory staleSig) =
+            _staleOp(REPO_ID, attacker, registry.operationSequence(REPO_ID) + 1, false);
+        // The repo is legitimately transferred to a NEW creator (seq 2).
+        _bind(REPO_ID, vm.addr(0x777), uint64(block.timestamp + 30 days));
+        // The stale bind for the attacker is now permanently stale.
+        vm.expectRevert(ForgeBindingRegistry.NonceNotMonotonic.selector);
+        registry.applyBindingOp(staleBind, staleSig);
+        assertFalse(registry.isActive(REPO_ID, attacker));
+    }
+
+    /// @notice Scenario 3: an OLD REVOKE signed before a new owner binding
+    /// executes AFTER the transfer — REJECTED (it must not invalidate the
+    /// new owner's binding).
+    function test_r3_old_revoke_after_new_binding_reverts() public {
+        address newCreator = vm.addr(0x777);
+        // Old revoke signed against the CURRENT creator before the transfer.
+        (ForgeBindingRegistry.BindingOp memory staleRevoke, bytes memory staleSig) =
+            _staleOp(REPO_ID, creator, registry.operationSequence(REPO_ID) + 1, true);
+        // Transfer to the new creator (seq 2).
+        _bind(REPO_ID, newCreator, uint64(block.timestamp + 30 days));
+        // The stale revoke (naming the OLD creator) is rejected both by
+        // sequencing and by creator mismatch.
+        vm.expectRevert(ForgeBindingRegistry.NonceNotMonotonic.selector);
+        registry.applyBindingOp(staleRevoke, staleSig);
+        assertTrue(registry.isActive(REPO_ID, newCreator), "new owner binding must survive");
+    }
+
+    /// @notice Scenario 4: a FRESH legitimate bind after a revocation —
+    /// ACCEPT (legitimate re-binding flows through a new authorized op).
+    function test_r4_fresh_rebind_after_revoke_accepted() public {
+        _revoke(REPO_ID);
+        assertFalse(registry.isActive(REPO_ID, creator));
+        _bind(REPO_ID, creator, uint64(block.timestamp + 30 days));
+        assertTrue(registry.isActive(REPO_ID, creator), "legitimate re-bind must work");
+    }
+
+    /// @notice Scenario 5: duplicate or out-of-order binding operations —
+    /// REJECT (exact duplicate via usedOps; lower seq via monotonicity).
+    function test_r5_duplicate_and_out_of_order_revert() public {
+        // Exact duplicate: same op submitted twice.
+        ForgeBindingRegistry.BindingOp memory op = _op(
+            REPO_ID,
+            creator,
+            uint64(block.timestamp + 30 days),
+            registry.operationSequence(REPO_ID) + 1,
+            false
+        );
+        bytes memory sig = _sign(op);
+        registry.applyBindingOp(op, sig);
+        vm.expectRevert(ForgeBindingRegistry.InvalidSigner.selector);
+        registry.applyBindingOp(op, sig);
+
+        // Out-of-order: a signed op with a LOWER sequence than applied.
+        (ForgeBindingRegistry.BindingOp memory oldOp, bytes memory oldSig) =
+            _staleOp(REPO_ID, creator, registry.operationSequence(REPO_ID) - 1, false);
+        vm.expectRevert(ForgeBindingRegistry.NonceNotMonotonic.selector);
+        registry.applyBindingOp(oldOp, oldSig);
+    }
+
+    /// @notice Operation deadline enforcement (split from binding horizon).
+    function test_operation_deadline_enforced() public {
+        // Expired op deadline.
+        ForgeBindingRegistry.BindingOp memory expired = _op(
+            REPO_ID,
+            creator,
+            uint64(block.timestamp + 30 days),
+            registry.operationSequence(REPO_ID) + 1,
+            false
+        );
+        expired.opDeadline = uint64(block.timestamp - 1);
+        bytes memory expiredSig = _sign(expired);
+        vm.expectRevert(ForgeBindingRegistry.OperationDeadlineExceeded.selector);
+        registry.applyBindingOp(expired, expiredSig);
+
+        // Deadline too far out (parked signature).
+        ForgeBindingRegistry.BindingOp memory parked = _op(
+            REPO_ID,
+            creator,
+            uint64(block.timestamp + 30 days),
+            registry.operationSequence(REPO_ID) + 1,
+            false
+        );
+        parked.opDeadline = uint64(block.timestamp + 11 minutes);
+        bytes memory parkedSig = _sign(parked);
+        vm.expectRevert(ForgeBindingRegistry.OperationDeadlineTooFar.selector);
+        registry.applyBindingOp(parked, parkedSig);
+    }
+
+    // ── Authorization bypass vectors ─────────────────────────────────────
 
     function test_b1_direct_call_without_signatures_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         bytes memory goodAtt = _goodAttestation();
-        // OZ v5.0.0 ECDSA reverts with
-        // ECDSAInvalidSignatureLength(0).
+        // OZ v5.0.0 ECDSA reverts with ECDSAInvalidSignatureLength(0).
         vm.expectRevert(abi.encodeWithSelector(0xfce698f7, 0));
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, bytes(""), goodAtt);
     }
-
-    // ── B2: caller is not the wired Forge factory ────────────────────────
 
     function test_b2_wrong_caller_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
@@ -198,8 +311,6 @@ contract ForgeLaunchAuthTest is Test {
         vm.prank(fakeFactory);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
-
-    // ── B3: intent names a different factory than the wired one ─────────
 
     function test_b3_wrong_factory_in_intent_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
@@ -211,36 +322,26 @@ contract ForgeLaunchAuthTest is Test {
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
 
-    // ── B4: reused consent signature (replay) ────────────────────────────
-
     function test_b4_replayed_consent_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         bytes memory consent = _consentSig(intent, creatorPk);
         bytes memory goodAtt = _goodAttestation();
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
-
-        // Replay of the captured calldata: nonce is now stale.
         vm.expectRevert(ForgeLaunchAuthorizer.CreatorNonceStale.selector);
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
 
-    // ── B5: wrong chain ──────────────────────────────────────────────────
-
     function test_b5_wrong_chain_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         bytes memory consent = _consentSig(intent, creatorPk);
         bytes memory goodAtt = _goodAttestation();
-        // Signatures were produced on chain 1; moving the EVM changes the
-        // EIP-712 domain and invalidates them.
         vm.chainId(137);
         vm.expectRevert(ForgeLaunchAuthorizer.WrongCreator.selector);
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
-
-    // ── B6: expired creator consent ──────────────────────────────────────
 
     function test_b6_expired_consent_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
@@ -252,8 +353,6 @@ contract ForgeLaunchAuthTest is Test {
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
 
-    // ── B7: revoked repository binding ───────────────────────────────────
-
     function test_b7_revoked_binding_reverts() public {
         _revoke(REPO_ID);
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
@@ -263,8 +362,6 @@ contract ForgeLaunchAuthTest is Test {
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
-
-    // ── B8: binding expired (stale evidence) ─────────────────────────────
 
     function test_b8_expired_binding_reverts() public {
         vm.warp(vm.getBlockTimestamp() + 31 days);
@@ -276,8 +373,6 @@ contract ForgeLaunchAuthTest is Test {
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
 
-    // ── B9: revoked eligibility authority (kill switch) ──────────────────
-
     function test_b9_revoked_authority_bricks_launches() public {
         vm.prank(forgeGovernance);
         authorizer.setEligibilityAuthority(address(0));
@@ -288,11 +383,11 @@ contract ForgeLaunchAuthTest is Test {
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
 
-        // The kill switch is one-way for launch freedom: only a full
-        // governance rotation re-enables, owner-gated and emitted.
         vm.prank(forgeGovernance);
         authorizer.setEligibilityAuthority(authority);
-        bytes32 metaHash = authorizer.metadataDigest(intent.tokenMetadataHash, creator, true);
+        bytes32 metaHash = authorizer.metadataDigest(
+            intent.tokenMetadataHash, creator, true, intent.creatorTaxBps
+        );
         vm.expectEmit(true, true, false, true, address(authorizer));
         emit ForgeLaunchAuthorizer.LaunchAuthorized(
             creator, REPO_ID, metaHash, intent.economicsDigest
@@ -300,8 +395,6 @@ contract ForgeLaunchAuthTest is Test {
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
-
-    // ── B10: unauthorized wallet (no binding for the signing creator) ────
 
     function test_b10_unauthorized_wallet_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
@@ -313,10 +406,7 @@ contract ForgeLaunchAuthTest is Test {
         authorizer.requireAuthorizedLaunch(intent, attacker, true, consent, goodAtt);
     }
 
-    // ── B11: same key signs both layers ──────────────────────────────────
-
     function test_b11_same_key_both_layers_reverts() public {
-        // The authority key tries to act as its own creator.
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         intent.creator = authority;
         bytes32 digest = authorizer.consentDigest(intent, authority, true);
@@ -334,87 +424,191 @@ contract ForgeLaunchAuthTest is Test {
         authorizer.requireAuthorizedLaunch(intent, authority, true, selfConsent, selfAtt);
     }
 
-    // ── B12: metadata binding — fee recipient changed after signing ──────
+    // ── Correction A: creator tax binding (scenario 6) ───────────────────
 
-    function test_b12_metadata_mismatch_reverts() public {
+    function test_r6_changed_creator_tax_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         bytes memory consent = _consentSig(intent, creatorPk);
         bytes memory goodAtt = _goodAttestation();
-        // The factory is told a different fee recipient than the consent
-        // was signed over: the effective metadata digest differs.
-        address rogueRecipient = makeAddr("rogueRecipient");
-        vm.expectRevert(ForgeLaunchAuthorizer.WrongCreator.selector);
-        vm.prank(FACTORY);
-        authorizer.requireAuthorizedLaunch(intent, rogueRecipient, true, consent, goodAtt);
-    }
-
-    // ── B13: economics re-peg after signing ──────────────────────────────
-
-    function test_b13_economics_peg_reverts() public {
-        IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
-        bytes memory consent = _consentSig(intent, creatorPk);
-        bytes memory goodAtt = _goodAttestation();
-        // The factory's live economics digest changed (owner re-peg); the
-        // factory passes the NEW digest and the consent no longer verifies.
-        intent.economicsDigest = keccak256("new-economics");
+        // The factory's effective creator tax changed after signing (e.g. a
+        // forwarded launch submitting a different tax): the metadata digest
+        // differs and the consent no longer verifies.
+        intent.creatorTaxBps = 500;
         vm.expectRevert(ForgeLaunchAuthorizer.WrongCreator.selector);
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
 
-    // ── B14: forged attestation (attacker key) ───────────────────────────
+    // ── Correction A: exemption list binding (scenario 7) ────────────────
+
+    /// @notice Canonical hash helper mirroring the factory's own rule.
+    function _canonicalHash(address[] memory list) internal pure returns (bytes32) {
+        for (uint256 i = 1; i < list.length; ++i) {
+            address v = list[i];
+            uint256 j = i;
+            while (j > 0 && list[j - 1] > v) {
+                list[j] = list[j - 1];
+                --j;
+            }
+            list[j] = v;
+        }
+        return keccak256(abi.encode(list));
+    }
+
+    function test_r7_changed_exemption_list_reverts() public {
+        address[] memory signedList = new address[](2);
+        signedList[0] = vm.addr(0xE1);
+        signedList[1] = vm.addr(0xE2);
+        IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
+        intent.exemptionListHash = _canonicalHash(signedList);
+        bytes memory consent = _consentSig(intent, creatorPk);
+        bytes memory goodAtt = _goodAttestation();
+
+        // Substitution: the factory submits a DIFFERENT list.
+        address[] memory submitted = new address[](2);
+        submitted[0] = vm.addr(0xE1);
+        submitted[1] = attacker;
+        intent.exemptionListHash = _canonicalHash(submitted);
+        vm.expectRevert(ForgeLaunchAuthorizer.WrongCreator.selector);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
+
+        // Addition: one extra wallet appended to the signed list.
+        address[] memory added = new address[](3);
+        added[0] = signedList[0];
+        added[1] = signedList[1];
+        added[2] = attacker;
+        intent.exemptionListHash = _canonicalHash(added);
+        vm.expectRevert(ForgeLaunchAuthorizer.WrongCreator.selector);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
+
+        // Removal: the empty list where two were signed.
+        intent.exemptionListHash = _canonicalHash(new address[](0));
+        vm.expectRevert(ForgeLaunchAuthorizer.WrongCreator.selector);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
+    }
+
+    /// @notice Reordering is ACCEPTED by design: the canonical ordering
+    /// rule (ascending sort) makes on-chain application order irrelevant.
+    function test_r7b_reordered_exemption_list_accepted() public {
+        address[] memory signedList = new address[](2);
+        signedList[0] = vm.addr(0xE1);
+        signedList[1] = vm.addr(0xE2);
+        IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
+        intent.exemptionListHash = _canonicalHash(signedList);
+        bytes memory consent = _consentSig(intent, creatorPk);
+        bytes memory goodAtt = _goodAttestation();
+
+        address[] memory reordered = new address[](2);
+        reordered[0] = vm.addr(0xE2);
+        reordered[1] = vm.addr(0xE1);
+        intent.exemptionListHash = _canonicalHash(reordered);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
+    }
 
     function test_b14_forged_attestation_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         bytes memory consent = _consentSig(intent, creatorPk);
-        bytes memory forgedAtt = _attestationPayload(
-            uint64(block.timestamp), uint64(block.timestamp + 1 days), attackerPk
+        bytes memory forgedAtt = _attestationPayloadFor(
+            REPO_ID, creator, uint64(block.timestamp), uint64(block.timestamp + 1 days), attackerPk
         );
         vm.expectRevert(ForgeLaunchAuthorizer.InvalidAttestationSignature.selector);
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, forgedAtt);
     }
 
-    // ── B15: stale attestation (older than MAX_ATTESTATION_AGE) ──────────
+    // ── Correction A: attestation encoding + time validity (scenario 9/10)
 
-    function test_b15_stale_attestation_reverts() public {
-        // Foundry starts at timestamp 1; warp so the stale issuedAt cannot
-        // underflow.
+    function test_r9_incorrect_attestation_encoding_reverts() public {
+        IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
+        bytes memory consent = _consentSig(intent, creatorPk);
+
+        // The W02 padded encoding (129 bytes) is rejected: the canonical
+        // encoding is packed (81 bytes).
+        bytes32 digest = authorizer.attestationDigest(
+            REPO_ID, creator, uint64(block.timestamp), uint64(block.timestamp + 1 days)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorityPk, digest);
+        bytes memory padded = abi.encodePacked(
+            bytes32(uint256(uint64(block.timestamp))),
+            bytes32(uint256(uint64(block.timestamp + 1 days))),
+            r,
+            s,
+            bytes1(v)
+        );
+        vm.expectRevert(ForgeLaunchAuthorizer.BadAttestationEncoding.selector);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, padded);
+
+        // Short payload rejected too.
+        vm.expectRevert(ForgeLaunchAuthorizer.BadAttestationEncoding.selector);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, bytes("short"));
+    }
+
+    function test_r10_future_dated_attestation_reverts() public {
+        IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
+        bytes memory consent = _consentSig(intent, creatorPk);
+        bytes memory futureAtt = _attestationPayloadFor(
+            REPO_ID,
+            creator,
+            uint64(block.timestamp + 1 hours),
+            uint64(block.timestamp + 2 days),
+            authorityPk
+        );
+        vm.expectRevert(ForgeLaunchAuthorizer.AttestationNotYetValid.selector);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, futureAtt);
+    }
+
+    function test_r10b_inverted_attestation_times_revert() public {
+        // Warp so the inverted expiry cannot underflow.
         vm.warp(10 days);
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         bytes memory consent = _consentSig(intent, creatorPk);
-        bytes memory staleAtt = _attestationPayload(
-            uint64(block.timestamp - 4 days), uint64(block.timestamp + 1 days), authorityPk
+        // issuedAt AFTER expiresAt: inverted window (issuedAt still within
+        // the present, so the future-dated check does not fire first).
+        bytes memory inverted = _attestationPayloadFor(
+            REPO_ID, creator, uint64(block.timestamp), uint64(block.timestamp - 1 days), authorityPk
+        );
+        vm.expectRevert(ForgeLaunchAuthorizer.AttestationTimesInverted.selector);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, inverted);
+    }
+
+    function test_b15_stale_attestation_reverts() public {
+        vm.warp(10 days);
+        IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
+        bytes memory consent = _consentSig(intent, creatorPk);
+        bytes memory staleAtt = _attestationPayloadFor(
+            REPO_ID,
+            creator,
+            uint64(block.timestamp - 4 days),
+            uint64(block.timestamp + 1 days),
+            authorityPk
         );
         vm.expectRevert(ForgeLaunchAuthorizer.AttestationTooOld.selector);
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, staleAtt);
     }
 
-    // ── B16: registry/authorizer signer separation ───────────────────────
-
     function test_b16_registry_signer_separation() public {
-        // The registry and authorizer carry separate copies of the key and
-        // must be rotated together. A rogue registry key can write bindings,
-        // but the authorizer's attestation check still runs on ITS key.
         uint256 roguePk = 0x5E7F;
         address rogue = vm.addr(roguePk);
         vm.prank(forgeGovernance);
         registry.setEligibilityAuthority(rogue);
 
         // Attacker binds their own repo signed by the rogue registry key.
-        ForgeBindingRegistry.BindingOp memory op = ForgeBindingRegistry.BindingOp({
-            githubRepoId: 111_222_333,
-            creator: attacker,
-            expiresAt: uint64(block.timestamp + 30 days),
-            opNonce: 0,
-            repoFullName: "evil/repo",
-            revoke: false
-        });
+        ForgeBindingRegistry.BindingOp memory op =
+            _op(111_222_333, attacker, uint64(block.timestamp + 30 days), 1, false);
         bytes32 digest = registry.attestationDigestForBindingOp(
             op.githubRepoId,
             op.creator,
-            op.expiresAt,
+            op.bindingExpiresAt,
+            op.opDeadline,
             op.opNonce,
             keccak256(bytes(op.repoFullName)),
             op.revoke
@@ -422,9 +616,9 @@ contract ForgeLaunchAuthTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(roguePk, digest);
         registry.applyBindingOp(op, abi.encodePacked(r, s, v));
 
-        // The creator's launch against the original repo still passes the
-        // registry check (binding intact), but the ROGUE key cannot attest:
-        // the authorizer rejects any attestation not signed by its own key.
+        // An attacker with NO binding for the ORIGINAL repo consents for
+        // themselves and even carries an authority-signed attestation
+        // payload addressed to them: the registry check still refuses.
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         intent.creator = attacker;
         bytes memory consent = _consentSig(intent, attackerPk);

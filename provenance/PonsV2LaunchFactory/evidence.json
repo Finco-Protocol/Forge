@@ -1,0 +1,13 @@
+{
+   "address" : "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+   "chainId" : 4663,
+   "creationMatch" : "exact_match",
+   "deployer" : "0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36",
+   "deploymentTx" : "0x3817f297aa7c2ef78789bffac57491ceedc218fef962d47ed36c272699deddeb",
+   "expectedClassification" : "EXACT_VIA_SOURCIFY",
+   "matchId" : "43289536",
+   "name" : "PonsV2LaunchFactory",
+   "runtimeMatch" : "exact_match",
+   "sourcifyTier" : "exact_match",
+   "verifiedAt" : "2026-08-04T17:40:43Z"
+}

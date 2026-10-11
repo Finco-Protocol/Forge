@@ -12,13 +12,16 @@ pragma solidity ^0.8.30;
  * The authorization has two independent, non-interchangeable layers:
  *
  *  1. CREATOR CONSENT — an EIP-712 `LaunchAuthorization` signed by the
- *     creator's own wallet over the exact launch contents (metadata hash,
- *     economics digest, salt, config id, pair token, repo id, expiry,
- *     nonce, chain id, authorizer address). A wallet signature alone never
- *     authorizes anything.
+ *     creator's own wallet over the exact launch contents (effective
+ *     metadata hash including the creator tax, economics digest, salt,
+ *     config id, pair token, repo id, canonical anti-snipe exemption list
+ *     hash, expiry, nonce, chain id, authorizer address). A wallet
+ *     signature alone never authorizes anything.
  *  2. ELIGIBILITY ATTESTATION — an EIP-712 `EligibilityAttestation` signed
  *     by the Forge eligibility authority key binding the GitHub repository
- *     id to the creator wallet until an expiry, fresh at launch time.
+ *     id to the creator wallet, transmitted in the canonical packed
+ *     encoding abi.encodePacked(uint64 issuedAt, uint64 expiresAt,
+ *     bytes65 sig) — 81 bytes total.
  *
  * The two signatures MUST come from two different addresses; a single key
  * signing both is rejected.
@@ -29,18 +32,23 @@ interface IForgeLaunchAuthorizer {
     /// the economics digest binds the factory's launch configuration and
     /// the live fee policy (the factory's own `previewLaunchEconomics`
     /// preimage), so an owner re-peg invalidates outstanding authorizations
-    /// instead of silently repricing them.
+    /// instead of silently repricing them. The factory computes
+    /// `creatorTaxBps` and `exemptionListHash` from the ACTUAL execution
+    /// parameters before the authorization check runs, so neither can be
+    /// mutated after signing.
     struct LaunchIntent {
-        address factory;        // Forge factory that will execute the launch
-        address creator;        // wallet that signs the consent and receives attribution
-        uint64 githubRepoId;    // canonical GitHub repository id
+        address factory; // Forge factory that will execute the launch
+        address creator; // wallet that signs the consent and receives attribution
+        uint64 githubRepoId; // canonical GitHub repository id
         uint256 launchConfigId; // factory launch configuration index
-        address pairToken;      // quote asset (address(0) = native ETH)
+        address pairToken; // quote asset (address(0) = native ETH)
         bytes32 tokenMetadataHash;
         bytes32 economicsDigest;
-        bytes32 salt;           // CREATE2 salt passed to the factory
-        uint64 expiresAt;       // consent deadline (unix seconds)
-        uint64 nonce;           // per-creator monotonically increasing nonce
+        bytes32 salt; // CREATE2 salt passed to the factory
+        uint64 expiresAt; // consent deadline (unix seconds)
+        uint64 nonce; // per-creator monotonically increasing nonce
+        uint16 creatorTaxBps; // effective creator tax the factory will apply
+        bytes32 exemptionListHash; // canonical hash of the snipe-tax exemption list
     }
 
     /// @notice Reverts unless the launch described by `intent` carries a
@@ -54,7 +62,8 @@ interface IForgeLaunchAuthorizer {
     /// bound metadata.
     /// @param creatorSignature The creator's EIP-712 LaunchAuthorization
     /// signature (65 bytes).
-    /// @param attestationSignature The authority attestation payload:
+    /// @param attestationSignature The authority attestation payload in the
+    /// canonical packed encoding:
     /// abi.encodePacked(uint64 issuedAt, uint64 expiresAt, bytes65 sig).
     function requireAuthorizedLaunch(
         LaunchIntent calldata intent,

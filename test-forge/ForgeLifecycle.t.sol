@@ -196,7 +196,9 @@ contract ForgeLifecycleTest is Test, IUnlockCallback {
             economicsDigest: factory.previewLaunchEconomics(0, address(0)),
             salt: keccak256("forge-salt-1"),
             expiresAt: uint64(block.timestamp + 10 minutes),
-            nonce: 0
+            nonce: 0,
+            creatorTaxBps: 0,
+            exemptionListHash: keccak256(abi.encode(new address[](0)))
         });
         bytes32 consentDigest = authorizer.consentDigest(intent, creator, false);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(creatorPk, consentDigest);
@@ -206,8 +208,8 @@ contract ForgeLifecycleTest is Test, IUnlockCallback {
         );
         (uint8 av, bytes32 ar, bytes32 asr) = vm.sign(authorityPk, attDigest);
         att = abi.encodePacked(
-            bytes32(uint256(uint64(block.timestamp))),
-            bytes32(uint256(uint64(block.timestamp + 1 days))),
+            uint64(uint64(block.timestamp)),
+            uint64(uint64(block.timestamp + 1 days)),
             ar,
             asr,
             bytes1(av)
@@ -218,15 +220,17 @@ contract ForgeLifecycleTest is Test, IUnlockCallback {
         ForgeBindingRegistry.BindingOp memory op = ForgeBindingRegistry.BindingOp({
             githubRepoId: repoId,
             creator: who,
-            expiresAt: uint64(block.timestamp + 30 days),
-            opNonce: 0,
+            bindingExpiresAt: uint64(block.timestamp + 30 days),
+            opDeadline: uint64(block.timestamp + 5 minutes),
+            opNonce: 1,
             repoFullName: "finco/forge",
             revoke: false
         });
         bytes32 digest = registry.attestationDigestForBindingOp(
             op.githubRepoId,
             op.creator,
-            op.expiresAt,
+            op.bindingExpiresAt,
+            op.opDeadline,
             op.opNonce,
             keccak256(bytes(op.repoFullName)),
             op.revoke

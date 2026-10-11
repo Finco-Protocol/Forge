@@ -45,7 +45,30 @@ constructor's one new parameter). Elements:
    params.buybackEnabled, params.creatorSignature, params.attestationPayload)`.
    The intent binds factory address, creator, repo id, config id, pair
    token, metadata hash (name, symbol, logo, description, socials), live
-   economics digest, salt, expiry, and nonce.
+   economics digest, salt, expiry, nonce, AND (Correction A):
+   - the effective `creatorTaxBps` the factory will apply (a forwarded or
+     malformed launch submitting a different tax reverts);
+   - the canonical anti-snipe exemption list hash (sorted-ascending hash;
+     a reordered submission is accepted, any addition/removal/substitution
+     reverts).
+
+### 2a. Entry-point exemption binding (Correction A / P1-3)
+
+The three launch entry points now compute the CANONICAL exemption list
+hash (sorted-ascending hash; zero addresses refused; 32-entry cap
+preserved) and pass it into `_launchToken` so it feeds the signed intent:
+
+- `launchToken(params, id, pair)` — binds the canonical EMPTY list hash.
+- `launchToken(params, id, pair, exemptions)` — binds
+  `_canonicalExemptionHash(exemptions)`, computed BEFORE `deployLaunch`.
+- `launchTokenFor(params, id, pair, originalDeployer, exemptions)` — same
+  binding; the owner-configured forwarder cannot alter the signed list.
+
+Why exemptions are economically sensitive: an exemption wallet buys at the
+UNTAXED price during the launch-second 99%-decay window. An unsigned list
+lets a malicious forwarder add its own wallets (capturing the tax value)
+or attacker wallets that dump immediately (the W01 F-08 extraction
+pattern).
 
 Effect: the invariant **no token can be launched through the Forge factory
 without valid authorization from the approved Forge eligibility authority**

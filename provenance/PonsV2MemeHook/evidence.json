@@ -1,0 +1,13 @@
+{
+   "address" : "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044",
+   "chainId" : 4663,
+   "creationMatch" : "match",
+   "deployer" : "0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36",
+   "deploymentTx" : "0x220a9825bb32374540a6c7f3d6e7c769de64430c7f2155484ad0344d1c955d4b",
+   "expectedClassification" : "IMMUTABLE_PATCHED",
+   "matchId" : "43313796",
+   "name" : "PonsV2MemeHook",
+   "runtimeMatch" : "match",
+   "sourcifyTier" : "match",
+   "verifiedAt" : "2026-08-05T10:00:13Z"
+}

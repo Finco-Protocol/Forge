@@ -44,6 +44,14 @@ if [ ! -f "$PINS" ]; then
   echo "::error::pin manifest not found: $PINS"; exit 1
 fi
 
+# EOL-agnostic manifest: a Windows checkout smudges CRLF into the working
+# tree and a trailing \r would poison every pinned-hash comparison below.
+# The committed manifest is LF (enforced by .gitattributes); normalize anyway.
+PINS_NORM="$(mktemp)"
+trap 'rm -rf "$CACHE" "$PINS_NORM"' EXIT
+tr -d '\r' < "$PINS" > "$PINS_NORM"
+PINS="$PINS_NORM"
+
 # 0a. Malformed rows (must be exactly 5 tab-separated fields; header aside).
 malformed=$(tail -n +2 "$PINS" | awk -F'\t' 'NF != 5 { print NR + 1 ": " $0 }' || true)
 [ -n "$malformed" ] && { note "malformed pin rows (need 5 tab-separated fields):"; echo "$malformed"; }

@@ -1,0 +1,41 @@
+{
+   "compiler" : "solc",
+   "compilerSettings" : {
+      "evmVersion" : "cancun",
+      "libraries" : {},
+      "metadata" : {
+         "appendCBOR" : true,
+         "bytecodeHash" : "ipfs",
+         "useLiteralContent" : false
+      },
+      "optimizer" : {
+         "enabled" : true,
+         "runs" : 200
+      },
+      "remappings" : [
+         "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
+         "@uniswap/v4-core/=contracts/lib/v4-core/",
+         "@uniswap/v4-periphery/=contracts/lib/v4-periphery/",
+         "@uniswap/v4-hooks-public/=contracts/lib/v4-hooks-public/",
+         "forge-std/=contracts/lib/forge-std/src/",
+         "v4-core/=contracts/lib/v4-core/src/",
+         "v4-periphery/=contracts/lib/v4-periphery/src/",
+         "permit2/=contracts/lib/v4-periphery/lib/permit2/",
+         "contracts/lib/v4-periphery/:@uniswap/v4-core/=contracts/lib/v4-core/",
+         "@ensdomains/=contracts/lib/v4-core/node_modules/@ensdomains/",
+         "ds-test/=contracts/lib/v4-core/lib/forge-std/lib/ds-test/src/",
+         "erc4626-tests/=contracts/lib/openzeppelin-contracts/lib/erc4626-tests/",
+         "forge-gas-snapshot/=contracts/lib/v4-periphery/lib/permit2/lib/forge-gas-snapshot/src/",
+         "halmos-cheatcodes/=contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
+         "hardhat/=contracts/lib/v4-core/node_modules/hardhat/",
+         "openzeppelin-contracts/=contracts/lib/openzeppelin-contracts/",
+         "solmate/=contracts/lib/v4-core/lib/solmate/",
+         "v4-hooks-public/=contracts/lib/v4-hooks-public/src/"
+      ],
+      "viaIR" : true
+   },
+   "compilerVersion" : "0.8.35+commit.47b9dedd",
+   "fullyQualifiedName" : "contracts/src/v2/PonsV2LaunchDeployer.sol:PonsV2LaunchDeployer",
+   "language" : "Solidity",
+   "name" : "PonsV2LaunchDeployer"
+}

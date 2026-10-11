@@ -28,19 +28,22 @@ import {ForgeBindingRegistry} from "./ForgeBindingRegistry.sol";
  *
  *  1. CREATOR CONSENT — EIP-712 `LaunchAuthorization` signed by the
  *     creator's own wallet over the exact launch contents: effective
- *     metadata hash, live economics digest, salt, config id, pair token,
- *     repo id, expiry, per-creator nonce, chain id and the authorizer.
+ *     metadata hash (including creatorFeeRecipient, buybackEnabled AND the
+ *     effective creatorTaxBps), live economics digest, salt, config id,
+ *     pair token, canonical anti-snipe exemption list hash, repo id,
+ *     expiry, per-creator nonce, chain id and the authorizer address.
  *  2. ELIGIBILITY ATTESTATION — EIP-712 `EligibilityAttestation` signed by
  *     the Forge eligibility authority key, binding the GitHub repository id
- *     to the creator wallet. Transmitted as
- *     abi.encodePacked(uint64 issuedAt, uint64 expiresAt, bytes65 sig) so
- *     the on-chain verifier sees exactly the values that were signed.
+ *     to the creator wallet. CANONICAL PACKED ENCODING (81 bytes):
+ *     abi.encodePacked(uint64 issuedAt, uint64 expiresAt, bytes65 sig).
+ *     Any other length is rejected.
  *
  * Additional enforcement: factory binding (msg.sender must be the one-time
  * wired Forge factory the intent names), active registry binding for
- * (repoId, creator), creator nonce freshness, attestation freshness bounded
- * by MAX_ATTESTATION_AGE, and authority rotation restricted to governance
- * with an explicit revocation-only kill switch.
+ * (repoId, creator), creator nonce freshness, attestation time validity
+ * (issuedAt ≤ now, issuedAt ≤ expiresAt, expiry, ≤MAX_ATTESTATION_AGE
+ * freshness — each enforced independently), and authority rotation
+ * restricted to governance with an explicit revocation-only kill switch.
  */
 contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
     using ECDSA for bytes32;
@@ -56,6 +59,8 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         bytes32 salt;
         uint64 expiresAt;
         uint64 nonce;
+        uint16 creatorTaxBps;
+        bytes32 exemptionListHash;
     }
 
     struct EligibilityAttestation {
@@ -71,13 +76,15 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
     error AuthorizationExpired();
     error AttestationExpired();
     error AttestationTooOld();
+    error AttestationNotYetValid();
+    error AttestationTimesInverted();
+    error BadAttestationEncoding();
     error WrongFactory();
     error WrongCreator();
     error CreatorNonceStale();
     error BindingNotActive();
     error ZeroAddress();
     error AuthorityRevoked();
-    error BadAttestationEncoding();
     error FactoryAlreadySet();
 
     event EligibilityAuthorityUpdated(address indexed previous, address indexed current);
@@ -109,18 +116,20 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
     /// @notice Per-creator strictly-increasing consent nonce.
     mapping(address creator => uint64 next) public nextCreatorNonce;
 
-    bytes32 private constant LAUNCH_AUTHORIZATION_TYPEHASH =
-        keccak256(
-            "LaunchAuthorization(address factory,address creator,uint64 githubRepoId,uint256 launchConfigId,address pairToken,bytes32 tokenMetadataHash,bytes32 economicsDigest,bytes32 salt,uint64 expiresAt,uint64 nonce)"
-        );
-    bytes32 private constant ELIGIBILITY_ATTESTATION_TYPEHASH =
-        keccak256("EligibilityAttestation(uint64 githubRepoId,address creator,uint64 issuedAt,uint64 expiresAt)");
+    bytes32 private constant LAUNCH_AUTHORIZATION_TYPEHASH = keccak256(
+        "LaunchAuthorization(address factory,address creator,uint64 githubRepoId,uint256 launchConfigId,address pairToken,bytes32 tokenMetadataHash,bytes32 economicsDigest,bytes32 salt,uint64 expiresAt,uint64 nonce,uint16 creatorTaxBps,bytes32 exemptionListHash)"
+    );
+    bytes32 private constant ELIGIBILITY_ATTESTATION_TYPEHASH = keccak256(
+        "EligibilityAttestation(uint64 githubRepoId,address creator,uint64 issuedAt,uint64 expiresAt)"
+    );
 
     constructor(ForgeBindingRegistry registry_, address eligibilityAuthority_)
         EIP712("FINCO Forge Launch", "1")
         Ownable(msg.sender)
     {
-        if (address(registry_) == address(0) || eligibilityAuthority_ == address(0)) revert ZeroAddress();
+        if (address(registry_) == address(0) || eligibilityAuthority_ == address(0)) {
+            revert ZeroAddress();
+        }
         registry = registry_;
         eligibilityAuthority = eligibilityAuthority_;
     }
@@ -148,10 +157,14 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
 
         // ── Layer 1: creator consent ─────────────────────────────────────
         // The consent digest binds the launch's effective metadata: the
-        // factory records creatorFeeRecipient (defaulting to the creator)
-        // and buybackEnabled on the launch record, so both are hashed
-        // alongside the TokenParams metadata hash the factory computed.
-        bytes32 metadataHash = _metadataHash(intent.tokenMetadataHash, creatorFeeRecipient, buybackEnabled);
+        // factory records creatorFeeRecipient (defaulting to the creator),
+        // buybackEnabled AND the effective creatorTaxBps on the launch
+        // record, so all three are hashed alongside the TokenParams
+        // metadata hash the factory computed. The canonical anti-snipe
+        // exemption list hash and economics digest complete the binding.
+        bytes32 metadataHash = _metadataHash(
+            intent.tokenMetadataHash, creatorFeeRecipient, buybackEnabled, intent.creatorTaxBps
+        );
         bytes32 consentDigest = _hashTypedDataV4(
             keccak256(
                 abi.encode(
@@ -165,7 +178,9 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
                     intent.economicsDigest,
                     intent.salt,
                     intent.expiresAt,
-                    intent.nonce
+                    intent.nonce,
+                    intent.creatorTaxBps,
+                    intent.exemptionListHash
                 )
             )
         );
@@ -179,23 +194,38 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         nextCreatorNonce[intent.creator] = intent.nonce + 1;
 
         // ── Layer 2: eligibility attestation ─────────────────────────────
-        if (attestationPayload.length != 32 + 32 + 65) revert BadAttestationEncoding();
-        uint64 issuedAt = uint64(bytes8(attestationPayload[24:32]));
-        uint64 expiresAt = uint64(bytes8(attestationPayload[56:64]));
+        // Canonical packed encoding: uint64 issuedAt, uint64 expiresAt,
+        // bytes65 sig — exactly 81 bytes. Any other length is rejected.
+        if (attestationPayload.length != 16 + 65) revert BadAttestationEncoding();
+        uint64 issuedAt = uint64(bytes8(attestationPayload[0:8]));
+        uint64 expiresAt = uint64(bytes8(attestationPayload[8:16]));
         bytes32 attestationDigest = _hashTypedDataV4(
-            keccak256(abi.encode(ELIGIBILITY_ATTESTATION_TYPEHASH, intent.githubRepoId, intent.creator, issuedAt, expiresAt))
+            keccak256(
+                abi.encode(
+                    ELIGIBILITY_ATTESTATION_TYPEHASH,
+                    intent.githubRepoId,
+                    intent.creator,
+                    issuedAt,
+                    expiresAt
+                )
+            )
         );
-        address attSigner = attestationDigest.recover(attestationPayload[64:]);
+        address attSigner = attestationDigest.recover(attestationPayload[16:]);
         if (attSigner == address(0)) revert InvalidAttestationSignature();
         if (attSigner == consentSigner) revert SignaturesNotIndependent();
         if (attSigner != eligibilityAuthority) revert InvalidAttestationSignature();
-        if (expiresAt < block.timestamp) revert AttestationExpired();
-        if (issuedAt + MAX_ATTESTATION_AGE < block.timestamp) revert AttestationTooOld();
+        // Each time property enforced independently:
+        if (issuedAt > block.timestamp) revert AttestationNotYetValid(); // future-dated
+        if (issuedAt > expiresAt) revert AttestationTimesInverted(); // inverted window
+        if (expiresAt < block.timestamp) revert AttestationExpired(); // expired
+        if (issuedAt + MAX_ATTESTATION_AGE < block.timestamp) revert AttestationTooOld(); // stale
 
         // ── Binding freshness: the repo must still belong to this creator ─
         if (!registry.isActive(intent.githubRepoId, intent.creator)) revert BindingNotActive();
 
-        emit LaunchAuthorized(intent.creator, intent.githubRepoId, metadataHash, intent.economicsDigest);
+        emit LaunchAuthorized(
+            intent.creator, intent.githubRepoId, metadataHash, intent.economicsDigest
+        );
     }
 
     /// @inheritdoc IForgeLaunchAuthorizer
@@ -204,21 +234,24 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
     }
 
     /// @notice The effective metadata digest creators must sign over.
-    function metadataDigest(bytes32 tokenMetadataHash, address creatorFeeRecipient, bool buybackEnabled)
-        external
-        pure
-        returns (bytes32)
-    {
-        return _metadataHash(tokenMetadataHash, creatorFeeRecipient, buybackEnabled);
+    function metadataDigest(
+        bytes32 tokenMetadataHash,
+        address creatorFeeRecipient,
+        bool buybackEnabled,
+        uint16 creatorTaxBps
+    ) external pure returns (bytes32) {
+        return _metadataHash(tokenMetadataHash, creatorFeeRecipient, buybackEnabled, creatorTaxBps);
     }
 
     /// @notice The typed consent digest for off-chain signing tools.
-    function consentDigest(LaunchIntent calldata intent, address creatorFeeRecipient, bool buybackEnabled)
-        external
-        view
-        returns (bytes32)
-    {
-        bytes32 metadataHash = _metadataHash(intent.tokenMetadataHash, creatorFeeRecipient, buybackEnabled);
+    function consentDigest(
+        LaunchIntent calldata intent,
+        address creatorFeeRecipient,
+        bool buybackEnabled
+    ) external view returns (bytes32) {
+        bytes32 metadataHash = _metadataHash(
+            intent.tokenMetadataHash, creatorFeeRecipient, buybackEnabled, intent.creatorTaxBps
+        );
         return _hashTypedDataV4(
             keccak256(
                 abi.encode(
@@ -232,20 +265,27 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
                     intent.economicsDigest,
                     intent.salt,
                     intent.expiresAt,
-                    intent.nonce
+                    intent.nonce,
+                    intent.creatorTaxBps,
+                    intent.exemptionListHash
                 )
             )
         );
     }
 
     /// @notice The typed attestation digest for the authority's signer.
-    function attestationDigest(uint64 githubRepoId, address creator, uint64 issuedAt, uint64 expiresAt)
-        external
-        view
-        returns (bytes32)
-    {
+    function attestationDigest(
+        uint64 githubRepoId,
+        address creator,
+        uint64 issuedAt,
+        uint64 expiresAt
+    ) external view returns (bytes32) {
         return _hashTypedDataV4(
-            keccak256(abi.encode(ELIGIBILITY_ATTESTATION_TYPEHASH, githubRepoId, creator, issuedAt, expiresAt))
+            keccak256(
+                abi.encode(
+                    ELIGIBILITY_ATTESTATION_TYPEHASH, githubRepoId, creator, issuedAt, expiresAt
+                )
+            )
         );
     }
 
@@ -258,11 +298,14 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         eligibilityAuthority = newAuthority;
     }
 
-    function _metadataHash(bytes32 tokenMetadataHash, address creatorFeeRecipient, bool buybackEnabled)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encode(tokenMetadataHash, creatorFeeRecipient, buybackEnabled));
+    function _metadataHash(
+        bytes32 tokenMetadataHash,
+        address creatorFeeRecipient,
+        bool buybackEnabled,
+        uint16 creatorTaxBps
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(tokenMetadataHash, creatorFeeRecipient, buybackEnabled, creatorTaxBps)
+        );
     }
 }

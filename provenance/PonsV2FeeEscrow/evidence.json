@@ -1,0 +1,13 @@
+{
+   "address" : "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
+   "chainId" : 4663,
+   "creationMatch" : "match",
+   "deployer" : "0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36",
+   "deploymentTx" : "0xf0a6e026cbd00d98b63df9e4aa65d1554675ef3f33e696f5e13ca0a7c3d124af",
+   "expectedClassification" : "IMMUTABLE_PATCHED",
+   "matchId" : "43642574",
+   "name" : "PonsV2FeeEscrow",
+   "runtimeMatch" : "match",
+   "sourcifyTier" : "match",
+   "verifiedAt" : "2026-08-14T22:01:59Z"
+}

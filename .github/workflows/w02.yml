@@ -89,33 +89,70 @@ jobs:
           version: ${{ env.FOUNDRY_VERSION }}
       - name: forge fmt --check (Forge-authored trees, required)
         run: forge fmt --check test-forge
-      - name: forge lint (Forge-authored test code, required zero)
+      - name: Lint gate parser regression tests (L1-L9)
+        run: bash scripts/test-lint-gate.sh
+      - name: Lint Forge-authored test code (strict parser, required zero)
+        # PR #1's fail-closed parser (scripts/check-test-lint.pl) - NOT text
+        # grep. Malformed output or a parser failure exits nonzero.
         run: |
+          set -euo pipefail
           forge lint --profile forge test-forge --json > w02-lint.json
-          count=$(grep -c '"$message_type":"diagnostic"' w02-lint.json || true)
+          perl scripts/check-test-lint.pl w02-lint.json
+      - name: Lint newly authored security contracts (zero ERRORS; warnings baselined)
+        # The Forge-authored eligibility stack. The strict parser must see
+        # zero ERROR-level diagnostics; the advisory warning set (signature
+        # deadline patterns, documented in docs/THREAT-MODEL-W02.md) is
+        # reported in full and uploaded - never silently swallowed.
+        run: |
+          set -euo pipefail
+          forge lint --profile forge contractsV2-forge/src/v2/forge --json > forge-lint-all.json
+          # Keep only ERROR-level diagnostics for the hard gate.
+          perl -ne 'print if /"level":"error"/' forge-lint-all.json > forge-lint-errors.json
+          count=$(grep -c 'message_type' forge-lint-errors.json || true)
           if [ "$count" -ne 0 ]; then
-            echo "::error::forge lint reported $count finding(s) in test-forge/"
-            cat w02-lint.json
+            echo "::error::forge lint reported $count ERROR-level finding(s) in the eligibility stack"
+            cat forge-lint-errors.json
             exit 1
           fi
+          perl scripts/check-test-lint.pl forge-lint-errors.json
+          warn=$(grep -c '"level":"warning"' forge-lint-all.json || true)
+          echo "::notice::eligibility-stack lint warnings (advisory, baselined): $warn"
+
+
+      - name: Lint recovered PONS sources (advisory baseline, reported)
+        if: always()
+        run: |
+          forge lint --profile forge contractsV2-forge/src/v2 --json > pons-lint-all.json 2>&1 || true
+          # Exclude the forge/ subdirectory (gated above) from the baseline.
+          perl -ne 'print unless /forge\//' pons-lint-all.json > pons-lint-baseline.json || true
+          count=$(grep -c 'message_type' pons-lint-baseline.json || true)
+          echo "::notice::inherited upstream lint baseline: $count finding(s) (advisory; sources byte-identical to deploy-time - see docs/W02-SOURCE-RECOVERY.md)"
+      - name: Upload lint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: w02-lint-evidence
+          path: |
+            w02-lint.json
+            forge-lint.json
+            pons-lint-baseline.json
+          if-no-files-found: warn
+
+
       - name: Canary classifier regression tests (fixtures A–G)
         run: bash scripts/test-canary-classifier.sh
       - name: Vendor checker negative tests (V1–V10)
         run: bash scripts/test-vendor-checker.sh
-      - name: Lint gate parser tests (L1–L9)
-        run: bash scripts/test-lint-gate.sh
-      - name: Deploy-time tree integrity (Sourcify parity baseline)
-        run: |
-          # The recovered deploy-time sources must remain byte-identical to
-          # their Sourcify extraction — any drift invalidates the parity
-          # evidence in docs/W02-SOURCE-RECOVERY.md.
-          bad=0
-          while IFS= read -r f; do
-            rel="${f#contractsV2-deployed/}"
-            src=".w02-recovery/PonsV2LaunchFactory-src/$rel"
-            if [ -f "$src" ] && [ "$(git hash-object "$f")" != "$(git hash-object "$src")" ]; then
-              echo "::error::deploy-time source drifted from Sourcify extraction: $rel"
-              bad=1
-            fi
-          done < <(git ls-files "contractsV2-deployed/*.sol" "contractsV2-deployed/**/*.sol")
-          exit $bad
+      - name: Source parity gate (recompile + byte-parity vs on-chain, fail-closed)
+        # Recompiles every deployed contract from the committed std-json
+        # inputs with the pinned solc 0.8.35 (checksum-verified) and classifies
+        # the result against the recorded on-chain runtime code. Any missing
+        # manifest artifact, source drift, or unexpected bytecode difference
+        # fails the job — there is no silent skip. See docs/W02-SOURCE-RECOVERY.md.
+        run: bash provenance/verify-parity.sh
+      - name: Source parity gate negative tests (N0, S11a-c, S12a-d)
+        # Proves the gate actually fails closed: deleted runtime hex, deleted
+        # evidence dir, deleted source, modified on-chain hex, modified
+        # std-json input, mutated classification, and manifest drift are all
+        # expected to be caught.
+        run: bash scripts/test-parity-gate.sh

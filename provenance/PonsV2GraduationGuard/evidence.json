@@ -1,0 +1,10 @@
+{
+   "address" : "0xf5695117b99B6f6401e67d4195BD653628176C6C",
+   "chainId" : 4663,
+   "classification" : "IMMUTABLE_PATCHED",
+   "deploymentTx" : "",
+   "expectedClassification" : "IMMUTABLE_PATCHED",
+   "name" : "PonsV2GraduationGuard",
+   "note" : "No standalone Sourcify record; source rides in the PonsV2LaunchFactory exact_match std-json compile set. Onchain runtime fetched from RPC 2026-10-11 and verified against the factory std-json recompile.",
+   "sourcifyTier" : "transitive"
+}

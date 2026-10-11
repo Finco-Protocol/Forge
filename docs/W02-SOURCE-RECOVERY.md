@@ -21,7 +21,10 @@ compilation inputs:
   and runtime bytecode, the full std-json input (sources + compiler
   settings), the deployment transaction hash, and the deployer.
 - Sources extracted per contract from the record's `sources` map into
-  `.w02-recovery/<name>-src/` (retained in the branch for evidence).
+  `.w02-recovery/<name>-src/` (working extraction output, gitignored —
+  the durable evidence is this tooling, the committed deploy-time tree
+  `contractsV2-deployed/`, and the embedded sources in each
+  `provenance/<Contract>/std-json-input.json`).
 
 Priority order per the mission: (1) exact upstream deploy-time source —
 not available; (2) **verified explorer source matching deployed addresses —
@@ -31,20 +34,47 @@ USED, via Sourcify**; (3) historical revisions — not needed.
 
 | Contract | Address (4663) | Sourcify match | Verified at | Deploy tx | Independent byte-verification (this workflow) |
 | --- | --- | --- | --- | --- | --- |
-| PonsV2LaunchFactory | `0x7eD5…EC7e` | **exact** (creation + runtime) | 2026-08-04 | `0x3817f297…` | RUNTIME-PARITY-PROVEN (114 immutable spans) |
-| PonsV2LaunchDeployer | `0x3711…1A42` | **exact** (creation + runtime) | 2026-08-04 | `0x849d092e…` | RUNTIME-PARITY-PROVEN (12 spans) |
-| PonsV2LaunchAndBuy | `0xe33E…2948` | **exact** (creation + runtime) | 2026-08-04 | `0x4be522d4…` | RUNTIME-PARITY-PROVEN (12 spans) |
-| PonsV2MemeHook | `0xE5e7…e044` | match (creation + runtime) | 2026-08-05 | `0x220a9825…` | RUNTIME-PARITY-PROVEN (69 spans) |
-| PonsV2FeeEscrow | `0xd3AF…Ac9e` | match (creation + runtime) | 2026-08-14 | `0xf0a6e026…` | RUNTIME-PARITY-PROVEN (0 spans — no immutables) |
-| PonsV2BuybackVault | `0x42df…219c` | match (creation + runtime) | 2026-08-20 | `0x4ceb1e80…` | RUNTIME-PARITY-PROVEN (12 spans) |
-| PonsV2LaunchLocker | `0x2674…4952` | match (creation + runtime) | 2026-08-25 | `0x7b2f3e9d…` | RUNTIME-PARITY-PROVEN (12 spans) |
-| PonsV2GraduationExecutor | `0xC781…9046` | match (creation + runtime) | 2026-08-25 | `0x21d0b869…` | RUNTIME-PARITY-PROVEN (33 spans) |
-| PonsV2GraduationGuard | `0xf569…c6C` | (verified transitively inside the factory's source set) | — | — | RUNTIME-PARITY-PROVEN (0 spans) |
+| PonsV2LaunchFactory | `0x7eD5…EC7e` | **exact** (creation + runtime) | 2026-08-04 | `0x3817f297…` | RUNTIME-PARITY-PROVEN — `EXACT_VIA_SOURCIFY` (114 immutable spans) |
+| PonsV2LaunchDeployer | `0x3711…1A42` | **exact** (creation + runtime) | 2026-08-04 | `0x849d092e…` | RUNTIME-PARITY-PROVEN — `EXACT_VIA_SOURCIFY` (12 spans) |
+| PonsV2LaunchAndBuy | `0xe33E…2948` | **exact** (creation + runtime) | 2026-08-04 | `0x4be522d4…` | RUNTIME-PARITY-PROVEN — `EXACT_VIA_SOURCIFY` (12 spans) |
+| PonsV2MemeHook | `0xE5e7…e044` | match (creation + runtime) | 2026-08-05 | `0x220a9825…` | RUNTIME-PARITY-PROVEN — `IMMUTABLE_PATCHED` (69 spans) |
+| PonsV2FeeEscrow | `0xd3AF…Ac9e` | match (creation + runtime) | 2026-08-14 | `0xf0a6e026…` | RUNTIME-PARITY-PROVEN — `IMMUTABLE_PATCHED` (0 spans — no immutables) |
+| PonsV2BuybackVault | `0x42df…219c` | match (creation + runtime) | 2026-08-20 | `0x4ceb1e80…` | RUNTIME-PARITY-PROVEN — `IMMUTABLE_PATCHED` (12 spans) |
+| PonsV2LaunchLocker | `0x2674…4952` | match (creation + runtime) | 2026-08-25 | `0x7b2f3e9d…` | RUNTIME-PARITY-PROVEN — `IMMUTABLE_PATCHED` (12 spans) |
+| PonsV2GraduationExecutor | `0xC781…9046` | match (creation + runtime) | 2026-08-25 | `0x21d0b869…` | RUNTIME-PARITY-PROVEN — `IMMUTABLE_PATCHED` (33 spans) |
+| PonsV2GraduationGuard | `0xf569…c6C` | (verified transitively inside the factory's source set) | — | — | RUNTIME-PARITY-PROVEN — `EXACT` (0 spans) |
 
 "match" in Sourcify v2 terms = full bytecode match modulo immutable
 positions; "exact" = including metadata. PonsV2LauncherToken's source rides
 in every package; PonsV2GraduationGuard's source rides in the factory and
 executor packages.
+
+### Classification tiers (what may be claimed, and by what evidence)
+
+The CI source-parity gate (`provenance/verify-parity.sh`) enforces this
+vocabulary; a contract may only carry the strongest tier its recorded
+evidence supports, and **anything weaker is `UNVERIFIED` and fails the
+gate — never labeled RUNTIME-PARITY-PROVEN**:
+
+- **`EXACT`** — recompiled runtime is byte-identical to the on-chain
+  runtime including the metadata tail. Currently: PonsV2GraduationGuard.
+- **`EXACT_VIA_SOURCIFY`** — Sourcify's independent "exact" tier proved
+  creation+runtime+metadata equality at deploy-time verification; the
+  local recompile proves full code-section parity while the metadata tail
+  necessarily differs (toolchain/`outputSelection` presence), which is
+  handled explicitly and recorded. Currently: factory, deployer,
+  launch-and-buy router.
+- **`IMMUTABLE_PATCHED`** — code-section parity holds after patching only
+  the documented constructor-immutable spans (each diff must expand to a
+  20-byte zero placeholder), with length-matched well-formed tails. Every
+  patched address is cross-checked against the deployment table.
+- **`UNVERIFIED` / `BLOCKED`** — missing manifest artifact, source drift,
+  recompile failure, or any unexpected byte difference. The gate fails;
+  no parity claim may be made.
+
+A declared floor may be exceeded upward (e.g. GraduationGuard is declared
+`IMMUTABLE_PATCHED` as its contract-shape floor but observes `EXACT`);
+the reverse is a hard failure.
 
 ### Independent byte-verification method
 

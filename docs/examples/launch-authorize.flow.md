@@ -9,8 +9,12 @@
    LaunchAuthorization(factory, creator, githubRepoId, launchConfigId,
    pairToken, tokenMetadataHash, economicsDigest, salt, expiresAt, nonce).
 4. Authority signs EligibilityAttestation(githubRepoId, creator, issuedAt,
-   expiresAt), transmitted as
+   expiresAt). CANONICAL WIRE ENCODING (81 bytes):
    abi.encodePacked(uint64 issuedAt, uint64 expiresAt, bytes65 sig).
+   viem: serializeAbiParameters(["uint64","uint64","bytes"], [issuedAt, expiresAt, sig]).
+   ethers: AbiCoder.defaultAbiCoder().encode(["uint64","uint64","bytes"], ...).
+   The authorizer enforces: payload.length == 81, issuedAt <= block.timestamp,
+   issuedAt <= expiresAt, expiresAt >= now, issuedAt + 3d >= now.
 5. Launch transaction: factory.launchToken(TokenParams{..., githubRepoId,
    authorizationExpiresAt, authorizationNonce, creatorSignature,
    attestationPayload}, launchConfigId, pairToken).

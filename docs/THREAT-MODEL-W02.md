@@ -21,6 +21,9 @@ mission, with the test evidence for each.
 | 10 | Unauthorized wallets | Attestation binds (repoId, creator); registry binding must name the same creator | `Auth.b10, b16` |
 | 11 | Malicious administrator configurations | The authority address is immutable in the factory and the check is not owner-bypassable; whitelist/launch-enabled owner switches do NOT satisfy M-ELIG (they gate `canLaunch`, which runs before but cannot replace the authorizer call) | `Auth` suite + MODIFICATION-REGISTER §2 |
 | 12 | Single-key self-authorization | Creator signature and attestation MUST recover to different addresses | `Auth.b11` |
+| 12a | Changed creator tax after signing | Effective creatorTaxBps is hashed into the consent digest; any mutation reverts | `Auth.r6` |
+| 12b | Exemption list mutation (add/remove/substitute) | Canonical sorted-list hash bound in the consent; reordering accepted by design (order is semantically irrelevant), all other mutations revert | `Auth.r7, r7b` |
+| 12c | Forwarder mutates signed exemptions | Canonical hash computed and bound BEFORE deployment in every entry point incl. launchTokenFor; forwarder cannot alter it | `Lifecycle` + factory code path |
 | 13 | Metadata/economics re-peg after signing | Consent digest binds effective metadata (incl. fee recipient, buyback flag) AND the live economics digest; any change re-verifies against a different digest and reverts | `Auth.b12, b13` |
 | 14 | Forged attestations | Attestation must recover to the authority key | `Auth.b14` |
 | 15 | Factory/chain substitutions | Domain binds authorizer address + chain; factory binding is one-time | `Auth.b2, b3, b5` |
@@ -96,6 +99,11 @@ Disposition for the Forge-owned stack:
 5. External audit: the Forge-owned stack (factory M-ELIG diff, authorizer,
    registry) must be independently audited before any mainnet use, together
    with the recovered-source parity evidence (docs/W02-SOURCE-RECOVERY.md).
+6. Eligibility-stack lint posture (Correction A): zero ERROR-level
+   diagnostics are enforced as a hard gate; the advisory warning set
+   (timestamp-comparison, event-after-external-call patterns inherent to
+   signature-verification contracts) is baselined and reported in CI
+   artifacts — never silently swallowed.
 
 ## 5. Risk register additions
 
