@@ -27,11 +27,17 @@ open my $af, '<:raw', $additions_file
 my %additions;    # treerel -> pinned sha256
 while (my $l = <$af>) {
   chomp $l;
+  $l =~ s/\r$//;   # tolerate CRLF-smudged checkouts of the pin file itself
   next if $l =~ /^\s*$/;
   my ($h, $rel) = split /\s+/, $l;
   $additions{$rel} = $h;
 }
 close $af;
+
+# All hashing is LF-canonical: deployed bytecode corresponds to LF sources,
+# and a CRLF-smudged Windows checkout is a checkout artifact, not content
+# drift. A lone CR (not part of CRLF) is left in place and still fails.
+sub lf_canonical { my ($c) = @_; $c =~ s/\r\n/\n/g; return $c; }
 
 for my $std_json (@std_jsons) {
   open my $in, '<:raw', $std_json or die "open $std_json: $!";
@@ -64,7 +70,7 @@ for my $rel (sort keys %embedded) {
   local $/;
   my $disk_content = <$fh>;
   close $fh;
-  my $h = sha256_hex($disk_content);
+  my $h = sha256_hex(lf_canonical($disk_content));
   if (!exists $contents{$rel}{$h}) {
     my @sets = sort keys %{ $contents{$rel} };
     print "::error::tree integrity: source DRIFTED from every Sourcify-verified revision ($#sets+1 sets): $rel\n";
@@ -84,7 +90,7 @@ for my $rel (sort keys %additions) {
   local $/;
   my $c = <$fh>;
   close $fh;
-  my $h = sha256_hex($c);
+  my $h = sha256_hex(lf_canonical($c));
   if ($h ne $additions{$rel}) {
     print "::error::tree integrity: forge addition DRIFTED from pinned OZ v5.0.0 hash: $rel\n";
     $fail = 1;
@@ -114,8 +120,10 @@ while (@queue) {
   }
 }
 
-print $fail
-  ? "TREE_INTEGRITY: FAILED\n"
-  : "TREE_INTEGRITY_OK (", scalar(keys %embedded), " sources verified across ",
+if ($fail) {
+  print "TREE_INTEGRITY: FAILED\n";
+} else {
+  print "TREE_INTEGRITY_OK (", scalar(keys %embedded), " sources verified across ",
     scalar(@std_jsons), " compile sets + ", scalar(keys %additions), " allowlisted additions)\n";
+}
 exit $fail;
