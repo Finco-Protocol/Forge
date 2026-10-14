@@ -21,7 +21,7 @@ export function defineGenuineLifecycleSuite(mode: GenuineMode) {
   beforeAll(async () => {
     chain = await startGenuineChain(mode);
     d = await deployForgeOnGenuine(chain);
-    L = new Lifecycle(chain, d);
+    L = new Lifecycle(chain, d, mode === "fork");
     await L.fund();
     await L.deployHelpers();
   });
