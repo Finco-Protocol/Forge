@@ -399,7 +399,7 @@ describe("W04 Correction A (P1): only verified eligible revenue can be pulled", 
       escrow: sb.deployment.feeEscrow,
       factory: sb.deployment.factory,
       asset: NATIVE,
-      cumulativeEligible: live.eligibleCeiling + parseEther("100"),
+      cumulativeEligible: live.eligibleCeiling, // only the signer is wrong; every other field is valid
       nonce: live.authNonce + 1n,
       deadline: head.timestamp + 600n,
       evidenceBlock: evidence.number,

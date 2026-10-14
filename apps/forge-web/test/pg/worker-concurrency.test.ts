@@ -1,3 +1,5 @@
+import { readdirSync } from "node:fs";
+import path from "node:path";
 /**
  * W05 worker isolation on REAL PostgreSQL with several worker processes
  * (separate pools = separate sessions): no job processed twice, no indexer
@@ -206,7 +208,8 @@ describePg("W05 indexer + workers on PostgreSQL (real contracts)", () => {
     expect((await ledgerSelfCheck(main)).ok).toBe(true);
     const health = await (await import("@/server/ops/health")).systemHealth(main);
     expect(health.db.ok).toBe(true);
-    expect(health.db.migration?.version).toBe("005_ledger_materialization.sql");
+    const latest = readdirSync(path.resolve(process.cwd(), "src", "server", "db", "migrations")).filter((f) => f.endsWith(".sql")).sort().at(-1);
+    expect(health.db.migration?.version).toBe(latest);
     expect(health.ledger.halted).toBe(false);
     expect(health.indexer.lagBlocks).toBe("0");
   });

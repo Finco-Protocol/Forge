@@ -217,14 +217,17 @@ describe("W05 KMS-held keys verify on chain", () => {
     // 2. The key itself still exists in custody (a compromised KMS principal could still sign):
     //    its authorization would still be accepted until the on-chain attestor is revoked.
     const rogue = await KmsDigestSigner.create("revenue", awsKmsBackend(kms, ARN.revenue), { chainId: 31337 });
-    const live = await splitterRead<{ eligibleCeiling: bigint; authNonce: bigint }>("ledger", [NATIVE]);
+    const live = await splitterRead<{ eligibleCeiling: bigint; authNonce: bigint; escrowClaimed: bigint }>("ledger", [NATIVE]);
+    // W05 on-chain cap: a ceiling can reach at most escrow claimed + held. A compromised attestor's
+    // best case is therefore "everything currently in escrow for the key" (here: the unattested sweep).
+    const held = (await sb.ctx.client.readContract({ address: sb.deployment.feeEscrow, abi: ponsV2FeeEscrowAbi, functionName: "balanceOf", args: [splitter] })) as bigint;
     const head = await sb.ctx.client.getBlock({ blockTag: "latest" });
     const evidence = await sb.ctx.client.getBlock({ blockNumber: head.number - 1n });
     const auth: EligibleRevenueAuth = {
       escrow: sb.deployment.feeEscrow,
       factory: sb.deployment.factory,
       asset: NATIVE,
-      cumulativeEligible: live.eligibleCeiling + parseEther("1"),
+      cumulativeEligible: live.escrowClaimed + held,
       nonce: live.authNonce + 1n,
       deadline: head.timestamp + 600n,
       evidenceBlock: evidence.number,
