@@ -131,9 +131,18 @@ describe("creator → token acceptance path", () => {
     expect(t.reconcile_error).toBeNull();
     expect(BigInt(t.quote_volume)).toBe(parseEther("5"));
 
-    // Threshold-crossing buy auto-graduates (curve swept into the factory).
+    // Threshold-crossing buy. Auto-graduation inside the buy is best-effort in W02
+    // (`_tryAutoGraduate` swallows an out-of-gas sweep and emits AutoGraduationFailed);
+    // the permissionless factory.graduate(token) is the canonical fallback.
     h = await buyer.wallet.writeContract({ address: curve, abi: ponsV2BondingCurveAbi, functionName: "buy", args: [parseEther("100"), 0n, buyer.account.address], value: parseEther("100") });
     await buyer.pub.waitForTransactionReceipt({ hash: h });
+    const launched = await sb.ctx.client.readContract({ address: sb.deployment.factory, abi: ponsV2LaunchFactoryAbi, functionName: "getLaunchedToken", args: [token] });
+    if (launched.phase === 0) {
+      await runWorkerOnce(sb.ctx);
+      expect((await browser.get(`/api/tokens/${token}`)).json.token.phase).toBe("bonding_curve_active"); // honest: not graduated yet
+      h = await buyer.wallet.writeContract({ address: sb.deployment.factory, abi: ponsV2LaunchFactoryAbi, functionName: "graduate", args: [token] });
+      await buyer.pub.waitForTransactionReceipt({ hash: h });
+    }
     await runWorkerOnce(sb.ctx);
     t = (await browser.get(`/api/tokens/${token}`)).json.token;
     expect(t.phase).toBe("graduation_initiated");
