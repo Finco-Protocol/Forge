@@ -202,7 +202,7 @@ canonical-exemption loop (moved verbatim from the factory).
 **No existing financial contract was modified.** `PonsV2LaunchFactory` (24,470 B), the curve, hook, escrow, vault, deployer, executor and locker, `contractsV2-deployed/` and all provenance are byte-for-byte unchanged.
 
 **Additions (Forge-owned, external):**
-- `contractsV2-forge/src/v2/forge/ForgeProtocolRevenueSplitter.sol` (6,383 B runtime).
+- `contractsV2-forge/src/v2/forge/ForgeProtocolRevenueSplitter.sol` (6,383 B runtime at W04; 10,862 B after Correction A, §8a).
   - It is the escrow key the hook's `protocolFeeRecipient` names. It claims only its own `PonsV2FeeEscrow` balance and allocates the measured receipt: 2/3 to the treasury, 1/3 to the FINCO reserve, with cumulative-floor rounding.
   - It separates non-revenue: the launch fee, direct transfers, rescues and graduation residual.
   - The treasury recipient is timelocked. The reserve has no exit (`FINCO_BURN_ENABLED` is a constant `false`).
@@ -230,3 +230,23 @@ canonical-exemption loop (moved verbatim from the factory).
 | Browser E2E (`w04-economics.spec.ts`) | 1 |
 
 The security-lint baseline gains 10 reviewed W04 pins: the balance-delta measurement around the canonical escrow, uint64 timelock casts, timelock timestamps, and native sends limited to the treasury recipient. The two remaining W04 warnings were fixed in code: modifier order, and emitting events before transfers.
+
+### 8a. W04 Correction A — financial provenance, claim integrity, asset authority
+
+**Still no existing financial contract modified.** Only the Forge-owned `ForgeProtocolRevenueSplitter` changed (6,383 → 10,862 B runtime; the factory is unchanged at 24,470 B). The canonical escrow, curve, hook, vault, executor, PONS sources, curve pricing, V4 fee math, graduation math, creator tax and buyback vesting are untouched.
+
+- **P1 — revenue provenance:** `pullRevenue` is bounded by a per-asset cumulative `eligibleCeiling`, raised only by an EIP-712 `EligibleRevenue` authorization from a separate, timelocked, instantly revocable `revenueAttestor`, with an on-chain `blockhash` check of the evidence block. The constructor gains a fourth argument (`revenueAttestor_`). `RevenueAllocated` gains `escrowClaimed`. New events: `EligibleRevenueAuthorized` and `RevenueAttestor*`. Design and trust boundary: `docs/W04-ECONOMICS-ARCHITECTURE.md` §2a.
+- **P2 — claim attestation:** `recordClaimSubmission` verifies the decoded transaction contents and requires the canonical indexed claim event. `fin_claim_submissions` (migration 003, unreleased, edited in place) gains `chain_id`, `target`, `selector`, `nominal_amount` and `contents_verified_at`.
+- **P3 — asset authority:** `setAssetApproved` requires the wired factory's `approvedPairTokens`, non-zero `pairTokenEconomics` and a matching `decimals()`.
+- **Backend:** `finance/attestor.ts` (sandbox attestor service, run by the worker after indexing), `finance/claims.ts` (claim content verification), provenance statuses in the treasury report, and attestor role and status in governance. Config adds the optional `FORGE_REVENUE_ATTESTOR_PRIVATE_KEY` (local-test custody only) and `REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED = false`. The sandbox uses Anvil key #4 as the attestor.
+- **Test-only mock:** `test-forge/mocks/MockQuotePolicyFactory.sol`.
+- **Lint baseline:** the `RevenueAllocated` and `expiresAt` anchors are re-pinned to the new source text. Two pins are added: the attestation deadline timestamp, and the `EligibleRevenueAuthorized` emit after the ecrecover precompile. An `unused-return` on `pairTokenEconomics` was fixed in code by also requiring a non-zero `graduationThreshold`.
+
+| Suite | Tests after Correction A |
+| --- | --- |
+| `test-forge/ForgeRevenueSplitter.t.sol` (unit and fuzz) | 35 |
+| `ForgeRevenueSplitterInvariantTest` | 3 invariants (2,048 calls per run, including third-party credits and over-pull attempts) |
+| `test-forge/ForgeRevenueLifecycle.t.sol` | 8 |
+| W04 integration (`economics.test.ts`) | 30 |
+| Ledger, provenance and claim unit tests | 11 |
+| Browser E2E (`w04-economics.spec.ts`) | 1 |

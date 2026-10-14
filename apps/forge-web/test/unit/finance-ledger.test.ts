@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { getAddress, type Address } from "viem";
-import { buildLedger, derivedTreasuryReserve, NATIVE, type LedgerEvent } from "@/server/finance/ledger";
+import { buildLedger, derivedTreasuryReserve, verifiedEligibleRevenue, NATIVE, type LedgerEvent } from "@/server/finance/ledger";
+import { provenanceStatus } from "@/server/finance/service";
+import { verifyClaimContents, CLAIM_SELECTORS } from "@/server/finance/claims";
+import { eligibleRevenueDigest } from "@/server/finance/attestor";
+import { encodeFunctionData } from "viem";
+import { forgeProtocolRevenueSplitterAbi, ponsV2FeeEscrowAbi } from "@/shared/abis.generated";
+import type { AppContext } from "@/server/context";
 
 const A = (n: number) => getAddress(`0x${n.toString(16).padStart(40, "0")}`) as Address;
 const FACTORY = A(0xf0);
@@ -37,9 +43,10 @@ function scenario(): LedgerEvent[] {
     ev(3, CURVE, "FeesSwept", { protocolAmount: "30", buybackAmount: "0", creatorAmount: "170" }),
     // a stranger credits the splitter's escrow key
     ev(4, ESCROW, "Credited", { recipient: SPLITTER, depositor: STRANGER, amount: "5" }),
-    // splitter pulls 35 (fees + stranger credit are indistinguishable on chain)
-    ev(5, ESCROW, "Claimed", { recipient: SPLITTER, amount: "35" }),
-    ev(5, SPLITTER, "RevenueAllocated", { allocationId: "1", asset: NATIVE, received: "35", toTreasury: "24", toReserve: "11", policyVersion: "1" }),
+    // the attestor raises the ceiling to the VERIFIED 30 only; the pull is bounded by it
+    ev(5, SPLITTER, "EligibleRevenueAuthorized", { asset: NATIVE, cumulativeEligible: "30", nonce: "1", evidenceBlock: "4", evidenceBlockHash: `0xb${"4".padStart(63, "0")}`, attestor: A(0xa77) }),
+    ev(5, ESCROW, "Claimed", { recipient: SPLITTER, amount: "30" }),
+    ev(5, SPLITTER, "RevenueAllocated", { allocationId: "1", asset: NATIVE, escrowClaimed: "30", received: "30", toTreasury: "20", toReserve: "10", policyVersion: "1" }),
     ev(6, ESCROW, "Claimed", { recipient: CREATOR, amount: "170" }),
   ];
 }
@@ -82,14 +89,19 @@ describe("W04 financial ledger (pure projection)", () => {
 
   it("indexed escrow balances are credits minus claims (no double credit) (21)", () => {
     const l = buildLedger(scenario(), ctx);
-    expect(l.escrowBalances.get(`${SPLITTER}:${NATIVE}`)).toBe(0n);
+    // The third-party 5 stays in the escrow under the splitter key; only the verified 30 was pulled.
+    expect(l.escrowBalances.get(`${SPLITTER}:${NATIVE}`)).toBe(5n);
     expect(l.escrowBalances.get(`${CREATOR}:${NATIVE}`)).toBe(0n);
-    expect(l.splitterTotals.get(NATIVE)!.revenueReceived).toBe(35n);
+    expect(l.splitterTotals.get(NATIVE)!.revenueReceived).toBe(30n);
+    expect(l.splitterTotals.get(NATIVE)!.escrowClaimed).toBe(30n);
+    expect(l.splitterTotals.get(NATIVE)!.eligibleCeiling).toBe(30n);
   });
 
   it("a reorg is just fewer canonical events: dropping a block removes its effects (23)", () => {
     const l = buildLedger(scenario().filter((e) => e.blockNumber !== 5n), ctx);
     expect(l.allocations.length).toBe(0);
+    expect(l.authorizations.length).toBe(0);
+    expect(l.splitterTotals.get(NATIVE)?.eligibleCeiling ?? 0n).toBe(0n);
     expect(l.escrowBalances.get(`${SPLITTER}:${NATIVE}`)).toBe(35n);
   });
 
@@ -110,5 +122,55 @@ describe("W04 financial ledger (pure projection)", () => {
       expect(d.treasury + d.reserve).toBe(p);
       expect(d.reserve * 3n).toBeLessThanOrEqual(p);
     }
+  });
+});
+
+describe("W04 Correction A: provenance (pure)", () => {
+  const fakeCtx = (attestor: boolean) => ({ revenueAttestor: attestor ? {} : null }) as unknown as AppContext;
+
+  it("verified eligible revenue counts only eligible-launch protocol legs from Forge sources, up to the evidence block", () => {
+    const l = buildLedger(scenario(), ctx);
+    expect(verifiedEligibleRevenue(l, SPLITTER, new Set([TOKEN]), null).get(NATIVE)).toBe(30n);
+    expect(verifiedEligibleRevenue(l, SPLITTER, new Set(), null).get(NATIVE)).toBeUndefined(); // ineligible launch
+    expect(verifiedEligibleRevenue(l, SPLITTER, new Set([TOKEN]), 2n).get(NATIVE)).toBeUndefined(); // before the sweep
+  });
+
+  it("provenance status: PROVEN_ELIGIBLE, PROVENANCE_BLOCKED, RECONCILIATION_MISMATCH", () => {
+    expect(provenanceStatus(fakeCtx(true), 30n, { ceiling: 30n, escrowClaimed: 30n, revenue: 30n }, 30n).status).toBe("PROVEN_ELIGIBLE");
+    expect(provenanceStatus(fakeCtx(true), 40n, { ceiling: 30n, escrowClaimed: 30n, revenue: 30n }, 30n).status).toBe("PROVENANCE_BLOCKED");
+    expect(provenanceStatus(fakeCtx(false), 40n, { ceiling: 30n, escrowClaimed: 0n, revenue: 0n }, 30n).reason).toMatch(/fail closed/);
+    expect(provenanceStatus(fakeCtx(true), 30n, { ceiling: 35n, escrowClaimed: 30n, revenue: 30n }, 35n).status).toBe("RECONCILIATION_MISMATCH");
+    expect(provenanceStatus(fakeCtx(true), 30n, { ceiling: 30n, escrowClaimed: 30n, revenue: 31n }, 30n).status).toBe("RECONCILIATION_MISMATCH");
+    expect(provenanceStatus(fakeCtx(true), 30n, { ceiling: 30n, escrowClaimed: 30n, revenue: 30n }, 20n).status).toBe("RECONCILIATION_MISMATCH");
+  });
+
+  it("EIP-712 EligibleRevenue digest binds chain and splitter", () => {
+    const auth = { escrow: ESCROW, factory: FACTORY, asset: NATIVE, cumulativeEligible: 30n, nonce: 1n, deadline: 99n, evidenceBlock: 4n, evidenceBlockHash: `0x${"11".repeat(32)}` as const };
+    const d = eligibleRevenueDigest(31337, SPLITTER, auth);
+    expect(eligibleRevenueDigest(31338, SPLITTER, auth)).not.toBe(d);
+    expect(eligibleRevenueDigest(31337, A(0x5c), auth)).not.toBe(d);
+    expect(eligibleRevenueDigest(31337, SPLITTER, { ...auth, nonce: 2n })).not.toBe(d);
+  });
+
+  it("claim contents: exact selectors, decoded asset and amount, canonical target and sender", () => {
+    expect(Object.values(CLAIM_SELECTORS.escrow).sort()).toEqual(["claim()", "claim(uint256)", "claimToken(address)", "claimToken(address,uint256)"]);
+    const base = { chainId: 31337, wallet: CREATOR, kind: "escrow" as const, asset: NATIVE, target: ESCROW, nominal: null };
+    const tx = (input: `0x${string}`, over: Record<string, unknown> = {}) => ({ chainId: 31337, from: CREATOR, to: ESCROW, input, value: 0n, ...over });
+    const claimAll = encodeFunctionData({ abi: ponsV2FeeEscrowAbi, functionName: "claim", args: [] });
+    expect(verifyClaimContents(tx(claimAll), base)).toMatchObject({ ok: true, nominal: 0n, signature: "claim()" });
+    expect(verifyClaimContents(tx(claimAll, { chainId: 1 }), base)).toMatchObject({ ok: false, code: "WRONG_CHAIN" });
+    expect(verifyClaimContents(tx(claimAll, { from: STRANGER }), base)).toMatchObject({ ok: false, code: "NOT_YOUR_TRANSACTION" });
+    expect(verifyClaimContents(tx(claimAll, { to: SPLITTER }), base)).toMatchObject({ ok: false, code: "WRONG_RECIPIENT_CONTRACT" });
+    expect(verifyClaimContents(tx(claimAll, { value: 1n }), base)).toMatchObject({ ok: false, code: "UNEXPECTED_VALUE" });
+    const tokenPart = encodeFunctionData({ abi: ponsV2FeeEscrowAbi, functionName: "claimToken", args: [TOKEN, 5n] });
+    expect(verifyClaimContents(tx(tokenPart), base)).toMatchObject({ ok: false, code: "WRONG_ASSET" });
+    expect(verifyClaimContents(tx(tokenPart), { ...base, asset: TOKEN, nominal: 6n })).toMatchObject({ ok: false, code: "WRONG_AMOUNT" });
+    expect(verifyClaimContents(tx(tokenPart), { ...base, asset: TOKEN, nominal: 5n })).toMatchObject({ ok: true, signature: "claimToken(address,uint256)" });
+    const credit = encodeFunctionData({ abi: ponsV2FeeEscrowAbi, functionName: "credit", args: [CREATOR] });
+    expect(verifyClaimContents(tx(credit), base)).toMatchObject({ ok: false, code: "WRONG_SELECTOR" });
+    // A treasury claim is only valid against the splitter and only as claimTreasury.
+    const tr = encodeFunctionData({ abi: forgeProtocolRevenueSplitterAbi, functionName: "claimTreasury", args: [NATIVE, 0n] });
+    expect(verifyClaimContents(tx(tr, { to: SPLITTER }), { ...base, kind: "treasury", target: SPLITTER })).toMatchObject({ ok: true, nominal: 0n });
+    expect(verifyClaimContents(tx(claimAll, { to: SPLITTER }), { ...base, kind: "treasury", target: SPLITTER })).toMatchObject({ ok: false, code: "WRONG_SELECTOR" });
   });
 });

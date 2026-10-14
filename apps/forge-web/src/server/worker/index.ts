@@ -12,6 +12,8 @@ import { revokeOnChain } from "../eligibility/registry-ops";
 import { reconcileAll, reconcileRepository } from "../github/reconcile";
 import { audit } from "../audit";
 import { readRegistryState } from "../chain/forge";
+import { runRevenueAttestation } from "../finance/service";
+import type { AttestationOutcome } from "../finance/attestor";
 
 /** Non-critical jobs give up (with an alert) after this many attempts. */
 const MAX_ATTEMPTS = 8;
@@ -143,6 +145,7 @@ export interface WorkerPass {
   receipts: string[];
   retractions: string[];
   jobs: number;
+  attestations: AttestationOutcome[];
 }
 
 export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean } = {}): Promise<WorkerPass> {
@@ -161,6 +164,20 @@ export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean
     }
     if (r.to === null) break;
   }
+  // W04 Correction A: raise splitter ceilings from finalised, indexed evidence, then index the authorizations.
+  let attestations: AttestationOutcome[] = [];
+  try {
+    attestations = await runRevenueAttestation(ctx);
+  } catch (e) {
+    console.error("[forge-worker] revenue attestation:", (e as Error).message.split("\n")[0]);
+  }
+  if (attestations.some((a) => a.status === "AUTHORIZED")) {
+    for (let i = 0; i < 5; i++) {
+      const r = await indexer.tick();
+      indexed += r.events;
+      if (r.to === null && r.reorgedTo === null) break;
+    }
+  }
   const retractions = await retractOrphanedReceipts(ctx);
   const live = await ctx.db.query<{ id: string }>("SELECT id FROM launch_intents WHERE status IN ('awaiting_signature','signed','submitted','included')");
   for (const i of live.rows) await refreshIntent(ctx, i.id).catch(() => undefined);
@@ -174,7 +191,7 @@ export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean
   for (const i of live.rows) await refreshIntent(ctx, i.id).catch(() => undefined);
   const jobs = await runJobs(ctx);
   if (opts.reconcile) await reconcileAll(ctx);
-  return { indexed, reorgedTo, receipts, retractions, jobs: firstJobs.length + jobs.length };
+  return { indexed, reorgedTo, receipts, retractions, jobs: firstJobs.length + jobs.length, attestations };
 }
 
 export function startWorkerLoop(ctx: AppContext, intervalMs = 2_000, reconcileEveryMs = 10 * 60_000) {

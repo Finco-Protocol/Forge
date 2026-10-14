@@ -43,6 +43,7 @@ export const SANDBOX_ROLES = {
   relayer: ANVIL_KEYS[2],
   evidence: ANVIL_KEYS[3],
   treasury: ANVIL_KEYS[8], // W04 sandbox treasury recipient (test-only key)
+  revenueAttestor: ANVIL_KEYS[4], // W04 Correction A: eligible-revenue attestor (test-only key)
 };
 
 export interface SandboxDeployment {
@@ -62,6 +63,7 @@ export interface SandboxDeployment {
   feeEscrow: Address;
   revenueSplitter: Address;
   treasury: Address;
+  revenueAttestor: Address;
   poolManager: Address;
   positionManager: Address;
   permit2: Address;
@@ -131,7 +133,10 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
   // W04 sandbox: the Forge-owned protocol recipient (protocol leg → 2/3
   // treasury, 1/3 FINCO reserve). Named in the hook's policy BEFORE any
   // launch, so every launch snapshot routes its protocol leg here.
-  const revenueSplitter = await deploy("ForgeProtocolRevenueSplitter", [feeEscrow, gov.account.address, treasury]);
+  // Correction A: pulls are bounded by attested eligible-revenue ceilings
+  // signed by a separate attestor key (not the owner, not the treasury).
+  const revenueAttestor = privateKeyToAccount(SANDBOX_ROLES.revenueAttestor).address;
+  const revenueSplitter = await deploy("ForgeProtocolRevenueSplitter", [feeEscrow, gov.account.address, treasury, revenueAttestor]);
   const hookDeployer = await deploy("HookDeployer");
 
   const hook = loadArtifact("PonsV2MemeHook");
@@ -193,6 +198,7 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
     feeEscrow,
     revenueSplitter,
     treasury,
+    revenueAttestor,
     poolManager,
     positionManager,
     permit2,

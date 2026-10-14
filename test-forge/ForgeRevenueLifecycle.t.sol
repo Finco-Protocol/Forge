@@ -9,6 +9,7 @@ import {MiniPositionManager} from "./mocks/MiniPositionManager.sol";
 import {MockPermit2} from "./mocks/MockPermit2.sol";
 import {HookDeployer} from "./mocks/HookDeployer.sol";
 import {ForgeTestToken} from "./mocks/ForgeTestToken.sol";
+import {AttestationHelpers} from "./ForgeRevenueSplitter.t.sol";
 
 import {PonsV2FeeEscrow} from "contractsV2-forge/src/v2/PonsV2FeeEscrow.sol";
 import {PonsV2MemeHook} from "contractsV2-forge/src/v2/hooks/PonsV2MemeHook.sol";
@@ -34,6 +35,7 @@ import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol"
 import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
@@ -49,8 +51,15 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
  *
  * No financial contract is modified; the splitter only receives the protocol
  * leg the frozen launch snapshot already routes to its address.
+ *
+ * Correction A: pulls are bounded by an attested eligible-revenue ceiling.
+ * `_attestEligible` is a test-side model of the off-chain attestor: it
+ * recomputes the cumulative eligible protocol-leg credits ONLY from the
+ * canonical escrow's own `Credited`/`CreditedToken` events whose depositor is
+ * an ELIGIBLE Forge curve (30% snapshot naming the splitter) or the Forge
+ * hook sweeping an eligible launch's pool, and signs the ceiling.
  */
-contract ForgeRevenueLifecycleTest is Test, IUnlockCallback {
+contract ForgeRevenueLifecycleTest is AttestationHelpers, IUnlockCallback {
     MiniPoolManagerW02 internal poolManager;
     MiniPositionManager internal positionManager;
     MockPermit2 internal permit2;
@@ -63,6 +72,13 @@ contract ForgeRevenueLifecycleTest is Test, IUnlockCallback {
     ForgeLaunchAuthorizer internal authorizer;
     ForgeProtocolRevenueSplitter internal splitter;
     ForgeTestToken internal usdx;
+
+    uint256 internal attestorPk = 0xA77E57;
+    mapping(address curve => bool) internal eligibleCurve;
+    mapping(address token => bool) internal eligibleLaunch;
+    mapping(bytes32 poolId => address memecoin) internal poolToken;
+    mapping(address asset => uint256) internal attested;
+    mapping(address asset => uint64) internal attestNonce;
 
     uint256 internal authorityPk = 0xA11CE;
     address internal authority;
@@ -95,7 +111,9 @@ contract ForgeRevenueLifecycleTest is Test, IUnlockCallback {
         permit2 = new MockPermit2();
         positionManager = new MiniPositionManager(poolManager, permit2);
         escrow = new PonsV2FeeEscrow();
-        splitter = new ForgeProtocolRevenueSplitter(escrow, governance, treasury);
+        splitter =
+            new ForgeProtocolRevenueSplitter(escrow, governance, treasury, vm.addr(attestorPk));
+        vm.recordLogs();
 
         HookDeployer hookDeployer = new HookDeployer();
         bytes memory hookInit = abi.encodePacked(
@@ -242,6 +260,57 @@ contract ForgeRevenueLifecycleTest is Test, IUnlockCallback {
         vm.deal(creator, o.value);
         vm.prank(creator);
         (token, curve) = factory.launchToken{value: o.value}(p, 0, o.pairToken);
+        PonsV2BondingCurve c = PonsV2BondingCurve(payable(curve));
+        bool ok = c.protocolFeeShareBps() == 3_000 && c.protocolFeeRecipient() == address(splitter);
+        eligibleCurve[curve] = ok;
+        eligibleLaunch[token] = ok;
+    }
+
+    /// Test model of the off-chain attestor (see contract notes).
+    function _attestEligible() internal {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 credited = keccak256("Credited(address,address,uint256)");
+        bytes32 creditedToken = keccak256("CreditedToken(address,address,address,uint256)");
+        bytes32 registered = keccak256("PoolRegistered(bytes32,address,address,address)");
+        bytes32 swept = keccak256("PoolFeesSwept(bytes32,uint256,uint256,uint256,uint256)");
+        bool hookSweepEligible;
+        for (uint256 i; i < logs.length; ++i) {
+            Vm.Log memory l = logs[i];
+            if (l.emitter == address(hook) && l.topics[0] == registered) {
+                (address memecoin,,) = abi.decode(l.data, (address, address, address));
+                poolToken[l.topics[1]] = memecoin;
+            } else if (l.emitter == address(hook) && l.topics[0] == swept) {
+                hookSweepEligible = eligibleLaunch[poolToken[l.topics[1]]];
+            }
+        }
+        address[2] memory assets = [address(0), address(usdx)];
+        for (uint256 i; i < logs.length; ++i) {
+            Vm.Log memory l = logs[i];
+            if (l.emitter != address(escrow)) continue;
+            address depositor;
+            address asset;
+            if (l.topics[0] == credited) {
+                depositor = address(uint160(uint256(l.topics[2])));
+            } else if (l.topics[0] == creditedToken) {
+                asset = address(uint160(uint256(l.topics[2])));
+                depositor = address(uint160(uint256(l.topics[3])));
+            } else {
+                continue;
+            }
+            if (address(uint160(uint256(l.topics[1]))) != address(splitter)) continue;
+            bool eligible =
+                eligibleCurve[depositor] || (depositor == address(hook) && hookSweepEligible);
+            if (eligible && splitter.approvedAsset(asset)) {
+                attested[asset] += abi.decode(l.data, (uint256));
+            }
+        }
+        for (uint256 i; i < assets.length; ++i) {
+            address asset = assets[i];
+            if (attested[asset] == splitter.ledger(asset).eligibleCeiling) continue;
+            ForgeProtocolRevenueSplitter.EligibleRevenue memory a =
+                _authFor(splitter, address(factory), asset, attested[asset], ++attestNonce[asset]);
+            splitter.authorizeEligibleRevenue(a, _sign(splitter, attestorPk, a));
+        }
     }
 
     function _opts(bytes32 salt) internal pure returns (LaunchOpts memory) {
@@ -281,6 +350,7 @@ contract ForgeRevenueLifecycleTest is Test, IUnlockCallback {
             escrow.balanceOf(creator), baseFee - protocol + tax, "creator: 70% base + 100% tax"
         );
 
+        _attestEligible();
         splitter.pullRevenue(address(0), 0);
         // 20 / 10 percentage points of the BASE fee; the tax never entered.
         assertEq(splitter.treasuryLiability(address(0)), (baseFee * 2_000) / 10_000);
@@ -334,6 +404,7 @@ contract ForgeRevenueLifecycleTest is Test, IUnlockCallback {
         assertEq(escrow.balanceOf(address(splitter)) - escrowedBefore, hookProtocol);
 
         uint256 total = escrow.balanceOf(address(splitter));
+        _attestEligible();
         splitter.pullRevenue(address(0), 0);
         assertEq(splitter.reserveLiability(address(0)), total / 3);
         assertEq(splitter.treasuryLiability(address(0)), total - total / 3);
@@ -398,6 +469,42 @@ contract ForgeRevenueLifecycleTest is Test, IUnlockCallback {
         c2.sweepFees(0);
         assertEq(escrow.balanceOf(address(splitter)), (fee2 * 2_000) / 10_000);
         assertEq(escrow.balanceOf(creator), fee2 - (fee2 * 2_000) / 10_000, "creator 80%");
+        // The ineligible launch's protocol leg is never attested, so it can
+        // never enter 70/20/10; it stays in the escrow.
+        _attestEligible();
+        assertEq(splitter.verifiedHeadroom(address(0)), 0, "ineligible launch never attested");
+        vm.expectRevert(ForgeProtocolRevenueSplitter.NothingReceived.selector);
+        splitter.pullRevenue(address(0), 0);
+    }
+
+    // ── Correction A: provenance through the real stack ─────────────────
+
+    function test_third_party_credit_amid_real_fees_is_not_allocated() public {
+        (, address curve) = _launch(_opts("prov"));
+        PonsV2BondingCurve c = PonsV2BondingCurve(payable(curve));
+        _buyNative(c, 10e18);
+        uint256 baseFee = c.quoteFeeBalance();
+        // A third party credits the splitter's escrow key before and after
+        // the real sweep (same block span the attestor scans).
+        address donor = makeAddr("donor");
+        vm.deal(donor, 3 ether);
+        vm.prank(donor);
+        escrow.credit{value: 1 ether}(address(splitter));
+        vm.prank(creator);
+        c.sweepFees(0);
+        vm.prank(donor);
+        escrow.credit{value: 2 ether}(address(splitter));
+        _attestEligible();
+
+        uint256 protocol = (baseFee * 3_000) / 10_000;
+        assertEq(splitter.verifiedHeadroom(address(0)), protocol, "only the curve's protocol leg");
+        assertEq(splitter.pullRevenue(address(0), 0), protocol);
+        assertEq(splitter.treasuryLiability(address(0)), (baseFee * 2_000) / 10_000);
+        assertEq(splitter.reserveLiability(address(0)), (baseFee * 1_000) / 10_000);
+        assertEq(escrow.balanceOf(address(splitter)), 3 ether, "third-party credit stays");
+        assertEq(escrow.balanceOf(creator), baseFee - protocol, "creator 70% untouched");
+        vm.expectRevert(ForgeProtocolRevenueSplitter.NothingReceived.selector);
+        splitter.pullRevenue(address(0), 0);
     }
 
     // ── 14: creator fee recipient rotation never touches the splitter ───
@@ -437,6 +544,7 @@ contract ForgeRevenueLifecycleTest is Test, IUnlockCallback {
         uint256 fee = c.quoteFeeBalance();
         vm.prank(creator);
         c.sweepFees(0);
+        _attestEligible();
         splitter.pullRevenue(address(usdx), 0);
         uint256 protocol = (fee * 3_000) / 10_000;
         assertEq(splitter.reserveLiability(address(usdx)), protocol / 3);

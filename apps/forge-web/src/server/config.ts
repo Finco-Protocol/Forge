@@ -7,6 +7,8 @@ import robinhoodManifest from "../../config/networks/robinhood-4663.json";
 /** Hard production gates carried forward from W02 (see docs/W03-SECURITY-RUNBOOK.md). */
 export const PRODUCTION_BLOCKED = true;
 export const FORGE_FEE_POLICY_AUTHORITY_UNPROVEN = true;
+/** W04 Correction A: no production revenue-attestor custody exists; W05 must approve one. */
+export const REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED = false;
 export const ROBINHOOD_CHAIN_ID = 4663;
 export const ORIGINAL_PONS_FACTORY = getAddress(robinhoodManifest.originalPonsFactory.address);
 
@@ -48,6 +50,10 @@ const EnvSchema = z.object({
   FORGE_AUTHORITY_PRIVATE_KEY: hexKey.optional(),
   FORGE_EVIDENCE_PRIVATE_KEY: hexKey.optional(),
   FORGE_RELAYER_PRIVATE_KEY: hexKey.optional(),
+  // W04 Correction A: signs cumulative eligible-revenue ceilings for the
+  // revenue splitter. Optional: unset = attestation disabled, so pulls fail
+  // closed (no verified headroom). local-test custody only (chain 31337/1337).
+  FORGE_REVENUE_ATTESTOR_PRIVATE_KEY: hexKey.optional(),
   FORGE_SIGNING_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(30),
   DATABASE_URL: z.string().optional(),
   FORGE_PGLITE_DIR: z.string().optional(),
@@ -153,6 +159,7 @@ export function buildConfig(env: Record<string, string | undefined>) {
       authorityKey: e.FORGE_AUTHORITY_PRIVATE_KEY,
       evidenceKey: e.FORGE_EVIDENCE_PRIVATE_KEY,
       relayerKey: e.FORGE_RELAYER_PRIVATE_KEY,
+      revenueAttestorKey: e.FORGE_REVENUE_ATTESTOR_PRIVATE_KEY,
     },
     db: { url: e.DATABASE_URL, pgliteDir: e.FORGE_PGLITE_DIR },
     embeddedWorker: e.FORGE_EMBEDDED_WORKER,

@@ -55,7 +55,7 @@ Abbreviations used in the tables:
 
 | # | Flow | A. Asset | B. Source → recipient | C. Policy controller | D. Frozen when | E. Beneficiary changeable by | F. Forge authority | G. Evidence events | H. 70/20/10 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 11 | Fee escrow credits and claims | Any | `PonsV2FeeEscrow` aggregates balances per (recipient, asset). `credit` / `creditToken` are **permissionless**. `claim*` pays `msg.sender` only. | None (no owner) | n/a | Only the recipient can claim | n/a | `Credited`, `CreditedToken`, `Claimed`, `ClaimedToken` | n/a. A third-party credit to the splitter key is **UNATTRIBUTED**. |
+| 11 | Fee escrow credits and claims | Any | `PonsV2FeeEscrow` aggregates balances per (recipient, asset). `credit` / `creditToken` are **permissionless**. `claim*` pays `msg.sender` only. | None (no owner) | n/a | Only the recipient can claim | n/a | `Credited`, `CreditedToken`, `Claimed`, `ClaimedToken` | n/a. A third-party credit to the splitter key is **UNATTRIBUTED** and never pullable: the splitter only pulls up to an attested ceiling of eligible protocol credits (Correction A). |
 | 12 | Owner fee rescues (F-04) | Quote or memecoin | Factory `rescueCurveFees` (no timelock) and hook `rescuePoolFees` pay the regular split **directly**, bypassing the escrow | Factory or hook owner | n/a | n/a | Owner power | Curve `FeesRescued`, hook `PoolFeesRescued` | **No**. The protocol leg arrives as an unattributed direct transfer. |
 | 13 | Creator fee recipient change (F-03) | n/a | Factory `transferCreatorFeeRecipient` (creator, immediate) or `setCreatorFeeRecipient` → `executeCreatorFeeRecipientChange` (owner, **3 days of notice plus a 3-day window**) | Creator / factory owner | n/a | The creator, **and the factory owner (standing power)** | Owner power | `CreatorFeeRecipientChangeProposed`, `CreatorFeeRecipientUpdated`, vault `CreatorRecipientUpdated` | n/a; shown in governance views |
 
@@ -75,7 +75,7 @@ Abbreviations used in the tables:
 | `PROTOCOL_BASE_FEE` | Escrow credit to the snapshot protocol recipient, attributed via depositor (a Forge curve or the hook) and the same-transaction sweep event | Yes, if the launch snapshot is 30% and the recipient is the splitter |
 | `CREATOR_FEE` (base / tax) | Escrow credit to the creator recipient, split by the per-trade `tax` accumulated since the last sweep | The base part is the "70"; the tax is excluded |
 | `VEST_RELEASE_PROTOCOL` / `VEST_RELEASE_CREATOR` | Buyback-vault releases (the launch token) | No |
-| `UNATTRIBUTED_CREDIT` | Any escrow credit whose depositor is not a Forge curve, the hook or the vault | No |
+| `UNATTRIBUTED_CREDIT` | Any escrow credit whose depositor is not a Forge curve, the hook or the vault | No. It is never attested into the splitter's eligible-revenue ceiling, so it stays in the escrow (Correction A). |
 | Splitter `LaunchFee` | ETH from the factory | No |
 | Splitter `graduationResidual` | Direct transfer from the graduation executor | No |
 | Splitter `UnattributedNative` / `UnattributedToken` | Every other direct transfer (rescues, donations) | No |
@@ -86,4 +86,5 @@ Abbreviations used in the tables:
 - **The creator's 70%** stays in the canonical escrow under the creator's own key.
 - **Eligibility is per launch:** a launch whose snapshot differs (another share, or another recipient) is shown with its **actual** split, and the 70/20/10 claim fails closed for it.
 - **Out of scope:** original PONS fees are outside Forge authority.
+- **Revenue provenance:** only protocol-leg credits made by Forge curves or the Forge hook, for launches whose frozen snapshot is eligible, can enter 70/20/10. They are bounded on chain by an attested cumulative ceiling. The attestation is a trusted off-chain role, not a trustless proof (`docs/W04-ECONOMICS-ARCHITECTURE.md` §2a).
 - **Authority not yet proven:** `FORGE_FEE_POLICY_AUTHORITY_UNPROVEN` remains `true`, because in the sandbox every owner is a single local key, not a reviewed governance authority.

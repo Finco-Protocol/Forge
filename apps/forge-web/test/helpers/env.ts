@@ -23,6 +23,7 @@ export function sandboxEnv(d: SandboxDeployment, gh: FakeGithub, rpcUrl: string,
     FORGE_AUTHORITY_PRIVATE_KEY: SANDBOX_ROLES.authority,
     FORGE_EVIDENCE_PRIVATE_KEY: SANDBOX_ROLES.evidence,
     FORGE_RELAYER_PRIVATE_KEY: SANDBOX_ROLES.relayer,
+    FORGE_REVENUE_ATTESTOR_PRIVATE_KEY: SANDBOX_ROLES.revenueAttestor,
     ...extra,
   };
 }

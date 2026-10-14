@@ -17,6 +17,19 @@ export function Reconciliation({ status }: { status: string }) {
   );
 }
 
+const PROVENANCE: Record<string, string> = { PROVEN_ELIGIBLE: "ok", PROVENANCE_BLOCKED: "warn", UNATTRIBUTED: "warn", RECONCILIATION_MISMATCH: "bad" };
+
+/** W04 Correction A: whether escrow revenue is proven eligible for 70/20/10. */
+export function Provenance({ status, reason }: { status: string; reason?: string }) {
+  return (
+    <span className={`chip ${PROVENANCE[status] ?? "bad"}`} title={reason} data-testid="provenance">
+      <span className="dot" /> {status.replaceAll("_", " ").toLowerCase()}
+    </span>
+  );
+}
+
+const CLAIM_STATE: Record<string, string> = { CONFIRMED_INDEXED: "ok", FAILED: "bad", REJECTED: "bad" };
+
 export function Economics({ e }: { e: any }) {
   return (
     <div>
@@ -74,7 +87,7 @@ export function CreatorEarnings() {
     setBusy(preview.asset.asset);
     try {
       const hash = await sendTransactionAsync({ to: preview.to, data: preview.data, value: 0n });
-      await api("/api/finance/claims/submitted", { method: "POST", body: { txHash: hash, asset: preview.asset.asset } });
+      await api("/api/finance/claims/submitted", { method: "POST", body: { txHash: hash, asset: preview.asset.asset, kind: "escrow" } });
       setPreview(null);
       setMsg("Claim sent. Status updates as the transaction confirms and is indexed.");
       await load();
@@ -209,9 +222,11 @@ export function CreatorEarnings() {
                 <TxLink hash={c.tx_hash} />
               </td>
               <td>
-                <span className="badge" data-testid="claim-status">{c.status.state}</span>
+                <span className={`chip ${CLAIM_STATE[c.status.state] ?? "warn"}`} data-testid="claim-status" title={c.status.verified ? "Contents, receipt and canonical claim event verified" : "Not verified"}>
+                  <span className="dot" /> {c.status.state}
+                </span>
               </td>
-              <td className="hint">{c.status.recovery ?? ""}</td>
+              <td className="hint">{c.status.recovery ?? c.status.reason ?? ""}</td>
             </tr>
           ))}
           {d.claimHistory.map((c: any) => (

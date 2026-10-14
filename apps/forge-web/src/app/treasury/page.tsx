@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAccount, useConnect, useSendTransaction } from "wagmi";
 import { api, amt, ago, bps, short } from "@/components/api";
 import { TxLink } from "@/components/shell";
-import { Economics, Reconciliation } from "@/components/earnings";
+import { Economics, Provenance, Reconciliation } from "@/components/earnings";
 import { useForge } from "@/components/providers";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -76,7 +76,7 @@ export default function TreasuryPage() {
           {t.accounting.map((a: any) => (
             <section className="panel" key={a.asset.asset}>
               <h2>
-                {a.asset.symbol} <Reconciliation status={a.reconciliation} />
+                {a.asset.symbol} <Reconciliation status={a.reconciliation} /> <Provenance status={a.provenance.status} reason={a.provenance.reason} />
               </h2>
               <dl className="kv">
                 <dt>Eligible gross base fees</dt>
@@ -200,6 +200,28 @@ export default function TreasuryPage() {
                   <dd data-testid={`third-party-${a.asset.symbol}`}>{amt(a.statements.thirdPartyEscrowCreditsToSplitterKey, a.asset)}</dd>
                   <dt>Vest releases to splitter key</dt>
                   <dd>{a.statements.vestReleasesToSplitterKey} base units (project token, ineligible)</dd>
+                </dl>
+                <dl className="kv" data-testid={`provenance-${a.asset.symbol}`}>
+                  <dt>Revenue provenance</dt>
+                  <dd>
+                    <Provenance status={a.provenance.status} reason={a.provenance.reason} /> <span className="hint">{a.provenance.reason}</span>
+                  </dd>
+                  <dt>Verified eligible revenue</dt>
+                  <dd data-testid={`verified-eligible-${a.asset.symbol}`}>{amt(a.provenance.verifiedEligibleRevenue, a.asset)}</dd>
+                  <dt>Attested ceiling / pulled</dt>
+                  <dd>
+                    {amt(a.provenance.attestedCeiling, a.asset)} / {amt(a.provenance.escrowClaimedVerified, a.asset)}
+                  </dd>
+                  <dt>All escrow credits to splitter key</dt>
+                  <dd>{amt(a.provenance.allEscrowCreditsToSplitterKey, a.asset)}</dd>
+                  {a.provenance.classes.map((c: any) => (
+                    <div key={c.class} style={{ display: "contents" }}>
+                      <dt title={c.note}>{c.class.replaceAll("_", " ").toLowerCase()}</dt>
+                      <dd>{amt(c.amount, a.asset)}</dd>
+                    </div>
+                  ))}
+                  <dt>Trust boundary</dt>
+                  <dd className="hint">Eligible revenue is attested by a trusted off-chain attestor (sandbox key; production signing disabled). Not trustless.</dd>
                 </dl>
                 <dl className="kv">
                   <dt>On-chain balance</dt>

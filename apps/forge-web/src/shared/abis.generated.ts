@@ -9659,6 +9659,11 @@ export const forgeProtocolRevenueSplitterAbi = [
         "name": "treasuryRecipient_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "revenueAttestor_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -9669,6 +9674,19 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "function",
+    "name": "ELIGIBLE_REVENUE_TYPEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "FINCO_BURN_ENABLED",
     "inputs": [],
     "outputs": [
@@ -9676,6 +9694,19 @@ export const forgeProtocolRevenueSplitterAbi = [
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_EVIDENCE_AGE_BLOCKS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -9831,6 +9862,66 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "function",
+    "name": "authorizeEligibleRevenue",
+    "inputs": [
+      {
+        "name": "auth",
+        "type": "tuple",
+        "internalType": "struct ForgeProtocolRevenueSplitter.EligibleRevenue",
+        "components": [
+          {
+            "name": "escrow",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "factory",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "cumulativeEligible",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "nonce",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "deadline",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "evidenceBlock",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "evidenceBlockHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "burnReadiness",
     "inputs": [],
     "outputs": [
@@ -9846,6 +9937,13 @@ export const forgeProtocolRevenueSplitterAbi = [
       }
     ],
     "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "cancelRevenueAttestorChange",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -9876,6 +9974,117 @@ export const forgeProtocolRevenueSplitterAbi = [
         "internalType": "uint256"
       }
     ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "eip712Domain",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "fields",
+        "type": "bytes1",
+        "internalType": "bytes1"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "chainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "verifyingContract",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "extensions",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "eligibleRevenueDigest",
+    "inputs": [
+      {
+        "name": "auth",
+        "type": "tuple",
+        "internalType": "struct ForgeProtocolRevenueSplitter.EligibleRevenue",
+        "components": [
+          {
+            "name": "escrow",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "factory",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "cumulativeEligible",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "nonce",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "deadline",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "evidenceBlock",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "evidenceBlockHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "executeRevenueAttestorChange",
+    "inputs": [],
+    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -9956,6 +10165,21 @@ export const forgeProtocolRevenueSplitterAbi = [
             "name": "nonRevenueReleased",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "eligibleCeiling",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "escrowClaimed",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "authNonce",
+            "type": "uint64",
+            "internalType": "uint64"
           }
         ]
       }
@@ -10009,6 +10233,29 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "function",
+    "name": "pendingRevenueAttestor",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "newRecipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "effectiveAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "pendingTreasuryRecipient",
     "inputs": [],
     "outputs": [
@@ -10029,6 +10276,19 @@ export const forgeProtocolRevenueSplitterAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proposeRevenueAttestor",
+    "inputs": [
+      {
+        "name": "newAttestor",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -10179,6 +10439,26 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "function",
+    "name": "revenueAttestor",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "revokeRevenueAttestor",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setAssetApproved",
     "inputs": [
       {
@@ -10267,6 +10547,25 @@ export const forgeProtocolRevenueSplitterAbi = [
     "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "verifiedHeadroom",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
     "type": "event",
     "name": "AssetApprovalUpdated",
     "inputs": [
@@ -10281,6 +10580,55 @@ export const forgeProtocolRevenueSplitterAbi = [
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EIP712DomainChanged",
+    "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EligibleRevenueAuthorized",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "cumulativeEligible",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "evidenceBlock",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "evidenceBlockHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "attestor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -10422,6 +10770,12 @@ export const forgeProtocolRevenueSplitterAbi = [
         "internalType": "address"
       },
       {
+        "name": "escrowClaimed",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
         "name": "received",
         "type": "uint256",
         "indexed": false,
@@ -10444,6 +10798,69 @@ export const forgeProtocolRevenueSplitterAbi = [
         "type": "uint16",
         "indexed": false,
         "internalType": "uint16"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RevenueAttestorChangeCancelled",
+    "inputs": [
+      {
+        "name": "proposed",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RevenueAttestorChangeProposed",
+    "inputs": [
+      {
+        "name": "current",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "proposed",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "effectiveAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RevenueAttestorUpdated",
+    "inputs": [
+      {
+        "name": "previous",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "current",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -10560,7 +10977,81 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "error",
+    "name": "AssetNotForgeQuote",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "AttestationExpired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "AttestorNotSet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CeilingDecrease",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignatureLength",
+    "inputs": [
+      {
+        "name": "length",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignatureS",
+    "inputs": [
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ExceedsVerifiedRevenue",
+    "inputs": [
+      {
+        "name": "requested",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "verifiedHeadroom",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "FactoryAlreadySet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "FactoryNotWired",
     "inputs": []
   },
   {
@@ -10581,7 +11072,17 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidAttestation",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidRecipient",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidShortString",
     "inputs": []
   },
   {
@@ -10649,7 +11150,23 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "error",
+    "name": "QuoteDecimalsMismatch",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RolesNotSeparated",
     "inputs": []
   },
   {
@@ -10660,6 +11177,27 @@ export const forgeProtocolRevenueSplitterAbi = [
         "name": "token",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StaleEvidence",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "StaleNonce",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "StringTooLong",
+    "inputs": [
+      {
+        "name": "str",
+        "type": "string",
+        "internalType": "string"
       }
     ]
   },
@@ -10688,6 +11226,16 @@ export const forgeProtocolRevenueSplitterAbi = [
   {
     "type": "error",
     "name": "TransferFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WrongEscrow",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WrongFactory",
     "inputs": []
   },
   {

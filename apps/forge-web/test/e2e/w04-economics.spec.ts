@@ -1,14 +1,15 @@
 /**
  * W04 browser E2E over the production build (runs after launch.spec.ts and
  * uses the token that spec launched for anvil account #5 with a 1% creator
- * tax): trades → fee sweep → splitter pull → the creator claims their escrow
+ * tax): trades → fee sweep → the worker attests the verified protocol leg
+ * (Correction A) → splitter pull → the creator claims their escrow
  * balance from the dashboard with their own wallet → the treasury dashboard
  * shows reconciled 70/20/10 accounting with the FINCO burn disabled.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { encodeFunctionData, parseEther, type Hex } from "viem";
+import { decodeFunctionResult, encodeFunctionData, parseEther, type Hex } from "viem";
 import { forgeProtocolRevenueSplitterAbi, ponsV2BondingCurveAbi } from "../../src/shared/abis.generated";
 
 const CREATOR = "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"; // anvil #5
@@ -80,6 +81,11 @@ test("creator claims eligible earnings and the treasury reconciles 70/20/10 (bur
   await rpc("evm_mine");
   await sendTx(BUYER, curve, encodeFunctionData({ abi: ponsV2BondingCurveAbi, functionName: "buy", args: [parseEther("10"), 0n, BUYER] }), parseEther("10"));
   await sendTx(CREATOR, curve, encodeFunctionData({ abi: ponsV2BondingCurveAbi, functionName: "sweepFees", args: [0n] }));
+  // Correction A: pulls are bounded by the attested ceiling; the embedded worker attests the sweep's protocol leg.
+  const headroomCall = encodeFunctionData({ abi: forgeProtocolRevenueSplitterAbi, functionName: "verifiedHeadroom", args: [NATIVE] });
+  await expect
+    .poll(async () => decodeFunctionResult({ abi: forgeProtocolRevenueSplitterAbi, functionName: "verifiedHeadroom", data: await rpc<Hex>("eth_call", [{ to: splitter, data: headroomCall }, "latest"]) }), { timeout: 60_000 })
+    .toBeGreaterThan(0n);
   await sendTx(KEEPER, splitter, encodeFunctionData({ abi: forgeProtocolRevenueSplitterAbi, functionName: "pullRevenue", args: [NATIVE, 0n] }));
 
   await injectWallet(page, CREATOR);
@@ -99,7 +105,7 @@ test("creator claims eligible earnings and the treasury reconciles 70/20/10 (bur
   const connect = page.getByTestId("claim-connect-wallet");
   if (await connect.isVisible()) await connect.click();
   await page.getByTestId("send-claim").click();
-  await expect(page.getByTestId("claim-status").first()).toHaveText("CONFIRMED_INDEXED", { timeout: 60_000 });
+  await expect(page.getByTestId("claim-status").first()).toHaveText(/CONFIRMED_INDEXED/, { timeout: 60_000 });
   await expect(page.getByTestId("claimable-ETH")).toHaveText("0 ETH", { timeout: 30_000 });
   await page.screenshot({ path: `${SHOTS}/14-claim-confirmed.png`, fullPage: true });
 
@@ -108,12 +114,14 @@ test("creator claims eligible earnings and the treasury reconciles 70/20/10 (bur
   await expect(page.getByTestId("reserve-status")).toContainText("DISABLED");
   await expect(page.getByTestId("treasury-allocated-ETH")).not.toHaveText(/^0 ETH$/);
   await expect(page.getByTestId("reconciliation").first()).toContainText("reconciled");
+  await expect(page.getByTestId("provenance").first()).toContainText("proven eligible");
   await page.screenshot({ path: `${SHOTS}/15-treasury-overview.png`, fullPage: true });
   await page.getByTestId("tab-launches").click();
   await expect(page.getByTestId("treasury-launches")).toContainText("70 / 20 / 10 eligible");
   await page.screenshot({ path: `${SHOTS}/16-treasury-launches.png`, fullPage: true });
   await page.getByTestId("tab-accounting").click();
   await expect(page.getByTestId("allocation-history")).toContainText("1");
+  await expect(page.getByTestId("provenance-ETH")).toContainText("Not trustless");
   await page.screenshot({ path: `${SHOTS}/17-treasury-accounting.png`, fullPage: true });
   await page.getByTestId("tab-governance").click();
   await expect(page.getByTestId("burn-enabled")).toContainText("false");

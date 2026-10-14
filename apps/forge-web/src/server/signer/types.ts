@@ -8,7 +8,7 @@ import type { Address, Hex } from "viem";
  * layer decides WHAT may be signed before any digest reaches custody.
  */
 export interface DigestSigner {
-  readonly role: "authority" | "evidence";
+  readonly role: "authority" | "evidence" | "revenue";
   readonly custody: "local-test" | "kms" | "hsm";
   readonly address: Address;
   signDigest(digest: Hex): Promise<Hex>;

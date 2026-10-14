@@ -127,6 +127,8 @@ export interface SplitterAllocation {
   txHash: string;
   timestamp: bigint;
   asset: Address;
+  /** Escrow debit of the pull (bounded by the attested ceiling). */
+  escrowClaimed: bigint;
   received: bigint;
   toTreasury: bigint;
   toReserve: bigint;
@@ -135,6 +137,11 @@ export interface SplitterAllocation {
 
 export interface SplitterAssetTotals {
   asset: Address;
+  /** Latest attested cumulative eligible-revenue ceiling (EligibleRevenueAuthorized). */
+  eligibleCeiling: bigint;
+  authNonce: bigint;
+  /** Σ RevenueAllocated.escrowClaimed. */
+  escrowClaimed: bigint;
   revenueReceived: bigint;
   treasuryAllocated: bigint;
   reserveAllocated: bigint;
@@ -145,6 +152,19 @@ export interface SplitterAssetTotals {
   graduationResidual: bigint;
   unattributedNative: bigint;
   unattributedToken: bigint;
+}
+
+export interface RevenueAuthorization {
+  id: string;
+  blockNumber: bigint;
+  txHash: string;
+  timestamp: bigint;
+  asset: Address;
+  cumulativeEligible: bigint;
+  nonce: bigint;
+  evidenceBlock: bigint;
+  evidenceBlockHash: string;
+  attestor: Address;
 }
 
 export interface GovernanceEvent {
@@ -170,6 +190,7 @@ export interface Ledger {
   claims: ClaimRow[];
   tokens: Map<Address, TokenFees>;
   allocations: SplitterAllocation[];
+  authorizations: RevenueAuthorization[];
   splitterTotals: Map<Address, SplitterAssetTotals>;
   treasuryClaims: ClaimRow[];
   governance: GovernanceEvent[];
@@ -217,6 +238,9 @@ const GOVERNANCE_EVENTS: Record<string, Set<string>> = {
     "TreasuryRecipientChangeProposed",
     "TreasuryRecipientChangeCancelled",
     "TreasuryRecipientUpdated",
+    "RevenueAttestorChangeProposed",
+    "RevenueAttestorChangeCancelled",
+    "RevenueAttestorUpdated",
     "NonRevenueReleased",
     "OwnershipTransferred",
     "OwnershipTransferStarted",
@@ -266,6 +290,9 @@ function emptyTokenFees(token: Address, curve: Address, creator: Address, pairTo
 function emptySplitter(asset: Address): SplitterAssetTotals {
   return {
     asset,
+    eligibleCeiling: 0n,
+    authNonce: 0n,
+    escrowClaimed: 0n,
     revenueReceived: 0n,
     treasuryAllocated: 0n,
     reserveAllocated: 0n,
@@ -295,6 +322,7 @@ export function buildLedger(input: LedgerEvent[], c: LedgerContext): Ledger {
     claims: [],
     tokens: new Map(),
     allocations: [],
+    authorizations: [],
     splitterTotals: new Map(),
     treasuryClaims: [],
     governance: [],
@@ -458,7 +486,7 @@ export function buildLedger(input: LedgerEvent[], c: LedgerContext): Ledger {
         } else if (c.splitter && recipient === c.splitter) {
           ledger.exceptions.push({
             kind: "THIRD_PARTY_CREDIT_TO_SPLITTER",
-            detail: `Escrow credit to the splitter key by ${depositor}: not fee revenue (indistinguishable on chain; excluded here)`,
+            detail: `Escrow credit to the splitter key by ${depositor}: not fee revenue. Never attested, so it stays in the escrow above the verified ceiling and cannot enter 70/20/10.`,
             txHash: e.txHash,
             asset,
             amount: amount.toString(),
@@ -487,6 +515,7 @@ export function buildLedger(input: LedgerEvent[], c: LedgerContext): Ledger {
           txHash: e.txHash,
           timestamp: e.blockTimestamp,
           asset,
+          escrowClaimed: big(e.args.escrowClaimed),
           received: big(e.args.received),
           toTreasury: big(e.args.toTreasury),
           toReserve: big(e.args.toReserve),
@@ -494,9 +523,28 @@ export function buildLedger(input: LedgerEvent[], c: LedgerContext): Ledger {
         };
         ledger.allocations.push(a);
         const s = splitterTotals(asset);
+        s.escrowClaimed += a.escrowClaimed;
         s.revenueReceived += a.received;
         s.treasuryAllocated += a.toTreasury;
         s.reserveAllocated += a.toReserve;
+      } else if (e.eventName === "EligibleRevenueAuthorized") {
+        const asset = addr(e.args.asset);
+        const auth: RevenueAuthorization = {
+          id: `${e.blockHash}:${e.logIndex}`,
+          blockNumber: e.blockNumber,
+          txHash: e.txHash,
+          timestamp: e.blockTimestamp,
+          asset,
+          cumulativeEligible: big(e.args.cumulativeEligible),
+          nonce: big(e.args.nonce),
+          evidenceBlock: big(e.args.evidenceBlock),
+          evidenceBlockHash: String(e.args.evidenceBlockHash),
+          attestor: addr(e.args.attestor),
+        };
+        ledger.authorizations.push(auth);
+        const s = splitterTotals(asset);
+        s.eligibleCeiling = auth.cumulativeEligible;
+        s.authNonce = auth.nonce;
       } else if (e.eventName === "NonRevenueReceived") {
         const asset = addr(e.args.asset);
         const s = splitterTotals(asset);
@@ -581,6 +629,23 @@ function assignLegs(
   if (take.length !== order.length) {
     ledger.exceptions.push({ kind: "SWEEP_CREDIT_MISMATCH", detail: `${source} sweep for ${t.token} expected ${order.length} escrow credits, found ${take.length}`, txHash: sweep.txHash });
   }
+}
+
+/**
+ * Cumulative VERIFIED eligible revenue per asset: escrow credits to the
+ * splitter key classified PROTOCOL_BASE_FEE (depositor = Forge curve, or the
+ * hook with its same-tx sweep) for launches in `eligibleTokens` (frozen 30%
+ * snapshot naming the splitter), in blocks ≤ `throughBlock`. Third-party
+ * credits, vest releases and ineligible launches never count.
+ */
+export function verifiedEligibleRevenue(ledger: Ledger, splitter: Address, eligibleTokens: Set<Address>, throughBlock: bigint | null): Map<Address, bigint> {
+  const out = new Map<Address, bigint>();
+  for (const c of ledger.credits) {
+    if (c.recipient !== splitter || c.cls !== "PROTOCOL_BASE_FEE" || c.token === null || !eligibleTokens.has(c.token)) continue;
+    if (throughBlock !== null && c.blockNumber > throughBlock) continue;
+    out.set(c.asset, (out.get(c.asset) ?? 0n) + c.amount);
+  }
+  return out;
 }
 
 /** Applies the splitter's 2:1 rule to an exactly attributed protocol amount (display only; on-chain rounding is cumulative per asset). */

@@ -15,7 +15,7 @@ export class LocalTestDigestSigner implements DigestSigner {
   readonly custody = "local-test" as const;
   readonly address;
   constructor(
-    readonly role: "authority" | "evidence",
+    readonly role: "authority" | "evidence" | "revenue",
     private readonly privateKey: Hex,
     opts: { chainId: number },
   ) {
