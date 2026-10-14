@@ -98,35 +98,47 @@ jobs:
           set -euo pipefail
           forge lint --profile forge test-forge --json > w02-lint.json
           perl scripts/check-test-lint.pl w02-lint.json
-      - name: Lint newly authored security contracts (zero ERRORS; warnings baselined)
-        # The Forge-authored eligibility stack. The strict parser must see
-        # zero ERROR-level diagnostics; the advisory warning set (signature
-        # deadline patterns, documented in docs/THREAT-MODEL-W02.md) is
-        # reported in full and uploaded - never silently swallowed.
+      - name: Security lint gate parser regression tests (S1-S16)
+        run: bash scripts/test-security-lint-gate.sh
+      - name: Lint newly authored security contracts (strict parser; pinned advisories only)
+        # The Forge-authored eligibility stack. The COMPLETE `forge lint`
+        # JSON is parsed by scripts/check-security-lint.pl - no regex/grep
+        # prefilter. It fails on any error-level finding, malformed output,
+        # an unexpected warning, or a stale / count-mismatched pin, and
+        # reports every approved advisory finding pinned (with rationale)
+        # in scripts/security-lint-baseline.tsv. stderr is kept out of the
+        # JSON file; a forge lint invocation failure fails the step.
         run: |
           set -euo pipefail
-          forge lint --profile forge contractsV2-forge/src/v2/forge --json > forge-lint-all.json
-          # Keep only ERROR-level diagnostics for the hard gate.
-          perl -ne 'print if /"level":"error"/' forge-lint-all.json > forge-lint-errors.json
-          count=$(grep -c 'message_type' forge-lint-errors.json || true)
-          if [ "$count" -ne 0 ]; then
-            echo "::error::forge lint reported $count ERROR-level finding(s) in the eligibility stack"
-            cat forge-lint-errors.json
-            exit 1
-          fi
-          perl scripts/check-test-lint.pl forge-lint-errors.json
-          warn=$(grep -c '"level":"warning"' forge-lint-all.json || true)
-          echo "::notice::eligibility-stack lint warnings (advisory, baselined): $warn"
-
-
+          forge lint --profile forge contractsV2-forge/src/v2/forge --json \
+            > forge-security-lint.json 2> forge-security-lint.stderr.log
+          perl scripts/check-security-lint.pl forge-security-lint.json \
+            scripts/security-lint-baseline.tsv | tee forge-security-lint.report.txt
       - name: Lint recovered PONS sources (advisory baseline, reported)
+        # Advisory only (sources are byte-identical to the deploy-time tree;
+        # see docs/W02-SOURCE-RECOVERY.md). Counted by parsing the JSON
+        # diagnostics' primary-span file names, not by text grep; the
+        # Forge-authored forge/ subtree (gated above) is excluded by path.
         if: always()
         run: |
-          forge lint --profile forge contractsV2-forge/src/v2 --json > pons-lint-all.json 2>&1 || true
-          # Exclude the forge/ subdirectory (gated above) from the baseline.
-          perl -ne 'print unless /forge\//' pons-lint-all.json > pons-lint-baseline.json || true
-          count=$(grep -c 'message_type' pons-lint-baseline.json || true)
-          echo "::notice::inherited upstream lint baseline: $count finding(s) (advisory; sources byte-identical to deploy-time - see docs/W02-SOURCE-RECOVERY.md)"
+          set -uo pipefail
+          forge lint --profile forge contractsV2-forge/src/v2 --json \
+            > pons-lint-all.json 2> pons-lint.stderr.log || echo "::warning::forge lint exited nonzero on recovered PONS sources (advisory)"
+          perl -MJSON::PP -e '
+            my ($n, $bad) = (0, 0);
+            open my $fh, "<", $ARGV[0] or die "open: $!";
+            open my $out, ">", $ARGV[1] or die "open: $!";
+            while (my $l = <$fh>) {
+              next if $l =~ /^\s*$/;
+              my $d = eval { JSON::PP->new->decode($l) };
+              if (!$d || ref $d ne "HASH") { $bad++; next; }
+              my ($sp) = grep { $_->{is_primary} } @{ $d->{spans} || [] };
+              my $f = $sp ? $sp->{file_name} : "";
+              next if index($f, "contractsV2-forge/src/v2/forge/") == 0;
+              $n++; print $out $l;
+            }
+            print "::notice::inherited upstream lint baseline: $n finding(s), unparseable lines: $bad (advisory; sources byte-identical to deploy-time - see docs/W02-SOURCE-RECOVERY.md)\n";
+          ' pons-lint-all.json pons-lint-baseline.json
       - name: Upload lint evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -134,10 +146,13 @@ jobs:
           name: w02-lint-evidence
           path: |
             w02-lint.json
-            forge-lint.json
+            forge-security-lint.json
+            forge-security-lint.stderr.log
+            forge-security-lint.report.txt
+            pons-lint-all.json
             pons-lint-baseline.json
-          if-no-files-found: warn
-
+            pons-lint.stderr.log
+          if-no-files-found: error
 
       - name: Canary classifier regression tests (fixtures A–G)
         run: bash scripts/test-canary-classifier.sh

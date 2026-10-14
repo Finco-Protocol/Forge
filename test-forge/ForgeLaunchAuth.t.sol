@@ -65,22 +65,23 @@ contract ForgeLaunchAuthTest is Test {
             bindingExpiresAt: bindingExpiresAt,
             opDeadline: uint64(block.timestamp + 5 minutes),
             opNonce: opNonce,
+            parentOpDigest: registry.headOpDigest(repoId),
             repoFullName: revoke ? "" : "org/repo",
             revoke: revoke
         });
     }
 
     function _sign(ForgeBindingRegistry.BindingOp memory op) internal view returns (bytes memory) {
-        bytes32 digest = registry.attestationDigestForBindingOp(
-            op.githubRepoId,
-            op.creator,
-            op.bindingExpiresAt,
-            op.opDeadline,
-            op.opNonce,
-            keccak256(bytes(op.repoFullName)),
-            op.revoke
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorityPk, digest);
+        return _signWith(authorityPk, op);
+    }
+
+    function _signWith(uint256 pk, ForgeBindingRegistry.BindingOp memory op)
+        internal
+        view
+        returns (bytes memory)
+    {
+        bytes32 digest = registry.attestationDigestForBindingOp(op);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
         return abi.encodePacked(r, s, v);
     }
 
@@ -155,7 +156,9 @@ contract ForgeLaunchAuthTest is Test {
         uint64 expiresAt,
         uint256 pk
     ) internal view returns (bytes memory) {
-        bytes32 digest = authorizer.attestationDigest(repoId, who, issuedAt, expiresAt);
+        bytes32 digest = authorizer.attestationDigest(
+            repoId, who, registry.bindingEpoch(repoId), issuedAt, expiresAt
+        );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
         return abi.encodePacked(uint64(issuedAt), uint64(expiresAt), r, s, bytes1(v));
     }
@@ -253,7 +256,7 @@ contract ForgeLaunchAuthTest is Test {
         );
         bytes memory sig = _sign(op);
         registry.applyBindingOp(op, sig);
-        vm.expectRevert(ForgeBindingRegistry.InvalidSigner.selector);
+        vm.expectRevert(ForgeBindingRegistry.OperationReplayed.selector);
         registry.applyBindingOp(op, sig);
 
         // Out-of-order: a signed op with a LOWER sequence than applied.
@@ -529,7 +532,11 @@ contract ForgeLaunchAuthTest is Test {
         // The W02 padded encoding (129 bytes) is rejected: the canonical
         // encoding is packed (81 bytes).
         bytes32 digest = authorizer.attestationDigest(
-            REPO_ID, creator, uint64(block.timestamp), uint64(block.timestamp + 1 days)
+            REPO_ID,
+            creator,
+            registry.bindingEpoch(REPO_ID),
+            uint64(block.timestamp),
+            uint64(block.timestamp + 1 days)
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorityPk, digest);
         bytes memory padded = abi.encodePacked(
@@ -604,17 +611,7 @@ contract ForgeLaunchAuthTest is Test {
         // Attacker binds their own repo signed by the rogue registry key.
         ForgeBindingRegistry.BindingOp memory op =
             _op(111_222_333, attacker, uint64(block.timestamp + 30 days), 1, false);
-        bytes32 digest = registry.attestationDigestForBindingOp(
-            op.githubRepoId,
-            op.creator,
-            op.bindingExpiresAt,
-            op.opDeadline,
-            op.opNonce,
-            keccak256(bytes(op.repoFullName)),
-            op.revoke
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(roguePk, digest);
-        registry.applyBindingOp(op, abi.encodePacked(r, s, v));
+        registry.applyBindingOp(op, _signWith(roguePk, op));
 
         // An attacker with NO binding for the ORIGINAL repo consents for
         // themselves and even carries an authority-signed attestation
@@ -632,5 +629,185 @@ contract ForgeLaunchAuthTest is Test {
         vm.expectRevert(ForgeLaunchAuthorizer.BindingNotActive.selector);
         vm.prank(FACTORY);
         authorizer.requireAuthorizedLaunch(intent, attacker, true, consent, rogueAtt);
+    }
+
+    // ── Correction B: revocation finality (hash-chained op log + epoch) ──
+
+    /// @notice Builds and signs an op with explicit nonce AND parent — the
+    /// shape a pre-issued (signed-ahead) authority operation would have.
+    function _issuedOp(uint64 repoId, address who, uint64 opNonce, bytes32 parent, bool revoke)
+        internal
+        view
+        returns (ForgeBindingRegistry.BindingOp memory op, bytes memory sig)
+    {
+        op = _op(repoId, who, uint64(block.timestamp + 30 days), opNonce, revoke);
+        op.parentOpDigest = parent;
+        sig = _sign(op);
+    }
+
+    /// @notice B1: the Correction A residual. An op issued BEFORE a
+    /// revocation with a HIGHER future nonce can no longer reactivate the
+    /// binding — neither with a gapped nonce nor with the exact next nonce.
+    function test_cb1_future_nonce_op_after_revoke_reverts() public {
+        uint64 seq = registry.operationSequence(REPO_ID);
+        bytes32 head = registry.headOpDigest(REPO_ID);
+        // Issued before the revocation: a gapped future nonce...
+        (ForgeBindingRegistry.BindingOp memory gapped, bytes memory gappedSig) =
+            _issuedOp(REPO_ID, attacker, seq + 5, head, false);
+        // ...and one at exactly the nonce the post-revoke log will expect.
+        (ForgeBindingRegistry.BindingOp memory exact, bytes memory exactSig) =
+            _issuedOp(REPO_ID, attacker, seq + 2, head, false);
+
+        _revoke(REPO_ID);
+        assertFalse(registry.isActive(REPO_ID, creator));
+
+        vm.expectRevert(ForgeBindingRegistry.NonceNotMonotonic.selector);
+        registry.applyBindingOp(gapped, gappedSig);
+        // Nonce now matches, but the parent names the pre-revocation head.
+        vm.expectRevert(ForgeBindingRegistry.ParentMismatch.selector);
+        registry.applyBindingOp(exact, exactSig);
+        assertFalse(registry.isActive(REPO_ID, attacker), "no reactivation");
+        assertFalse(registry.isActive(REPO_ID, creator), "revocation is final");
+    }
+
+    /// @notice B2: a pre-issued op for the OLD owner cannot claw the repo
+    /// back after a transfer, even at the exact next nonce.
+    function test_cb2_future_nonce_op_after_transfer_reverts() public {
+        address newCreator = vm.addr(0x777);
+        uint64 seq = registry.operationSequence(REPO_ID);
+        (ForgeBindingRegistry.BindingOp memory clawback, bytes memory sig) =
+            _issuedOp(REPO_ID, creator, seq + 2, registry.headOpDigest(REPO_ID), false);
+        _bind(REPO_ID, newCreator, uint64(block.timestamp + 30 days));
+        vm.expectRevert(ForgeBindingRegistry.ParentMismatch.selector);
+        registry.applyBindingOp(clawback, sig);
+        assertTrue(registry.isActive(REPO_ID, newCreator));
+        assertFalse(registry.isActive(REPO_ID, creator));
+    }
+
+    /// @notice B3: even a fully pre-signed CHAIN (op2 names op1's digest as
+    /// parent) dies with its first link once a revocation lands instead.
+    function test_cb3_presigned_chain_dies_with_superseded_link() public {
+        uint64 seq = registry.operationSequence(REPO_ID);
+        bytes32 head = registry.headOpDigest(REPO_ID);
+        (ForgeBindingRegistry.BindingOp memory op1,) =
+            _issuedOp(REPO_ID, creator, seq + 1, head, false);
+        bytes32 op1Digest = registry.attestationDigestForBindingOp(op1);
+        (ForgeBindingRegistry.BindingOp memory op2, bytes memory op2Sig) =
+            _issuedOp(REPO_ID, attacker, seq + 2, op1Digest, false);
+
+        _revoke(REPO_ID); // lands at seq+1 instead of op1
+        assertTrue(registry.headOpDigest(REPO_ID) != op1Digest);
+        vm.expectRevert(ForgeBindingRegistry.ParentMismatch.selector);
+        registry.applyBindingOp(op2, op2Sig);
+        assertFalse(registry.isActive(REPO_ID, attacker));
+    }
+
+    /// @notice B4: the finality barrier revokes and kills EVERY outstanding
+    /// signature for the repository at once; only authority/governance.
+    function test_cb4_barrier_invalidates_all_outstanding_ops() public {
+        uint64 seq = registry.operationSequence(REPO_ID);
+        bytes32 head = registry.headOpDigest(REPO_ID);
+        (ForgeBindingRegistry.BindingOp memory pending, bytes memory pendingSig) =
+            _issuedOp(REPO_ID, attacker, seq + 1, head, false);
+        (ForgeBindingRegistry.BindingOp memory pendingNext, bytes memory pendingNextSig) =
+            _issuedOp(REPO_ID, attacker, seq + 2, head, false);
+
+        vm.expectRevert(ForgeBindingRegistry.NotRevoker.selector);
+        vm.prank(attacker);
+        registry.invalidatePendingOps(REPO_ID);
+
+        vm.prank(authority);
+        registry.invalidatePendingOps(REPO_ID);
+        assertFalse(registry.isActive(REPO_ID, creator), "barrier revokes");
+        assertEq(registry.operationSequence(REPO_ID), seq + 1);
+
+        vm.expectRevert(ForgeBindingRegistry.NonceNotMonotonic.selector);
+        registry.applyBindingOp(pending, pendingSig);
+        vm.expectRevert(ForgeBindingRegistry.ParentMismatch.selector);
+        registry.applyBindingOp(pendingNext, pendingNextSig);
+
+        // Governance may raise the barrier too (revocation-only power).
+        vm.prank(forgeGovernance);
+        registry.invalidatePendingOps(REPO_ID);
+        assertEq(registry.operationSequence(REPO_ID), seq + 2);
+    }
+
+    /// @notice B5: legitimate fresh re-binding after a revocation or a
+    /// barrier still works, and advances the binding epoch.
+    function test_cb5_fresh_rebind_after_revoke_and_barrier_accepted() public {
+        uint64 epoch0 = registry.bindingEpoch(REPO_ID);
+        _revoke(REPO_ID);
+        assertEq(registry.bindingEpoch(REPO_ID), epoch0, "revoke keeps the epoch");
+        _bind(REPO_ID, creator, uint64(block.timestamp + 30 days));
+        assertTrue(registry.isActive(REPO_ID, creator));
+        assertEq(registry.bindingEpoch(REPO_ID), epoch0 + 1);
+
+        vm.prank(authority);
+        registry.invalidatePendingOps(REPO_ID);
+        assertFalse(registry.isActive(REPO_ID, creator));
+        _bind(REPO_ID, creator, uint64(block.timestamp + 30 days));
+        assertTrue(registry.isActive(REPO_ID, creator));
+        assertEq(registry.bindingEpoch(REPO_ID), epoch0 + 2);
+        (,,,,,, uint64 recordEpoch,) = registry.bindings(REPO_ID);
+        assertEq(recordEpoch, epoch0 + 2, "binding record carries its epoch");
+    }
+
+    /// @notice B6: an eligibility attestation issued under an earlier
+    /// binding epoch never authorizes a launch after revoke + re-bind of
+    /// the SAME creator; a fresh attestation under the new epoch does.
+    function test_cb6_old_epoch_attestation_rejected_after_rebind() public {
+        IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
+        bytes memory consent = _consentSig(intent, creatorPk);
+        bytes memory oldAtt = _goodAttestation(); // epoch N
+
+        _revoke(REPO_ID);
+        _bind(REPO_ID, creator, uint64(block.timestamp + 30 days)); // epoch N+1
+
+        vm.expectRevert(ForgeLaunchAuthorizer.InvalidAttestationSignature.selector);
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, oldAtt);
+
+        bytes memory freshAtt = _goodAttestation(); // epoch N+1
+        vm.prank(FACTORY);
+        authorizer.requireAuthorizedLaunch(intent, creator, true, consent, freshAtt);
+        assertTrue(authorizer.nonceUsed(creator, 0));
+    }
+
+    /// @notice B7: the applied-op log is auditable from events alone —
+    /// parent, digest, sequence and epoch of every transition.
+    function test_cb7_operation_log_is_auditable() public {
+        uint64 seq = registry.operationSequence(REPO_ID);
+        bytes32 head = registry.headOpDigest(REPO_ID);
+        uint64 epoch = registry.bindingEpoch(REPO_ID);
+        ForgeBindingRegistry.BindingOp memory op =
+            _op(REPO_ID, creator, uint64(block.timestamp + 10 minutes), seq + 1, true);
+        bytes memory sig = _sign(op);
+        bytes32 digest = registry.attestationDigestForBindingOp(op);
+        vm.expectEmit(true, true, false, true, address(registry));
+        emit ForgeBindingRegistry.OperationApplied(REPO_ID, seq + 1, epoch, head, digest, true);
+        registry.applyBindingOp(op, sig);
+        assertEq(registry.headOpDigest(REPO_ID), digest);
+        assertTrue(registry.usedOps(digest));
+        // Re-submitting the applied op is a replay.
+        vm.expectRevert(ForgeBindingRegistry.OperationReplayed.selector);
+        registry.applyBindingOp(op, sig);
+    }
+
+    /// @notice B8 (property): NO operation issued against the pre-revocation
+    /// state survives the revocation — for any nonce, creator or op kind.
+    function testFuzz_cb8_no_preissued_op_survives_revoke(
+        uint64 nonceOffset,
+        address who,
+        bool revoke
+    ) public {
+        vm.assume(who != address(0));
+        uint64 seq = registry.operationSequence(REPO_ID);
+        nonceOffset = uint64(bound(nonceOffset, 0, type(uint64).max - seq - 1));
+        (ForgeBindingRegistry.BindingOp memory op, bytes memory sig) =
+            _issuedOp(REPO_ID, who, seq + 1 + nonceOffset, registry.headOpDigest(REPO_ID), revoke);
+        _revoke(REPO_ID);
+        vm.expectRevert();
+        registry.applyBindingOp(op, sig);
+        assertFalse(registry.isActive(REPO_ID, who));
     }
 }

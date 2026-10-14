@@ -147,19 +147,12 @@ contract ForgeSnipeTaxTest is Test {
             creator: creator,
             bindingExpiresAt: uint64(block.timestamp + 30 days),
             opDeadline: uint64(block.timestamp + 5 minutes),
-            opNonce: 1,
+            opNonce: registry.operationSequence(42) + 1,
+            parentOpDigest: registry.headOpDigest(42),
             repoFullName: "finco/forge",
             revoke: false
         });
-        bytes32 digest = registry.attestationDigestForBindingOp(
-            op.githubRepoId,
-            op.creator,
-            op.bindingExpiresAt,
-            op.opDeadline,
-            op.opNonce,
-            keccak256(bytes(op.repoFullName)),
-            op.revoke
-        );
+        bytes32 digest = registry.attestationDigestForBindingOp(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorityPk, digest);
         registry.applyBindingOp(op, abi.encodePacked(r, s, v));
     }
@@ -186,7 +179,11 @@ contract ForgeSnipeTaxTest is Test {
         bytes32 consentDigest = authorizer.consentDigest(intent, creator, false);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(creatorPk, consentDigest);
         bytes32 attDigest = authorizer.attestationDigest(
-            42, creator, uint64(block.timestamp), uint64(block.timestamp + 1 days)
+            42,
+            creator,
+            registry.bindingEpoch(42),
+            uint64(block.timestamp),
+            uint64(block.timestamp + 1 days)
         );
         (uint8 av, bytes32 ar, bytes32 asr) = vm.sign(authorityPk, attDigest);
 

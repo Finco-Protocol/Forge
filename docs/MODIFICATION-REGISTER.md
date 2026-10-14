@@ -89,7 +89,7 @@ factory; nonce replay refused; deployer bypass refused).
 | --- | --- |
 | `forge/IForgeLaunchAuthorizer.sol` | The M-ELIG interface (LaunchIntent, requireAuthorizedLaunch, nonce views) |
 | `forge/ForgeLaunchAuthorizer.sol` | On-chain verifier: EIP-712 dual-signature enforcement (creator consent + Forge eligibility attestation, keys MUST differ), per-creator nonces, factory one-time wiring, MAX_ATTESTATION_AGE freshness, registry-binding freshness, governance-only authority rotation with revocation-only kill switch |
-| `forge/ForgeBindingRegistry.sol` | Public evidence ledger: canonical numeric GitHub repo id → creator wallet, authority-signed relayable ops with bounded validity, per-binding expiry + revocation, canonical-id-stable renames, force-revoke semantics |
+| `forge/ForgeBindingRegistry.sol` | Public evidence ledger: canonical numeric GitHub repo id → creator wallet, authority-signed relayable ops with bounded validity, per-binding expiry + revocation, canonical-id-stable renames, force-revoke semantics; Correction B: hash-chained per-repo op log (exact next sequence + parent digest), `invalidatePendingOps` finality barrier, per-repo `bindingEpoch` signed into eligibility attestations |
 
 ## 4. Vendored dependency additions (contractsV2-deployed/lib)
 

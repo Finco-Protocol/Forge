@@ -1,0 +1,28 @@
+# Approved advisory `forge lint` findings for the Forge-authored eligibility
+# stack (contractsV2-forge/src/v2/forge). Consumed by
+# scripts/check-security-lint.pl; reviewed in docs/THREAT-MODEL-W02.md §Lint.
+#
+# Columns (TAB-separated): code, file, exact count, anchor (trimmed source
+# text of the primary span), rationale. A pin matches only its exact source
+# text: editing the flagged code un-pins it and fails the gate until the new
+# code is reviewed. Error-level findings can never be pinned. Every pin must
+# match exactly <count> times - stale pins fail the gate.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	if (op.opDeadline < block.timestamp) revert OperationDeadlineExceeded();	Signed-op deadline: minutes-scale window; validator timestamp skew (seconds) is immaterial.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	if (op.opDeadline > block.timestamp + MAX_OP_VALIDITY) revert OperationDeadlineTooFar();	Caps parked-signature lifetime at 10 minutes; seconds of skew cannot extend it meaningfully.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	if (op.bindingExpiresAt > block.timestamp + MAX_BINDING_HORIZON) {	Binding horizon cap (30 days); timestamp precision irrelevant at that scale.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	if (op.bindingExpiresAt < block.timestamp) revert StaleBinding();	Rejects already-expired evidence; days-scale horizon.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	&& b.expiresAt >= block.timestamp;	Binding expiry check in isActive; days-scale horizon, fail-closed on expiry.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol	1	if (intent.expiresAt < block.timestamp) revert AuthorizationExpired();	Creator consent deadline; minutes-scale, seconds of skew immaterial.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol	1	if (issuedAt > block.timestamp) revert AttestationNotYetValid(); // future-dated	Rejects future-dated attestations; skew can only delay acceptance, never widen it.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol	1	if (expiresAt < block.timestamp) revert AttestationExpired(); // expired	Attestation expiry; hours/days-scale window.
+block-timestamp	contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol	1	if (issuedAt + MAX_ATTESTATION_AGE < block.timestamp) revert AttestationTooOld(); // stale	Attestation freshness cap (3 days); seconds of skew immaterial.
+missing-events-access-control	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	eligibilityAuthority = newAuthority;	False positive: AuthorityUpdated(previous, current) is emitted immediately before the assignment.
+missing-events-access-control	contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol	1	forgeFactory = forgeFactory_;	False positive: one-time wiring emits FactorySet(factory) in the same function.
+missing-zero-check	contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol	1	function setEligibilityAuthority(address newAuthority) external onlyOwner {	Intentional: address(0) is the documented kill switch that bricks all launches (test_b9); it can never open launches.
+reentrancy-events	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	emit Revoked(op.githubRepoId, b.creator, eligibilityAuthority);	Only prior call is the ecrecover precompile (staticcall); all state is written before the emit; no untrusted external call.
+reentrancy-events	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	emit Bound(	Only prior call is the ecrecover precompile (staticcall); state written before the emit.
+reentrancy-events	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	emit OperationApplied(	Only prior call is the ecrecover precompile (staticcall); log head and sequence written before the emit.
+reentrancy-events	contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol	1	emit LaunchAuthorized(	Prior calls are view calls to the immutable ForgeBindingRegistry and ecrecover; the only state write (creator nonce) precedes them.
+unsafe-typecast	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	2	b.revokedAt = uint64(block.timestamp);	uint64 seconds overflow in ~5.8e11 years; truncation is unreachable.
+unsafe-typecast	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	boundAt: uint64(block.timestamp),	uint64 seconds overflow in ~5.8e11 years; truncation is unreachable.
+weak-prng	contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol	1	bytes32 barrier = keccak256(	Not randomness: the barrier digest only needs to be unknown before the barrier tx is mined (prior blockhash), so no op can be pre-signed against it. Security does not depend on unpredictability against miners.

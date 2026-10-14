@@ -34,7 +34,8 @@ import {ForgeBindingRegistry} from "./ForgeBindingRegistry.sol";
  *     expiry, per-creator nonce, chain id and the authorizer address.
  *  2. ELIGIBILITY ATTESTATION — EIP-712 `EligibilityAttestation` signed by
  *     the Forge eligibility authority key, binding the GitHub repository id
- *     to the creator wallet. CANONICAL PACKED ENCODING (81 bytes):
+ *     to the creator wallet under the registry's current binding epoch
+ *     (Correction B). CANONICAL PACKED ENCODING (81 bytes):
  *     abi.encodePacked(uint64 issuedAt, uint64 expiresAt, bytes65 sig).
  *     Any other length is rejected.
  *
@@ -66,6 +67,7 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
     struct EligibilityAttestation {
         uint64 githubRepoId;
         address creator;
+        uint64 bindingEpoch;
         uint64 issuedAt;
         uint64 expiresAt;
     }
@@ -120,7 +122,7 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         "LaunchAuthorization(address factory,address creator,uint64 githubRepoId,uint256 launchConfigId,address pairToken,bytes32 tokenMetadataHash,bytes32 economicsDigest,bytes32 salt,uint64 expiresAt,uint64 nonce,uint16 creatorTaxBps,bytes32 exemptionListHash)"
     );
     bytes32 private constant ELIGIBILITY_ATTESTATION_TYPEHASH = keccak256(
-        "EligibilityAttestation(uint64 githubRepoId,address creator,uint64 issuedAt,uint64 expiresAt)"
+        "EligibilityAttestation(uint64 githubRepoId,address creator,uint64 bindingEpoch,uint64 issuedAt,uint64 expiresAt)"
     );
 
     constructor(ForgeBindingRegistry registry_, address eligibilityAuthority_)
@@ -199,12 +201,18 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         if (attestationPayload.length != 16 + 65) revert BadAttestationEncoding();
         uint64 issuedAt = uint64(bytes8(attestationPayload[0:8]));
         uint64 expiresAt = uint64(bytes8(attestationPayload[8:16]));
+        // The attestation is bound to the repository's CURRENT binding
+        // epoch (Correction B): an attestation issued under an earlier
+        // binding generation — e.g. before a revocation and re-bind of the
+        // same creator — never verifies. The epoch is read, not supplied.
+        uint64 epoch = registry.bindingEpoch(intent.githubRepoId);
         bytes32 attestationDigest = _hashTypedDataV4(
             keccak256(
                 abi.encode(
                     ELIGIBILITY_ATTESTATION_TYPEHASH,
                     intent.githubRepoId,
                     intent.creator,
+                    epoch,
                     issuedAt,
                     expiresAt
                 )
@@ -277,13 +285,19 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
     function attestationDigest(
         uint64 githubRepoId,
         address creator,
+        uint64 bindingEpoch,
         uint64 issuedAt,
         uint64 expiresAt
     ) external view returns (bytes32) {
         return _hashTypedDataV4(
             keccak256(
                 abi.encode(
-                    ELIGIBILITY_ATTESTATION_TYPEHASH, githubRepoId, creator, issuedAt, expiresAt
+                    ELIGIBILITY_ATTESTATION_TYPEHASH,
+                    githubRepoId,
+                    creator,
+                    bindingEpoch,
+                    issuedAt,
+                    expiresAt
                 )
             )
         );

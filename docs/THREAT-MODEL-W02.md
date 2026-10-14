@@ -17,6 +17,8 @@ mission, with the test evidence for each.
 | 6 | Wrong factory | Authorizer one-time `setForgeFactory` binding + intent.factory binding, both enforced | `Auth.b2, b3` |
 | 7 | Expired authorizations | Consent `expiresAt` + attestation `expiresAt` + `MAX_ATTESTATION_AGE` freshness | `Auth.b6, b15` |
 | 8 | Revoked repository binding | Registry `isActive(repoId, creator)` freshness-checked at launch; revoke cuts launches immediately | `Auth.b7, b8, b16` |
+| 8a | Previously issued registry op reactivates a revoked/transferred binding (Correction B) | Hash-chained per-repo op log: `opNonce` must equal `opSequence + 1` AND `parentOpDigest` must equal the current `headOpDigest`. Any op issued against an earlier head is dead whatever its nonce (gapped future nonces, the exact next nonce, and fully pre-signed chains alike); `invalidatePendingOps` (authority or governance, revocation-only) revokes and moves the head to an unpredictable barrier, killing every outstanding signature at once | `Auth.cb1–cb4`, property `Auth.testFuzz_cb8` |
+| 8b | Pre-revocation eligibility attestation reused after a re-bind (Correction B) | Attestations are signed over the registry's `bindingEpoch` (incremented on every bind); the authorizer reads the current epoch, so an attestation from an earlier generation never verifies — even for a re-bind of the same creator | `Auth.cb5, cb6` |
 | 9 | Revoked eligibility authority | `setEligibilityAuthority(0)` bricks ALL launches (revocation-only kill switch); re-enable is owner-gated and emitted | `Auth.b9` |
 | 10 | Unauthorized wallets | Attestation binds (repoId, creator); registry binding must name the same creator | `Auth.b10, b16` |
 | 11 | Malicious administrator configurations | The authority address is immutable in the factory and the check is not owner-bypassable; whitelist/launch-enabled owner switches do NOT satisfy M-ELIG (they gate `canLaunch`, which runs before but cannot replace the authorizer call) | `Auth` suite + MODIFICATION-REGISTER §2 |
@@ -99,11 +101,18 @@ Disposition for the Forge-owned stack:
 5. External audit: the Forge-owned stack (factory M-ELIG diff, authorizer,
    registry) must be independently audited before any mainnet use, together
    with the recovered-source parity evidence (docs/W02-SOURCE-RECOVERY.md).
-6. Eligibility-stack lint posture (Correction A): zero ERROR-level
-   diagnostics are enforced as a hard gate; the advisory warning set
-   (timestamp-comparison, event-after-external-call patterns inherent to
-   signature-verification contracts) is baselined and reported in CI
-   artifacts — never silently swallowed.
+6. Eligibility-stack lint posture (Correction B): the COMPLETE
+   `forge lint --json` output is parsed by `scripts/check-security-lint.pl`
+   (no regex prefilter). Error-level findings, malformed output, unknown
+   levels and any warning not pinned in `scripts/security-lint-baseline.tsv`
+   fail the gate. Each pin names the code, file, the exact flagged source
+   text and an exact count, with a reviewed rationale (timestamp windows,
+   precompile-only "reentrancy-events", uint64 timestamp casts, the
+   kill-switch zero address, two event-ordering false positives and the
+   barrier's prior-blockhash use). Changing flagged code or leaving a pin
+   unmatched fails the gate. Every approved finding is printed in the CI
+   log and uploaded with the raw JSON (`w02-lint-evidence`). Parser
+   negative fixtures: `scripts/test-security-lint-gate.sh` (S1–S16).
 
 ## 5. Risk register additions
 
@@ -112,4 +121,5 @@ Disposition for the Forge-owned stack:
 | W02-R1 | Medium | Authorizer + registry key rotation is a two-contract governance batch; a partial rotation leaves one contract on the old key (monitoring requirement). |
 | W02-R2 | Low | MAX_ATTESTATION_AGE (3 days) bounds attestation freshness; a repo bound but unattested for >3 days re-attests through the backend — liveness dependency on the W03 service. |
 | W02-R3 | Low | Registry binding expiry (30 days in fixtures) requires periodic re-binding; expiry only ever tightens access. |
+| W02-R5 | Low | Correction B: two ops issued against the same head are mutually exclusive, so an attacker holding a leaked-but-valid pending op can front-run one authority revoke op. `invalidatePendingOps` is a direct call that does not depend on the head, so front-running it cannot defeat it: whatever lands first, the barrier then revokes the active binding and kills every remaining signature. It is the operational revocation path; the backend must never sign ahead of the on-chain head. |
 | W02-R4 | Informational | The recovered tree reveals the "RobinFunFi" naming lineage (docs/W02-SOURCE-RECOVERY.md §4); no code impact. |

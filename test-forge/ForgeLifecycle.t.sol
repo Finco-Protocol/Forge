@@ -204,7 +204,11 @@ contract ForgeLifecycleTest is Test, IUnlockCallback {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(creatorPk, consentDigest);
         consent = abi.encodePacked(r, s, v);
         bytes32 attDigest = authorizer.attestationDigest(
-            REPO_ID, creator, uint64(block.timestamp), uint64(block.timestamp + 1 days)
+            REPO_ID,
+            creator,
+            registry.bindingEpoch(REPO_ID),
+            uint64(block.timestamp),
+            uint64(block.timestamp + 1 days)
         );
         (uint8 av, bytes32 ar, bytes32 asr) = vm.sign(authorityPk, attDigest);
         att = abi.encodePacked(
@@ -222,19 +226,12 @@ contract ForgeLifecycleTest is Test, IUnlockCallback {
             creator: who,
             bindingExpiresAt: uint64(block.timestamp + 30 days),
             opDeadline: uint64(block.timestamp + 5 minutes),
-            opNonce: 1,
+            opNonce: registry.operationSequence(repoId) + 1,
+            parentOpDigest: registry.headOpDigest(repoId),
             repoFullName: "finco/forge",
             revoke: false
         });
-        bytes32 digest = registry.attestationDigestForBindingOp(
-            op.githubRepoId,
-            op.creator,
-            op.bindingExpiresAt,
-            op.opDeadline,
-            op.opNonce,
-            keccak256(bytes(op.repoFullName)),
-            op.revoke
-        );
+        bytes32 digest = registry.attestationDigestForBindingOp(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorityPk, digest);
         registry.applyBindingOp(op, abi.encodePacked(r, s, v));
     }

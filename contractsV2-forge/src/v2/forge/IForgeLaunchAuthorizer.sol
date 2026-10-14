@@ -19,7 +19,8 @@ pragma solidity ^0.8.30;
  *     signature alone never authorizes anything.
  *  2. ELIGIBILITY ATTESTATION — an EIP-712 `EligibilityAttestation` signed
  *     by the Forge eligibility authority key binding the GitHub repository
- *     id to the creator wallet, transmitted in the canonical packed
+ *     id to the creator wallet under the registry's current binding epoch
+ *     (read on chain, not transmitted), transmitted in the canonical packed
  *     encoding abi.encodePacked(uint64 issuedAt, uint64 expiresAt,
  *     bytes65 sig) — 81 bytes total.
  *
