@@ -21,12 +21,13 @@ export interface Anvil {
 }
 
 /**
- * Local chain for acceptance. `--disable-code-size-limit` is REQUIRED because
- * the W02 Forge factory exceeds EIP-170 (blocker W02-SIZE-01, reported).
+ * Local chain for acceptance: a STANDARD Anvil with the EIP-170 code-size
+ * limit enforced (W03 Correction A resolved W02-SIZE-01; the sandbox never
+ * disables the limit).
  */
 export async function startAnvil(port?: number): Promise<Anvil> {
   const p = port ?? (await freePort());
-  const proc = spawn("anvil", ["--port", String(p), "--silent", "--disable-code-size-limit", "--chain-id", "31337"], { stdio: "ignore" });
+  const proc = spawn("anvil", ["--port", String(p), "--silent", "--chain-id", "31337"], { stdio: "ignore" });
   const url = `http://127.0.0.1:${p}`;
   for (let i = 0; i < 100; i++) {
     try {

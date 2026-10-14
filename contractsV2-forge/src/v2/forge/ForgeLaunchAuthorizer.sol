@@ -7,6 +7,25 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {IForgeLaunchAuthorizer} from "./IForgeLaunchAuthorizer.sol";
 import {ForgeBindingRegistry} from "./ForgeBindingRegistry.sol";
+import {PonsV2LaunchFactory} from "../PonsV2LaunchFactory.sol";
+
+/// @dev Selector sources for the two `launchToken` overloads (overloaded
+/// members have no unambiguous `.selector`). Types are the factory's own.
+interface IForgeLaunchEntryNoExemptions {
+    function launchToken(PonsV2LaunchFactory.TokenParams calldata params, uint256 launchConfigId, address pairToken)
+        external
+        payable
+        returns (address token, address curve);
+}
+
+interface IForgeLaunchEntryWithExemptions {
+    function launchToken(
+        PonsV2LaunchFactory.TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken,
+        address[] calldata snipeTaxExemptions
+    ) external payable returns (address token, address curve);
+}
 
 /**
  * @title ForgeLaunchAuthorizer
@@ -88,6 +107,9 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
     error ZeroAddress();
     error AuthorityRevoked();
     error FactoryAlreadySet();
+    error UnknownLaunchEntry();
+    error ExemptionListTooLong();
+    error InvalidExemptionAddress();
 
     event EligibilityAuthorityUpdated(address indexed previous, address indexed current);
     event FactorySet(address indexed factory);
@@ -97,6 +119,10 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         bytes32 metadataHash,
         bytes32 economicsDigest
     );
+
+    /// @notice Bound on a launch's snipe-tax exemption list (mirrors the
+    /// factory's MAX_SNIPE_TAX_EXEMPTIONS, which still bounds application).
+    uint256 public constant MAX_SNIPE_TAX_EXEMPTIONS = 32;
 
     /// @notice Longest-lived attestation the authority key may issue.
     uint64 public constant MAX_ATTESTATION_AGE = 3 days;
@@ -155,6 +181,106 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         bytes calldata attestationPayload
     ) external override {
         if (msg.sender != forgeFactory) revert WrongFactory();
+        _authorize(intent, creatorFeeRecipient, buybackEnabled, creatorSignature, attestationPayload);
+    }
+
+    /// @inheritdoc IForgeLaunchAuthorizer
+    /// @dev W03 Correction A (W02-SIZE-01, see docs/MODIFICATION-REGISTER.md
+    /// §7): the factory forwards its own entry-point calldata instead of
+    /// assembling the LaunchIntent itself. The intent is rebuilt here with
+    /// exactly the derivation the factory used before (effective fee
+    /// recipient, raw metadata hash, canonical exemption hash, salt, nonce,
+    /// expiry, tax), then verified by the SAME `_authorize` path.
+    function requireAuthorizedLaunchCall(
+        bytes calldata launchCall,
+        address creator,
+        bytes32 economicsDigest
+    ) external override {
+        if (msg.sender != forgeFactory) revert WrongFactory();
+        if (launchCall.length < 4) revert UnknownLaunchEntry();
+        bytes4 selector = bytes4(launchCall[:4]);
+        PonsV2LaunchFactory.TokenParams memory p;
+        uint256 launchConfigId;
+        address pairToken;
+        address[] memory exemptions;
+        if (selector == IForgeLaunchEntryNoExemptions.launchToken.selector) {
+            (p, launchConfigId, pairToken) =
+                abi.decode(launchCall[4:], (PonsV2LaunchFactory.TokenParams, uint256, address));
+        } else if (selector == IForgeLaunchEntryWithExemptions.launchToken.selector) {
+            (p, launchConfigId, pairToken, exemptions) = abi.decode(
+                launchCall[4:], (PonsV2LaunchFactory.TokenParams, uint256, address, address[])
+            );
+        } else if (selector == PonsV2LaunchFactory.launchTokenFor.selector) {
+            address originalDeployer;
+            (p, launchConfigId, pairToken, originalDeployer, exemptions) = abi.decode(
+                launchCall[4:],
+                (PonsV2LaunchFactory.TokenParams, uint256, address, address, address[])
+            );
+            // The forwarded deployer is the attributed creator; never a substitute.
+            if (originalDeployer != creator) revert WrongCreator();
+        } else {
+            revert UnknownLaunchEntry();
+        }
+        _authorize(
+            LaunchIntent({
+                factory: msg.sender,
+                creator: creator,
+                githubRepoId: p.githubRepoId,
+                launchConfigId: launchConfigId,
+                pairToken: pairToken,
+                tokenMetadataHash: keccak256(
+                    abi.encode(p.name, p.symbol, p.logo, p.description, p.socials)
+                ),
+                economicsDigest: economicsDigest,
+                salt: p.salt,
+                expiresAt: p.authorizationExpiresAt,
+                nonce: p.authorizationNonce,
+                creatorTaxBps: p.creatorTaxBps,
+                exemptionListHash: canonicalExemptionHash(exemptions)
+            }),
+            p.creatorFeeRecipient == address(0) ? creator : p.creatorFeeRecipient,
+            p.buybackEnabled,
+            p.creatorSignature,
+            p.attestationPayload
+        );
+    }
+
+    /// @notice Canonical hash of a snipe-tax exemption list: the list sorted
+    /// ascending, then hashed. Sorting is the explicitly reviewed canonical
+    /// ordering rule (on-chain application order is semantically irrelevant:
+    /// exemption is a per-address mapping), so a reordered submission is
+    /// accepted, while ANY addition, removal, substitution or duplication
+    /// produces a different canonical hash and is rejected against the
+    /// creator-signed digest. The zero address is refused fail-closed.
+    /// Moved verbatim from PonsV2LaunchFactory (W03 Correction A).
+    function canonicalExemptionHash(address[] memory exemptions) public pure returns (bytes32) {
+        if (exemptions.length > MAX_SNIPE_TAX_EXEMPTIONS) revert ExemptionListTooLong();
+        address[] memory sorted = new address[](exemptions.length);
+        for (uint256 i = 0; i < exemptions.length; ++i) {
+            if (exemptions[i] == address(0)) revert InvalidExemptionAddress();
+            sorted[i] = exemptions[i];
+        }
+        // Insertion sort (bounded by MAX_SNIPE_TAX_EXEMPTIONS = 32).
+        for (uint256 i = 1; i < sorted.length; ++i) {
+            address v = sorted[i];
+            uint256 j = i;
+            while (j > 0 && sorted[j - 1] > v) {
+                sorted[j] = sorted[j - 1];
+                --j;
+            }
+            sorted[j] = v;
+        }
+        return keccak256(abi.encode(sorted));
+    }
+
+    /// @dev The single verification path behind both entry points.
+    function _authorize(
+        LaunchIntent memory intent,
+        address creatorFeeRecipient,
+        bool buybackEnabled,
+        bytes memory creatorSignature,
+        bytes memory attestationPayload
+    ) private {
         if (eligibilityAuthority == address(0)) revert AuthorityRevoked();
 
         // ── Layer 1: creator consent ─────────────────────────────────────
@@ -199,8 +325,15 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         // Canonical packed encoding: uint64 issuedAt, uint64 expiresAt,
         // bytes65 sig — exactly 81 bytes. Any other length is rejected.
         if (attestationPayload.length != 16 + 65) revert BadAttestationEncoding();
-        uint64 issuedAt = uint64(bytes8(attestationPayload[0:8]));
-        uint64 expiresAt = uint64(bytes8(attestationPayload[8:16]));
+        uint64 issuedAt;
+        uint64 expiresAt;
+        bytes memory attestationSignature = new bytes(65);
+        assembly ("memory-safe") {
+            let d := add(attestationPayload, 32)
+            issuedAt := shr(192, mload(d))
+            expiresAt := shr(192, mload(add(d, 8)))
+            mcopy(add(attestationSignature, 32), add(d, 16), 65)
+        }
         // The attestation is bound to the repository's CURRENT binding
         // epoch (Correction B): an attestation issued under an earlier
         // binding generation — e.g. before a revocation and re-bind of the
@@ -218,7 +351,7 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
                 )
             )
         );
-        address attSigner = attestationDigest.recover(attestationPayload[16:]);
+        address attSigner = attestationDigest.recover(attestationSignature);
         if (attSigner == address(0)) revert InvalidAttestationSignature();
         if (attSigner == consentSigner) revert SignaturesNotIndependent();
         if (attSigner != eligibilityAuthority) revert InvalidAttestationSignature();

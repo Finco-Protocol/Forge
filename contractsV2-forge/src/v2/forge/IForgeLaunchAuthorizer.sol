@@ -74,6 +74,17 @@ interface IForgeLaunchAuthorizer {
         bytes calldata attestationSignature
     ) external;
 
+    /// @notice Factory-facing entry (W03 Correction A, W02-SIZE-01): the
+    /// Forge factory forwards its own launch entry-point calldata (`msg.data`
+    /// of launchToken / launchToken-with-exemptions / launchTokenFor), the
+    /// attributed creator and its live economics digest. The authorizer
+    /// decodes the exact TokenParams the factory executes, rebuilds the
+    /// LaunchIntent (raw metadata hash, canonical exemption hash, effective
+    /// fee recipient) and applies the identical checks as
+    /// `requireAuthorizedLaunch`. Reverts on any other selector.
+    function requireAuthorizedLaunchCall(bytes calldata launchCall, address creator, bytes32 economicsDigest)
+        external;
+
     /// @notice The current eligibility authority key.
     function eligibilityAuthority() external view returns (address);
 

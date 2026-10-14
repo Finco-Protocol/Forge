@@ -45,6 +45,17 @@ export async function applyRegistryOp(
 ): Promise<AppliedOp> {
   const { cfg, client, relayer, db } = ctx;
   const s = state ?? (await readRegistryState(client, cfg.addresses, params.repoId));
+  // Settle ops whose deadline passed while signed/submitted (crash, dropped tx, RPC
+  // timeout): confirmed if the registry consumed the digest, otherwise abandoned —
+  // after its deadline it can never execute.
+  const stale = await db.query<{ id: string; op_digest: string }>(
+    "SELECT id::text, op_digest FROM registry_ops WHERE repo_id = $1 AND status IN ('signed','submitted') AND op_deadline < $2",
+    [params.repoId.toString(), s.blockTimestamp.toString()],
+  );
+  for (const op of stale.rows) {
+    const used = await client.readContract({ address: cfg.addresses.registry, abi: forgeBindingRegistryAbi, functionName: "usedOps", args: [op.op_digest as Hex] });
+    await db.query("UPDATE registry_ops SET status = $2, updated_at = now() WHERE id = $1", [op.id, used ? "confirmed" : "abandoned"]);
+  }
   // A still-pending op for this repo (signed, deadline not passed) blocks a conflicting one.
   const pending = await db.query<{ op_digest: string }>(
     "SELECT op_digest FROM registry_ops WHERE repo_id = $1 AND status IN ('signed','submitted') AND op_deadline >= $2",
@@ -72,7 +83,10 @@ export async function applyRegistryOp(
     const ins = await db.query<{ id: string }>(
       `INSERT INTO registry_ops(repo_id, op_nonce, parent_digest, op_digest, creator, revoke, repo_full_name, binding_expires_at, op_deadline,
          verification_id, reason, signature, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'signed') RETURNING id::text`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'signed')
+       ON CONFLICT (op_digest) DO UPDATE SET status = 'signed', error = NULL, tx_hash = NULL, signature = EXCLUDED.signature, updated_at = now()
+         WHERE registry_ops.status IN ('failed', 'abandoned')
+       RETURNING id::text`,
       [
         op.githubRepoId.toString(),
         op.opNonce.toString(),
@@ -88,7 +102,9 @@ export async function applyRegistryOp(
         signature,
       ],
     );
-    opId = ins.rows[0]!.id;
+    // An identical op that never landed (failed/abandoned) is revived; a LIVE identical op is a conflict.
+    if (!ins.rows[0]) throw new ForgeError("CONCURRENT_OPERATION", "An identical registry operation is already in flight.", 409);
+    opId = ins.rows[0].id;
   } catch (e) {
     if (isUniqueViolation(e)) throw new ForgeError("CONCURRENT_OPERATION", "A conflicting registry operation was issued concurrently.", 409);
     throw e;

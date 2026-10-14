@@ -44,6 +44,13 @@ describe("Robinhood Chain 4663 — Uniswap V4 wiring (read-only)", () => {
     expect(getAddress(await client!.readContract({ address: factory, abi, functionName: "poolManager" }))).toBe(getAddress(manifest.uniswapV4.poolManager.address));
   });
 
+  it("applies the standard EIP-170 code-size limit (24,576 B), probed read-only via eth_estimateGas", async () => {
+    // Init code returning N zero bytes: PUSH2 N, PUSH1 0, RETURN. Nothing is broadcast.
+    const at = await client!.estimateGas({ account: "0x000000000000000000000000000000000000dEaD", data: "0x6160006000f3" });
+    expect(at > 0n).toBe(true);
+    await expect(client!.estimateGas({ account: "0x000000000000000000000000000000000000dEaD", data: "0x6160016000f3" })).rejects.toThrow();
+  });
+
   it("no Forge factory is configured for production (PRODUCTION_BLOCKED)", () => {
     expect(manifest.forge.factory).toBeNull();
     expect(manifest.productionStatus).toBe("PRODUCTION_BLOCKED");

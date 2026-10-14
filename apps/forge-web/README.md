@@ -23,7 +23,7 @@ The user-facing launchpad around the W02 protocol core:
 | Worker | `pnpm worker` (or embedded in sandbox) | indexer, receipts, on-chain revocation jobs, reconciliation |
 | Contract ABIs | `src/shared/abis.generated.ts` | generated from `forge build --profile forge`; CI fails on drift |
 
-No W02 contract is modified. The W03 app drives exactly the W02 Forge-owned stack (`contractsV2-forge`).
+The W03 app drives the W02 Forge-owned stack (`contractsV2-forge`). W03 Correction A changed only the factory→authorizer hand-off to fit EIP-170 (`docs/MODIFICATION-REGISTER.md` §7); financial contracts are unchanged.
 
 ## Proof model — what proves what
 
@@ -51,8 +51,8 @@ forge build --profile forge
 # 2. App deps
 cd apps/forge-web && pnpm install
 
-# 3. Local chain — --disable-code-size-limit is REQUIRED (W02 factory > EIP-170, blocker W02-SIZE-01)
-anvil --disable-code-size-limit &
+# 3. Local chain — a standard Anvil (EIP-170 enforced; never disable the size limit)
+anvil &
 
 # 4. Deploy the real W02 stack (V4 legs are the W02 mini mocks) → .sandbox/deployment.json
 pnpm sandbox:deploy
@@ -79,9 +79,12 @@ With a real GitHub App instead of the sandbox GitHub: create a GitHub App with *
 | `pnpm test:e2e` | Playwright over `next build && next start` | browser wallet = EIP-1193 provider forwarding to Anvil dev account |
 | `pnpm test:fork` | read-only Robinhood 4663 V4 wiring | needs `FORGE_FORK_RPC_URL` |
 | `pnpm abi:check` | committed ABIs == W02 build output | — |
+| `pnpm size:check` | EIP-170 gate: every Forge runtime ≤ 24,576 B, factory margin ≥ 64 B | — |
 
 ## Operations
 
 - Production uses PostgreSQL + `pnpm worker` (separate process), never PGlite.
+- Revocation monitoring: `GET /api/health` → `revocations` (pending, oldest age, retrying, last latency, SLO `FORGE_REVOCATION_SLO_SECONDS`, `breached`). Page on `breached` and on `ALERT:*` audit events.
+- Behind a reverse proxy set `FORGE_TRUSTED_PROXY_HOPS` to the exact number of proxies that append `X-Forwarded-For`; the default `0` never trusts the header.
 - Indexer finality: set `FORGE_CONFIRMATIONS` (sandbox 0). Reorgs deeper than `FORGE_INDEXER_REORG_WINDOW` stop the indexer for manual intervention.
 - Runbook: `docs/W03-SECURITY-RUNBOOK.md`. Handover/blockers: `docs/W03-W04-HANDOVER.md`.

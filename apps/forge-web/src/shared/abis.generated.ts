@@ -846,6 +846,19 @@ export const forgeLaunchAuthorizerAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_SNIPE_TAX_EXEMPTIONS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "acceptOwnership",
     "inputs": [],
     "outputs": [],
@@ -889,6 +902,25 @@ export const forgeLaunchAuthorizerAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "canonicalExemptionHash",
+    "inputs": [
+      {
+        "name": "exemptions",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "pure"
   },
   {
     "type": "function",
@@ -1283,6 +1315,29 @@ export const forgeLaunchAuthorizerAbi = [
   },
   {
     "type": "function",
+    "name": "requireAuthorizedLaunchCall",
+    "inputs": [
+      {
+        "name": "launchCall",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "creator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "economicsDigest",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setEligibilityAuthority",
     "inputs": [
       {
@@ -1501,6 +1556,11 @@ export const forgeLaunchAuthorizerAbi = [
   },
   {
     "type": "error",
+    "name": "ExemptionListTooLong",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "FactoryAlreadySet",
     "inputs": []
   },
@@ -1512,6 +1572,11 @@ export const forgeLaunchAuthorizerAbi = [
   {
     "type": "error",
     "name": "InvalidCreatorSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidExemptionAddress",
     "inputs": []
   },
   {
@@ -1556,6 +1621,11 @@ export const forgeLaunchAuthorizerAbi = [
         "internalType": "string"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "UnknownLaunchEntry",
+    "inputs": []
   },
   {
     "type": "error",
@@ -3757,11 +3827,6 @@ export const ponsV2LaunchFactoryAbi = [
   {
     "type": "error",
     "name": "InvalidBasisPoints",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidExemptionAddress",
     "inputs": []
   },
   {

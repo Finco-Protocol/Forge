@@ -89,8 +89,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: committed ABIs match the W02 build output
         run: pnpm abi:check
-      - name: EIP-170 size report (W02-SIZE-01 is a known, reported blocker)
-        run: pnpm exec tsx -e "import('./scripts/sandbox-lib.ts').then(m => console.table(m.eip170Report()))"
+      - name: "EIP-170 size gate (mandatory: every Forge runtime <= 24,576 B; factory margin >= 64 B)"
+        run: pnpm size:check
+      - name: "Forge calldata-authorization suite (W02-SIZE-01 remediation, all entry points)"
+        working-directory: .
+        run: forge test --profile forge --match-contract ForgeLaunchCallTest -vvv
       - uses: actions/upload-artifact@v4
         with:
           name: forge-out

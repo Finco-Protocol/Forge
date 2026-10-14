@@ -124,3 +124,75 @@ The W01 profiles (`default` canary, `testable`, `v1`) are unchanged.
 `script/DeployForgeW02.s.sol` — local/test deployment of the full stack
 (mini V4 legs for lifecycles; production V4 addresses are a W03+ concern
 pending independent review). Never pointed at Robinhood mainnet.
+
+## 7. W03 Correction A — EIP-170 deployability (W02-SIZE-01)
+
+**Problem.** The Forge factory's runtime (forge profile: solc 0.8.35, via-IR,
+200 runs, cancun, ipfs metadata) was **25,963 B**, above the EIP-170 limit of
+**24,576 B** (excess 1,387 B), so it could not be deployed to any standard
+EVM chain. The deploy-time PONS factory compiles to 24,177 B; M-ELIG added
+1,786 B. W02's Foundry suites never deployed it under the limit.
+
+**Options evaluated (measured, same compiler profile):**
+
+| Option | Factory runtime | Result |
+| --- | --- | --- |
+| A. optimizer runs 100 / 50 / 20 / 1 | 25,899 / 25,857 / 25,851 / 25,848 B | insufficient (≤115 B) |
+| A. `optimizer_details.inliner = false` | 25,928 B | insufficient |
+| B. drop `previewLaunchEconomics` (view) | 25,681 B | insufficient alone; not applied (W03/creators depend on it) |
+| B. drop exemption sort only | 25,763 B | insufficient alone |
+| **C. calldata-forwarding authorization (applied)** | **24,470 B** | **106 B under the limit** |
+
+Compiler settings are **unchanged** (no optimizer-induced change is claimed
+as parity; the forge profile never claimed bytecode parity with PONS).
+
+**Change (C).** Eligibility *verification* moves entirely into
+`ForgeLaunchAuthorizer`; *enforcement* stays in the factory exactly where it
+was:
+
+- `PonsV2LaunchFactory._launchToken` (private, below every entry point,
+  before any state change or deployment) now calls
+  `launchAuthorizer.requireAuthorizedLaunchCall(msg.data, originalDeployer, economics)`
+  instead of assembling the `LaunchIntent` itself. Removed from the factory:
+  `_canonicalExemptionHash`, `_EMPTY_EXEMPTION_HASH`, the `exemptionListHash`
+  parameter of `_launchToken`, and the now-unused `InvalidExemptionAddress`
+  error. No other factory line changed; the exemption list the factory
+  applies (`_exemptFromSnipeTax`) is the same calldata the authorizer
+  verifies.
+- `ForgeLaunchAuthorizer.requireAuthorizedLaunchCall` (factory-only)
+  decodes the factory's own calldata by selector — `launchToken(TokenParams,uint256,address)`,
+  `launchToken(TokenParams,uint256,address,address[])`,
+  `launchTokenFor(TokenParams,uint256,address,address,address[])` — and
+  reverts `UnknownLaunchEntry` for anything else. For `launchTokenFor` the
+  decoded `originalDeployer` must equal the attributed creator. It rebuilds
+  the intent with the identical derivations the factory used (raw metadata
+  hash `keccak256(abi.encode(name, symbol, logo, description, socials))`,
+  effective fee recipient `creatorFeeRecipient == 0 ? creator : creatorFeeRecipient`,
+  canonical exemption hash moved verbatim as public `canonicalExemptionHash`)
+  and runs the **single** verification path `_authorize`.
+- `requireAuthorizedLaunch(LaunchIntent, ...)` is kept, unchanged in
+  behaviour, as a thin wrapper over the same `_authorize` (all 17 W02 M-ELIG
+  adversarial tests run against it unmodified).
+- `_authorize` reads the 81-byte attestation payload from memory
+  (`mcopy` of the 65-byte signature) instead of calldata slices; the length
+  check, field order and every time/epoch/signer check are unchanged.
+
+**Unchanged:** bonding-curve maths, supply, graduation economics, fee
+accounting, fee policy, owner powers (F-03/F-04), the EIP-712 domains and
+type strings, the consent digest a creator signs (proven by
+`test_calldata_path_binds_same_digest_as_struct_path` and the W03
+randomized parity suite), `contractsV2-deployed/` and all provenance. No
+delegatecall, proxy or upgrade authority introduced.
+
+**Evidence.** `test-forge/ForgeLaunchCall.t.sol` (EIP-170 bound, factory-only
+entry, unknown/short selectors, forwarder entry point, deployer
+substitution, exemption reorder/tamper, canonical-hash rules, struct-path
+digest equivalence, metadata tamper on every entry point) plus the
+unchanged W02 suites (ForgeLaunchAuth 17, lifecycle, snipe tax) and W01
+regression. W03 runs every integration and browser test on a **standard**
+Anvil (EIP-170 enforced) and CI enforces `pnpm size:check` (all Forge
+runtimes ≤ 24,576 B, factory margin ≥ 64 B).
+
+The security lint baseline gains one reviewed pin:
+`require-revert-in-loop` on the zero-address refusal inside the bounded
+canonical-exemption loop (moved verbatim from the factory).

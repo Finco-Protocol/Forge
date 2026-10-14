@@ -26,12 +26,41 @@ import { handleWebhook } from "../github/webhooks";
 import { activeWalletBinding, issueWalletChallenge, revokeWalletBinding, verifyWalletChallenge } from "../wallet/siwe";
 import { authorizeDraft, createDraft, getDraft, getIntent, recordSubmission, refreshDraftEconomics, submitCreatorSignature } from "../launch/service";
 import { verifyLedger, DISCLAIMER } from "../proof/ledger";
+import { revocationHealth } from "../worker";
 import { PRODUCTION_BLOCKED, FORGE_FEE_POLICY_AUTHORITY_UNPROVEN } from "../config";
 import robinhood from "../../../config/networks/robinhood-4663.json";
 
 type Handler = (ctx: AppContext, req: Request, params: Record<string, string>) => Promise<Response>;
 
-const clientIp = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+/**
+ * Trusted-proxy policy (docs/W03-SECURITY-RUNBOOK.md §4). X-Forwarded-For is
+ * client-controlled except for the entries appended by OUR ingress. With
+ * FORGE_TRUSTED_PROXY_HOPS = N > 0, the client address is the N-th entry from
+ * the RIGHT (the one our outermost trusted proxy appended); everything to its
+ * left is ignored. With N = 0 (default) forwarding headers are never trusted
+ * and no client address is available: callers must fall back to a session
+ * bucket plus a global bucket, so spoofed headers change nothing.
+ */
+export function trustedClientIp(req: Request, trustedProxyHops: number): string | null {
+  if (trustedProxyHops <= 0) return null;
+  const parts = (req.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length < trustedProxyHops) return null; // header did not traverse the declared proxy chain
+  const ip = parts[parts.length - trustedProxyHops]!;
+  return /^[0-9a-fA-F:.]{2,45}$/.test(ip) ? ip : null;
+}
+
+/**
+ * Unauthenticated limit: per trusted client IP when one exists, otherwise
+ * per anonymous session; always also a global ceiling.
+ */
+async function anonymousLimit(ctx: AppContext, req: Request, sessionIdHash: string, name: string, perClient: number, global: number, windowSeconds: number) {
+  const ip = trustedClientIp(req, ctx.cfg.trustedProxyHops);
+  await rateLimit(ctx.db, `${name}:global`, global, windowSeconds);
+  await rateLimit(ctx.db, ip ? `${name}:ip:${ip}` : `${name}:session:${sessionIdHash}`, perClient, windowSeconds);
+}
 
 // ── session / auth ───────────────────────────────────────────────────────
 const me: Handler = async (ctx, req) => {
@@ -49,8 +78,8 @@ const me: Handler = async (ctx, req) => {
 };
 
 const githubStart: Handler = async (ctx, req) => {
-  await rateLimit(ctx.db, `oauth:${clientIp(req)}`, 30, 600);
   const { session, cookies } = await ensureSession(ctx, req);
+  await anonymousLimit(ctx, req, session.idHash, "oauth", 30, 600, 600);
   const state = randomToken(24);
   await ctx.db.query("INSERT INTO oauth_states(state_hash, session_id_hash, expires_at) VALUES ($1,$2,$3)", [
     sha256Hex(state),
@@ -278,8 +307,10 @@ const publicConfig: Handler = async (ctx) =>
   });
 
 const health: Handler = async (ctx) => {
-  const block = await ctx.client.getBlockNumber().catch(() => null);
-  return json({ ok: block !== null, block });
+  const block = await ctx.client.getBlockNumber({ cacheTime: 0 }).catch(() => null);
+  const revocations = await revocationHealth(ctx);
+  // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO).
+  return json({ ok: block !== null, block, revocations });
 };
 
 const ROUTES: Array<[string, RegExp, string[], Handler]> = [];

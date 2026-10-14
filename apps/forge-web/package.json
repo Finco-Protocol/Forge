@@ -22,7 +22,8 @@
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
-    "test:fork": "vitest run --project fork"
+    "test:fork": "vitest run --project fork",
+    "size:check": "tsx scripts/size-gate.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.9",

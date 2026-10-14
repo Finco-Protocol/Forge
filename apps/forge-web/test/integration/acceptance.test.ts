@@ -27,6 +27,22 @@ beforeAll(async () => {
 });
 afterAll(async () => sb?.stop());
 
+describe("standard-EVM deployability (W02-SIZE-01 resolved)", () => {
+  it("the test chain enforces EIP-170 and the real W02 factory is deployed within it", async () => {
+    const deployer = chainClients(sb.anvil.url, ANVIL_KEYS[9]);
+    // Init code returning 24,577 zero bytes (PUSH2 0x6001, PUSH1 0, RETURN): one byte over the limit.
+    const tooBig = await deployer.wallet.sendTransaction({ data: "0x6160016000f3", gas: 10_000_000n }).then(
+      (h) => deployer.pub.waitForTransactionReceipt({ hash: h }).then((r) => r.status),
+      () => "rejected",
+    );
+    expect(tooBig).not.toBe("success");
+    const atLimit = await deployer.wallet.sendTransaction({ data: "0x6160006000f3", gas: 10_000_000n });
+    expect((await deployer.pub.waitForTransactionReceipt({ hash: atLimit })).status).toBe("success");
+    const code = await sb.ctx.client.getCode({ address: sb.deployment.factory });
+    expect((code!.length - 2) / 2).toBeLessThanOrEqual(24_576);
+  });
+});
+
 describe("creator → token acceptance path", () => {
   it("1. GitHub user authenticates through the App OAuth flow", async () => {
     await browser.signInGithub(ALICE.id);

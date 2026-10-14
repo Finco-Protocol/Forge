@@ -52,6 +52,8 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().optional(),
   FORGE_PGLITE_DIR: z.string().optional(),
   FORGE_EMBEDDED_WORKER: bool(false),
+  FORGE_REVOCATION_SLO_SECONDS: z.coerce.number().int().positive().default(300),
+  FORGE_TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   FINCO_BURN_ENABLED: bool(false),
 });
 
@@ -143,5 +145,7 @@ export function buildConfig(env: Record<string, string | undefined>) {
     },
     db: { url: e.DATABASE_URL, pgliteDir: e.FORGE_PGLITE_DIR },
     embeddedWorker: e.FORGE_EMBEDDED_WORKER,
+    revocationSloSeconds: e.FORGE_REVOCATION_SLO_SECONDS,
+    trustedProxyHops: e.FORGE_TRUSTED_PROXY_HOPS,
   };
 }

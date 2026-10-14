@@ -71,9 +71,9 @@ const HOOK_FLAGS = 0x2044n; // beforeInitialize | afterSwap | afterSwapReturnDel
 export const EIP170_LIMIT = 24_576;
 
 /**
- * The W02 Forge factory's runtime bytecode exceeds EIP-170 (see
- * docs/W03-W04-HANDOVER.md, blocker W02-SIZE-01). The local sandbox therefore
- * requires `anvil --disable-code-size-limit`; this is reported, never hidden.
+ * EIP-170 runtime size report for the Forge-owned stack. W02-SIZE-01 (the
+ * factory at 25,963 B) is resolved by W03 Correction A; `pnpm size:check`
+ * fails CI on any regression above the limit.
  */
 export function eip170Report() {
   const out: Array<{ contract: string; runtimeBytes: number; exceeds: boolean }> = [];
