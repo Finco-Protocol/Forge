@@ -136,3 +136,7 @@ from a new manifest. After: `factory.setLaunchEnabled(false)`, splitter
 Audit, governance multisig/timelock, attestor and treasury custody, the
 `blockhash` semantics probe, proxy presence on 4663, legal (BUSL v4-core),
 ERC-20 quote asset review. See `docs/W04-W05-HANDOVER.md`.
+
+## Fork-mode limitation (measured in PR CI) — a gap, not a pass
+
+The local Anvil fork of chain 4663 emulates ArbOS: address `0x64` (ArbSys) is a precompile that `anvil_setCode` cannot replace, and gas/L1 accounting differs from the real EVM assumptions in the harness. Therefore lifecycle steps 7–9 (revenue attestation → splitter pull → treasury/creator claims) are **skipped in fork mode** and run only on the fresh-Anvil genuine-V4 suite. What still covers them: (a) fork steps 1–6 and 10 against the REAL deployed PoolManager/PositionManager/Permit2; (b) the read-only probe `test/v4-fork/arbos-block-semantics.test.ts`, which asserted on the real RPC that `ArbSys.arbBlockNumber()`/`arbBlockHash()` equal the RPC's block number/hash (finding W05-05); (c) forge tests `test_H2_*` for the splitter's ArbSys branch. The splitter's behaviour on the live ArbOS chain end-to-end remains unproven until a testnet/staging attestation is executed by an operator (Class B).

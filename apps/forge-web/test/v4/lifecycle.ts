@@ -7,8 +7,6 @@
  *
  * All transactions go to the local chain (fresh Anvil or a LOCAL Anvil fork).
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import {
   encodeAbiParameters,
   encodePacked,
@@ -35,7 +33,6 @@ import {
 import { ANVIL_KEYS, type SandboxDeployment } from "../../scripts/sandbox-lib";
 import { clientsFor, type GenuineChain } from "../../scripts/w05/genuine-v4";
 import { rpcCall } from "../../scripts/w05/anvil-proc";
-import { FORGE_OUT } from "../../scripts/artifacts";
 import { GENUINE } from "../../scripts/w05/uniswap-artifacts";
 
 export const NATIVE = "0x0000000000000000000000000000000000000000" as Address;
@@ -94,8 +91,6 @@ export class Lifecycle {
   constructor(
     readonly chain: GenuineChain,
     readonly d: SandboxDeployment,
-    /** Anvil-fork mode: the fork cannot run ArbOS precompiles, so an ArbSys test double is installed (see ArbSysShim.sol). */
-    readonly arbSysShim = false,
   ) {
     this.url = chain.anvil.url;
     this.chainId = chain.v4.chainId;
@@ -285,27 +280,11 @@ export class Lifecycle {
     return sum;
   }
 
-  /**
-   * The splitter reads block number/hash through ArbSys (0x64) on Arbitrum-family chains. A local Anvil
-   * fork cannot execute that precompile, so install a test double whose answers mirror the RPC numbering.
-   * The real-chain equivalence is asserted by test/v4-fork/arbos-block-semantics.test.ts (read-only).
-   */
-  private async installArbSysShim(head: bigint, evidenceBlock: bigint, evidenceHash: Hex) {
-    const ARB_SYS = "0x0000000000000000000000000000000000000064" as Address;
-    const json = JSON.parse(readFileSync(path.join(FORGE_OUT, "ArbSysShim.sol", "ArbSysShim.json"), "utf8")) as { deployedBytecode: { object: Hex } };
-    await rpcCall(this.url, "anvil_setCode", [ARB_SYS, json.deployedBytecode.object]);
-    const abi = parseAbi(["function setHead(uint256)", "function setHash(uint256,bytes32)"]);
-    await this.send(KEYS.stranger, ARB_SYS, abi, "setHash", [evidenceBlock, evidenceHash]);
-    // generous head: evidence < head <= evidence + 256 holds when the attest tx is mined a few blocks later
-    await this.send(KEYS.stranger, ARB_SYS, abi, "setHead", [head + 10n]);
-  }
-
   /** Signs and relays an EligibleRevenue ceiling (sandbox attestor key ANVIL_KEYS[4]). */
   async attest(cumulativeEligible: bigint) {
     await rpcCall(this.url, "evm_mine");
     const head = await this.pub.getBlock();
     const evidence = await this.pub.getBlock({ blockNumber: head.number - 1n });
-    if (this.arbSysShim) await this.installArbSysShim(head.number, evidence.number, evidence.hash);
     this.attestNonce += 1n;
     const auth = {
       escrow: this.d.feeEscrow,
