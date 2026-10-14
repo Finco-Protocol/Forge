@@ -28,7 +28,7 @@ const EXPECTED: Record<string, RegExp> = {
 
 function zeroFor(p: AbiParameter): unknown {
   if (p.type.endsWith("]")) return [];
-  if (p.type === "tuple") return Object.fromEntries(((p as { components: AbiParameter[] }).components ?? []).map((c) => [c.name, zeroFor(c)]));
+  if (p.type === "tuple") return Object.fromEntries(((p as unknown as { components: readonly AbiParameter[] }).components ?? []).map((c) => [c.name, zeroFor(c)]));
   if (p.type === "address") return zeroAddress;
   if (p.type === "bool") return false;
   if (p.type === "string") return "";

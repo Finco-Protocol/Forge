@@ -1,0 +1,42 @@
+{
+  "$comment": "W05 release-readiness items (source of release/readiness-manifest.json; run `pnpm release:manifest` in apps/forge-web to restamp the integrity hash). Class A = engineering-verified by CI (check-run names on the exact head SHA). Class B = operator-verified (signed by an allowlisted operator key; registry EMPTY in this repo). Class C = independent external approval (signed by an allowlisted external approver; registry EMPTY). Nothing here can make production ready: only a separately approved release workflow may.",
+  "version": 1,
+  "workflow": "W05",
+  "expectedFlags": {
+    "PRODUCTION_BLOCKED": true,
+    "FINCO_BURN_ENABLED": false,
+    "FORGE_FEE_POLICY_AUTHORITY_UNPROVEN": true,
+    "REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED": false,
+    "DEPLOY_WRITE_ENABLED": false,
+    "PRODUCTION_SIGNING_ENABLED": false
+  },
+  "items": [
+    { "id": "A01_SOURCE_INTEGRITY", "class": "A", "title": "Source provenance, vendored-dependency integrity, canary classifier and source parity (incl. negative fixtures)", "ciJobs": ["vendored dependency integrity (pinned evidence)", "formatter + lint + classifier + vendor gates"] },
+    { "id": "A02_REPRODUCIBLE_BUILD", "class": "A", "title": "Reproducible builds of the deployed, Forge and V1 profiles", "ciJobs": ["forge build (deployed + forge profiles)", "forge build (V1 generation)"] },
+    { "id": "A03_SOLIDITY_TESTS", "class": "A", "title": "W01 regression, M-ELIG authorization, lifecycle, revenue and W05 owner-power/attestor suites", "ciJobs": ["W01 regression (87 tests, testable profile)", "M-ELIG adversarial authorization tests (17)", "full lifecycle + snipe tax E2E", "w03: build W02 forge profile + ABI drift check", "w05: forge security suites (owner powers, attestor compromise)"] },
+    { "id": "A04_EIP170_EIP712_ABI", "class": "A", "title": "EIP-170 size gate, EIP-712 digest parity (app vs contract) and ABI drift", "ciJobs": ["w03: build W02 forge profile + ABI drift check", "w03: API/security integration + acceptance (Anvil, real W02 contracts)"] },
+    { "id": "A05_SECURITY_LINT", "class": "A", "title": "Strict security lint (pinned advisories only) and test lint", "ciJobs": ["formatter + lint + classifier + vendor gates", "forge lint (test/ required-zero; upstream advisory)"] },
+    { "id": "A06_GENUINE_V4_LOCAL", "class": "A", "title": "Full Forge lifecycle against GENUINE Uniswap V4 PoolManager/PositionManager/Permit2 artifacts", "ciJobs": ["w05: genuine Uniswap V4 integration (local)"] },
+    { "id": "A07_ROBINHOOD_FORK", "class": "A", "title": "Read-only checks and fork simulation against the deployed Robinhood 4663 V4 contracts (no broadcast)", "ciJobs": ["w03: Robinhood Chain 4663 V4 wiring (read-only RPC)", "w05: Robinhood 4663 fork simulation (no broadcast)"] },
+    { "id": "A08_DATABASE", "class": "A", "title": "PostgreSQL migrations, concurrency, materialized-ledger equivalence and backup/restore rehearsal", "ciJobs": ["w05: PostgreSQL production-mode suite"] },
+    { "id": "A09_PLATFORM_INTEGRATION", "class": "A", "title": "API/security/revocation/reconciliation/governance integration on real contracts", "ciJobs": ["w03: API/security integration + acceptance (Anvil, real W02 contracts)"] },
+    { "id": "A10_BROWSER_E2E_PROD_BUILD", "class": "A", "title": "Production build and Playwright browser E2E", "ciJobs": ["w03: browser E2E (Playwright, production build)"] },
+    { "id": "A11_STATIC_SECRETS_DEPS", "class": "A", "title": "Typecheck, lint, unit (incl. release-gate negative tests), dependency audit, secret scan", "ciJobs": ["w03: typecheck + lint + unit + dependency audit", "w03: secret scan (gitleaks, W03 commit range)"] },
+    { "id": "A12_DEPLOY_DRY_RUN", "class": "A", "title": "Deployment dry-run, manifest integrity and refusal tests (write mode disabled, chain 4663 refused)", "ciJobs": ["w05: genuine Uniswap V4 integration (local)"] },
+
+    { "id": "B01_GITHUB_APP", "class": "B", "title": "Registered production GitHub App with the documented permission scopes, webhook secret and private key in managed secrets", "blocks": "OPERATOR_CONFIGURATION_REQUIRED", "evidenceRequired": "App ID + slug, permissions export, webhook URL, `pnpm ops:github-app-check` output hash" },
+    { "id": "B02_SIGNER_CUSTODY", "class": "B", "title": "Non-exportable KMS/HSM keys for eligibility authority, evidence signer, revenue attestor and relayer; IAM per role; startup address verification passing", "blocks": "OPERATOR_CONFIGURATION_REQUIRED", "evidenceRequired": "key ARNs + derived addresses, IAM policy hashes, custody ceremony record hash" },
+    { "id": "B03_GOVERNANCE_SAFE_TIMELOCK", "class": "B", "title": "Production Safe (>=3 independent owners, strict-majority threshold) and self-administered timelock (>=2 days) meeting the policy floor", "blocks": "OPERATOR_CONFIGURATION_REQUIRED", "evidenceRequired": "Safe + timelock addresses, owner list, checkGovernancePolicy() output" },
+    { "id": "B04_PRODUCTION_RPC", "class": "B", "title": "Production RPC endpoints (primary + fallback) with archive/trace capability as required by the indexer", "blocks": "OPERATOR_CONFIGURATION_REQUIRED", "evidenceRequired": "endpoint provider contracts, capability probe output" },
+    { "id": "B05_DEPLOY_TREASURY_APPROVAL", "class": "B", "title": "Approved deployment operator and treasury recipient accounts", "blocks": "OPERATOR_CONFIGURATION_REQUIRED", "evidenceRequired": "signed approval of deployment manifest hash and treasury recipient" },
+    { "id": "B06_MONITORING_ESCALATION", "class": "B", "title": "Alert routing and on-call escalation contacts for every critical/high alert", "blocks": "OPERATOR_CONFIGURATION_REQUIRED", "evidenceRequired": "escalation policy export, test-page record" },
+    { "id": "B07_BACKUP_RESTORE", "class": "B", "title": "Production backup schedule and a restore drill on production infrastructure", "blocks": "OPERATOR_CONFIGURATION_REQUIRED", "evidenceRequired": "restore drill record with ledger digest match" },
+
+    { "id": "C01_SMART_CONTRACT_AUDIT", "class": "C", "title": "Independent smart-contract security audit of the Forge-owned stack at a pinned commit", "blocks": "EXTERNAL_AUDIT_REQUIRED", "evidenceRequired": "audit report hash + commit" },
+    { "id": "C02_AUDIT_FINDINGS_CLOSED", "class": "C", "title": "All critical/high audit findings closed or formally accepted by the auditor", "blocks": "EXTERNAL_AUDIT_REQUIRED", "evidenceRequired": "auditor closure letter hash" },
+    { "id": "C03_FEE_POLICY_POWERS_REVIEW", "class": "C", "title": "Independent financial/security approval of standing owner powers (F-03 creator-fee override, F-04 rescues, fee-policy controls)", "blocks": "EXTERNAL_AUDIT_REQUIRED", "evidenceRequired": "review memo hash" },
+    { "id": "C04_BUSL_LEGAL_REVIEW", "class": "C", "title": "BUSL-1.1 (Uniswap v4-core/periphery) legal review", "blocks": "LEGAL_APPROVAL_REQUIRED", "evidenceRequired": "legal opinion hash" },
+    { "id": "C05_LAUNCH_TERMS_REGULATORY", "class": "C", "title": "Token launch terms, creator disclosures and regulatory review", "blocks": "LEGAL_APPROVAL_REQUIRED", "evidenceRequired": "legal opinion hash" },
+    { "id": "C06_FINCO_TOKENOMICS_BURN", "class": "C", "title": "FINCO-specific tokenomics and any burn authorization (separate financial workflow)", "blocks": "LEGAL_APPROVAL_REQUIRED", "evidenceRequired": "governance decision record + review hash" }
+  ]
+}

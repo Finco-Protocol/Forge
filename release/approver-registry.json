@@ -1,0 +1,5 @@
+{
+  "$comment": "Allowlisted keys whose EIP-191 signatures may satisfy Class B (operator) and Class C (independent external) release items. INTENTIONALLY EMPTY: adding a key requires a reviewed change by repository governance and must never be done by an automated agent. Signed evidence goes in release/operator-evidence.json and release/external-approvals.json.",
+  "operatorKeys": [],
+  "externalApproverKeys": []
+}

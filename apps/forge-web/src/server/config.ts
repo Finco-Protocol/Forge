@@ -61,6 +61,8 @@ const EnvSchema = z.object({
   FORGE_REVOCATION_SLO_SECONDS: z.coerce.number().int().positive().default(300),
   FORGE_TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   FINCO_BURN_ENABLED: bool(false),
+  // W05: bearer token for the read-only operator endpoints (/api/ops/*); unset = endpoints disabled.
+  FORGE_OPS_TOKEN: z.string().min(32, "FORGE_OPS_TOKEN must be at least 32 characters").optional(),
 });
 
 export interface ForgeAddresses {
@@ -165,5 +167,6 @@ export function buildConfig(env: Record<string, string | undefined>) {
     embeddedWorker: e.FORGE_EMBEDDED_WORKER,
     revocationSloSeconds: e.FORGE_REVOCATION_SLO_SECONDS,
     trustedProxyHops: e.FORGE_TRUSTED_PROXY_HOPS,
+    ops: { token: e.FORGE_OPS_TOKEN ?? null },
   };
 }

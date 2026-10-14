@@ -25,6 +25,7 @@ import { readRegistryState, bindingActiveFor } from "../chain/forge";
 import { ForgeError } from "../errors";
 import { rateLimit } from "../ratelimit";
 import type { DigestSigner } from "./types";
+import { readControl } from "../ops/controls";
 
 export interface SignerDeps {
   cfg: ForgeConfig;
@@ -101,6 +102,8 @@ export class AuthoritySigner {
   async signBindingOp(op: BindingOp, req: { verificationId?: string; reason: string; requestedBy: string }): Promise<{ digest: Hex; signature: Hex }> {
     const kind = op.revoke ? "binding_revoke" : "binding_bind";
     const { cfg, client } = this.d;
+    // W05: the emergency lockdown blocks NEW bindings; revocations always proceed.
+    if (!op.revoke && (await readControl(this.d.db, "emergency_lockdown")).active) return this.deny(kind, "emergency lockdown engaged", req.requestedBy);
     await this.limits(kind, op.githubRepoId);
     const state = await readRegistryState(client, cfg.addresses, op.githubRepoId);
     if (getAddress(state.authority) !== getAddress(this.address)) return this.deny(kind, "registry authority is not this signer", req.requestedBy);
@@ -134,6 +137,7 @@ export class AuthoritySigner {
   ): Promise<{ digest: Hex; signature: Hex }> {
     const kind = "eligibility_attestation";
     const { cfg, client } = this.d;
+    if ((await readControl(this.d.db, "emergency_lockdown")).active) return this.deny(kind, "emergency lockdown engaged", req.requestedBy);
     await this.limits(kind, att.githubRepoId);
     await this.requireVerification(kind, req.verificationId, att.githubRepoId, att.creator, req.requestedBy);
     const state = await readRegistryState(client, cfg.addresses, att.githubRepoId);
