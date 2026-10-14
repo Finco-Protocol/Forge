@@ -11,6 +11,7 @@ import { formatAbiItem } from "viem/utils";
 import type { AbiFunction, AbiEvent } from "viem";
 import { FORGE_OUT } from "../../scripts/artifacts";
 import matrix from "../../config/authority-matrix.json";
+import { renderAuthorityMatrix } from "../../scripts/w05/authority-matrix-md";
 
 const ACCESS = new Set([
   "owner",
@@ -98,5 +99,10 @@ describe("W05 contract authority matrix", () => {
   it("renounceOwnership is exposed only where the W05 review recorded it", () => {
     const renounce = contracts.filter(([, e]) => e.functions.some((f) => f.signature === "renounceOwnership()")).map(([c]) => c);
     expect(renounce.sort()).toEqual(["ForgeBindingRegistry", "ForgeLaunchAuthorizer"]);
+  });
+
+  it("docs/W05-AUTHORITY-MATRIX.md is exactly the rendering of the JSON (no hand edits, no drift)", () => {
+    const md = readFileSync(path.resolve(FORGE_OUT, "..", "..", "docs", "W05-AUTHORITY-MATRIX.md"), "utf8");
+    expect(md).toBe(renderAuthorityMatrix(matrix as never) + "\n");
   });
 });
