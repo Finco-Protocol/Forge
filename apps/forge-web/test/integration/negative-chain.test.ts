@@ -247,6 +247,28 @@ describe("indexer: duplicates, reorders, reorgs, interruptions, isolation", () =
     expect(after).toEqual(snap);
   });
 
+  it("a worker pass right after a mined tx never reads a stale (cached) head", async () => {
+    const s = await freshScenario(sb);
+    const l = await signedLaunch(sb, s.browser, s.key, s.draft);
+    await send(s.key, l.call);
+    await rpc(sb.anvil.url, "evm_increaseTime", [20]);
+    await runWorkerOnce(sb.ctx);
+    const buyer = chainClients(sb.anvil.url, await freshCreator(sb));
+    const curve = getAddress(l.signed.json.simulation.curve);
+    const h = await buyer.wallet.writeContract({ address: curve, abi: ponsV2BondingCurveAbi, functionName: "buy", args: [parseEther("1"), 0n, buyer.account.address], value: parseEther("1") });
+    await buyer.pub.waitForTransactionReceipt({ hash: h });
+    await runWorkerOnce(sb.ctx);
+    const t = (await sb.ctx.db.query<{ buy_count: number }>("SELECT buy_count FROM tokens WHERE curve = $1", [curve])).rows[0]!;
+    expect(t.buy_count).toBe(1);
+    // Deterministic form: a block mined milliseconds after a pass must be seen by the next pass.
+    await runWorkerOnce(sb.ctx);
+    await rpc(sb.anvil.url, "evm_mine");
+    await runWorkerOnce(sb.ctx);
+    const head = BigInt(await rpc<string>(sb.anvil.url, "eth_blockNumber"));
+    const cp = (await sb.ctx.db.query<{ last_block: string }>("SELECT last_block::text FROM indexer_checkpoints")).rows[0]!;
+    expect(BigInt(cp.last_block)).toBe(head);
+  });
+
   it("reordered event insertion produces the identical projection", async () => {
     const token = (await sb.ctx.db.query<{ token: string }>("SELECT token FROM tokens LIMIT 1")).rows[0]!.token;
     const before = (await sb.ctx.db.query("SELECT phase, buy_count, quote_volume::text FROM tokens WHERE token = $1", [token])).rows[0];

@@ -145,7 +145,8 @@ export class ForgeIndexer {
       const touched = await this.rollbackTo(ancestor);
       return { from: null, to: null, events: 0, reorgedTo: ancestor, tokensTouched: touched };
     }
-    const head = await client.getBlockNumber();
+    // Never a cached head: viem caches getBlockNumber for one polling interval.
+    const head = await client.getBlockNumber({ cacheTime: 0 });
     const safe = head - BigInt(cfg.confirmations);
     if (safe <= cp.lastBlock) return { from: null, to: null, events: 0, reorgedTo: null, tokensTouched: [] };
     const from = cp.lastBlock + 1n;
