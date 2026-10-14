@@ -1,0 +1,5 @@
+# Public Anvil/Foundry default dev keys (accounts #2/#3) that were committed in apps/forge-web/.env.example
+# in 060ed2b. They are the well-known test mnemonic keys, hold no value and are only accepted on chain 31337/1337.
+# The template no longer contains key literals.
+060ed2b7bc33aaa7aec28cd7fc900d06523fa4a9:apps/forge-web/.env.example:generic-api-key:39
+060ed2b7bc33aaa7aec28cd7fc900d06523fa4a9:apps/forge-web/.env.example:generic-api-key:40
