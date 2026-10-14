@@ -129,7 +129,6 @@ jobs:
     env:
       FORGE_TEST_DATABASE_URL: postgres://forge:forge@localhost:5432/postgres
       FORGE_TEST_REQUIRE_PG: "1"
-      FOUNDRY_OFFLINE: "true"
     defaults:
       run:
         working-directory: apps/forge-web
