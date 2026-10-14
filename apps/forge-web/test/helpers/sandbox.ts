@@ -4,6 +4,7 @@ import path from "node:path";
 import { createPublicClient, createWalletClient, defineChain, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createAppContext, type AppContext } from "@/server/context";
+import type { KmsBackendFactory } from "@/server/signer/registry";
 import { PgliteDb } from "@/server/db";
 import { dispatch } from "@/server/api/handlers";
 import { deploySandbox, ANVIL_KEYS, type SandboxDeployment } from "../../scripts/sandbox-lib";
@@ -22,7 +23,8 @@ export interface Sandbox {
   stop(): Promise<void>;
 }
 
-export async function startSandbox(extraEnv: Record<string, string> = {}): Promise<Sandbox> {
+/** W05: `opts.kms` wires a (fake) KMS backend; `opts.dropEnv` removes default env entries (e.g. in-process keys under FORGE_SIGNER_PROVIDER=kms). */
+export async function startSandbox(extraEnv: Record<string, string> = {}, opts: { kms?: KmsBackendFactory; dropEnv?: string[] } = {}): Promise<Sandbox> {
   const anvil = await startAnvil();
   const deployment = await deploySandbox(anvil.url);
   const dir = mkdtempSync(path.join(tmpdir(), "forge-w03-"));
@@ -31,7 +33,8 @@ export async function startSandbox(extraEnv: Record<string, string> = {}): Promi
   const github = new FakeGithub();
   await github.start();
   const env = sandboxEnv(deployment, github, anvil.url, deploymentFile, extraEnv);
-  const ctx = await createAppContext(env, { db: await PgliteDb.open() });
+  for (const k of opts.dropEnv ?? []) delete env[k];
+  const ctx = await createAppContext(env, { db: await PgliteDb.open(), kms: opts.kms });
   return {
     anvil,
     deployment,

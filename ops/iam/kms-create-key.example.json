@@ -1,0 +1,19 @@
+{
+  "_comment": "Parameters for kms:CreateKey, one call PER ROLE (authority, evidence, revenue-attestor). Never reuse a key across roles. Placeholders only.",
+  "KeySpec": "ECC_SECG_P256K1",
+  "KeyUsage": "SIGN_VERIFY",
+  "Origin": "AWS_KMS",
+  "MultiRegion": false,
+  "Description": "FINCO Forge <ROLE> signer (secp256k1, sign-only, non-exportable)",
+  "Policy": "<contents of kms-key-policy.<role>.json>",
+  "Tags": [
+    {
+      "TagKey": "forge:role",
+      "TagValue": "<authority|evidence|revenue-attestor>"
+    },
+    {
+      "TagKey": "forge:chain",
+      "TagValue": "<4663>"
+    }
+  ]
+}

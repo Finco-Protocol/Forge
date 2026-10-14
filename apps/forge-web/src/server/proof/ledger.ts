@@ -36,7 +36,8 @@ async function append(ctx: AppContext, kind: "launch" | "retraction", token: str
     const seq = head ? Number(head.seq) + 1 : 1;
     const prevHash = head?.receipt_hash ?? GENESIS_HASH;
     const hash = receiptHash(seq, prevHash, kind, receipt);
-    const signature = await ctx.evidenceSigner.signDigest(hashMessage({ raw: hash }));
+    // W05: the custody guard recomputes the EIP-191 digest itself (evidence role allowlist: one 32-byte hash).
+    const { signature } = await ctx.evidenceSigner.signEip191Hash32(hash, { requestedBy: "forge:evidence-ledger" });
     try {
       await ctx.db.query(
         "INSERT INTO evidence_receipts(seq, prev_hash, kind, token, receipt, receipt_hash, signer, signature) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",

@@ -1,0 +1,16 @@
+{
+  "_comment": "Organisation trail that MUST record KMS events (Sign, GetPublicKey, DisableKey, PutKeyPolicy, ScheduleKeyDeletion). Do not exclude kms.amazonaws.com management events.",
+  "Name": "forge-kms-custody-trail",
+  "S3BucketName": "<LOG_ARCHIVE_BUCKET>",
+  "IsMultiRegionTrail": true,
+  "IsOrganizationTrail": true,
+  "EnableLogFileValidation": true,
+  "KmsKeyId": "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<LOG_ENCRYPTION_KEY_ID>",
+  "EventSelectors": [
+    {
+      "ReadWriteType": "All",
+      "IncludeManagementEvents": true,
+      "ExcludeManagementEventSources": []
+    }
+  ]
+}
