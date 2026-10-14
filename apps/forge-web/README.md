@@ -40,6 +40,18 @@ The W03 app drives the W02 Forge-owned stack (`contractsV2-forge`). W03 Correcti
 
 An installation token alone is **never** treated as proof of administration, and wallet ownership is **never** treated as repository administration. GitHub verification is not a code audit, KYC, or proof of financial legitimacy.
 
+## W04 — economics & treasury (sandbox)
+
+The sandbox wires the canonical `PonsV2FeeEscrow` and a `ForgeProtocolRevenueSplitter` as the hook's protocol fee recipient.
+
+- **Revenue rule:** the protocol leg (30%) of eligible base fees is split 2:1 into the Forge treasury and the FINCO reserve, which gives 70 / 20 / 10.
+- **Exclusions:** creator tax, launch fees, rescues, donations and vest releases are reported separately and never enter the split.
+- **Burn:** the FINCO reserve has no exit (`FINCO_BURN_ENABLED=false`).
+- **Creator view:** the Dashboard has an **Earnings & claims** panel. Claims are signed by the recipient's own wallet.
+- **Public view:** `/treasury` has four tabs: Overview, Launches, Accounting and Governance.
+- **Ledger:** a deterministic projection over `chain_events` (`src/server/finance`).
+- **Further reading:** `docs/W04-ECONOMICS-ARCHITECTURE.md` and `docs/W04-FEE-AUTHORITY.md`.
+
 ## Local development (sandbox)
 
 Prerequisites: Node 22, pnpm 10, Foundry 1.8.5 (`forge`, `anvil`).

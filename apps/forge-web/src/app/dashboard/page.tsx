@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api, ago, short } from "@/components/api";
 import { useForge } from "@/components/providers";
 import { PhaseBadge, TxLink } from "@/components/shell";
+import { CreatorEarnings } from "@/components/earnings";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -158,6 +159,7 @@ export default function DashboardPage() {
           <p className="hint">Wallet {short(d.wallet?.address)} · bindings are revoked automatically when eligibility is lost.</p>
         </section>
       </div>
+      {d.wallet ? <CreatorEarnings /> : <div className="alert">Bind a wallet to see earnings: fees belong to the wallet that is the escrow recipient.</div>}
     </>
   );
 }

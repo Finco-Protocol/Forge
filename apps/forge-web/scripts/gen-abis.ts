@@ -17,6 +17,9 @@ const CONTRACTS: Array<[exportName: string, file: string, name?: string]> = [
   ["ponsV2MemeHookAbi", "PonsV2MemeHook"],
   ["ponsV2LaunchLockerAbi", "PonsV2LaunchLocker"],
   ["ponsV2LauncherTokenAbi", "PonsV2LauncherToken"],
+  ["ponsV2FeeEscrowAbi", "PonsV2FeeEscrow"],
+  ["ponsV2BuybackVaultAbi", "PonsV2BuybackVault"],
+  ["forgeProtocolRevenueSplitterAbi", "ForgeProtocolRevenueSplitter"],
 ];
 
 const target = path.resolve(import.meta.dirname, "..", "src", "shared", "abis.generated.ts");

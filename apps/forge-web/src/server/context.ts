@@ -15,6 +15,8 @@ export interface AppContext {
   relayer: ForgeWalletClient;
   authority: AuthoritySigner;
   evidenceSigner: DigestSigner;
+  /** W04: revenue attestor (null = attestation disabled, pulls fail closed). */
+  revenueAttestor: DigestSigner | null;
 }
 
 function requireKey(name: string, v: `0x${string}` | string | undefined): `0x${string}` {
@@ -35,9 +37,15 @@ export async function createAppContext(env: Record<string, string | undefined> =
   if (authorityDigest.address === evidenceSigner.address || authorityDigest.address === relayer.account.address) {
     throw new Error("Authority, evidence and relayer keys must be distinct.");
   }
+  // Production signing stays disabled (REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED=false): the
+  // local-test signer itself refuses every chain but 31337/1337.
+  const revenueAttestor = cfg.signer.revenueAttestorKey ? new LocalTestDigestSigner("revenue", cfg.signer.revenueAttestorKey as `0x${string}`, cfg) : null;
+  if (revenueAttestor && [authorityDigest.address, evidenceSigner.address, relayer.account.address].includes(revenueAttestor.address)) {
+    throw new Error("The revenue attestor key must be distinct from the authority, evidence and relayer keys.");
+  }
   const github = new GithubApp(cfg.github, opts.fetchImpl);
   const authority = new AuthoritySigner({ cfg, db, client, authority: authorityDigest });
-  return { cfg, db, github, client, relayer, authority, evidenceSigner };
+  return { cfg, db, github, client, relayer, authority, evidenceSigner, revenueAttestor };
 }
 
 /**

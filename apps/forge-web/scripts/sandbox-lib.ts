@@ -42,6 +42,8 @@ export const SANDBOX_ROLES = {
   authority: ANVIL_KEYS[1], // test-only eligibility authority
   relayer: ANVIL_KEYS[2],
   evidence: ANVIL_KEYS[3],
+  treasury: ANVIL_KEYS[8], // W04 sandbox treasury recipient (test-only key)
+  revenueAttestor: ANVIL_KEYS[4], // W04 Correction A: eligible-revenue attestor (test-only key)
 };
 
 export interface SandboxDeployment {
@@ -59,6 +61,9 @@ export interface SandboxDeployment {
   memeHook: Address;
   buybackVault: Address;
   feeEscrow: Address;
+  revenueSplitter: Address;
+  treasury: Address;
+  revenueAttestor: Address;
   poolManager: Address;
   positionManager: Address;
   permit2: Address;
@@ -77,7 +82,17 @@ export const EIP170_LIMIT = 24_576;
  */
 export function eip170Report() {
   const out: Array<{ contract: string; runtimeBytes: number; exceeds: boolean }> = [];
-  for (const n of ["PonsV2LaunchFactory", "PonsV2LaunchDeployer", "ForgeBindingRegistry", "ForgeLaunchAuthorizer", "PonsV2MemeHook", "PonsV2GraduationExecutor"]) {
+  for (const n of [
+    "PonsV2LaunchFactory",
+    "PonsV2LaunchDeployer",
+    "ForgeBindingRegistry",
+    "ForgeLaunchAuthorizer",
+    "PonsV2MemeHook",
+    "PonsV2GraduationExecutor",
+    "PonsV2FeeEscrow",
+    "PonsV2BuybackVault",
+    "ForgeProtocolRevenueSplitter",
+  ]) {
     const bytes = loadDeployedSize(n);
     out.push({ contract: n, runtimeBytes: bytes, exceeds: bytes > EIP170_LIMIT });
   }
@@ -111,7 +126,17 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
   const poolManager = await deploy("MiniPoolManagerW02");
   const permit2 = await deploy("MockPermit2");
   const positionManager = await deploy("MiniPositionManager", [poolManager, permit2]);
-  const feeEscrow = await deploy("MockFeeEscrow");
+  // W04: the CANONICAL PonsV2FeeEscrow (byte-identical to the deploy-time
+  // source), not the W02 mock, so escrow events and claim semantics are real.
+  const feeEscrow = await deploy("PonsV2FeeEscrow");
+  const treasury = privateKeyToAccount(SANDBOX_ROLES.treasury).address;
+  // W04 sandbox: the Forge-owned protocol recipient (protocol leg → 2/3
+  // treasury, 1/3 FINCO reserve). Named in the hook's policy BEFORE any
+  // launch, so every launch snapshot routes its protocol leg here.
+  // Correction A: pulls are bounded by attested eligible-revenue ceilings
+  // signed by a separate attestor key (not the owner, not the treasury).
+  const revenueAttestor = privateKeyToAccount(SANDBOX_ROLES.revenueAttestor).address;
+  const revenueSplitter = await deploy("ForgeProtocolRevenueSplitter", [feeEscrow, gov.account.address, treasury, revenueAttestor]);
   const hookDeployer = await deploy("HookDeployer");
 
   const hook = loadArtifact("PonsV2MemeHook");
@@ -119,7 +144,7 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
     hook.bytecode,
     encodeAbiParameters(
       [{ type: "address" }, { type: "address" }, { type: "address" }, { type: "address" }],
-      [poolManager, feeEscrow, gov.account.address, gov.account.address],
+      [poolManager, feeEscrow, revenueSplitter, gov.account.address],
     ),
   ]);
   const initHash = keccak256(initCode);
@@ -149,6 +174,7 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
   await send(factory, "PonsV2LaunchFactory", "setLaunchDeployer", [launchDeployer]);
   await send(factory, "PonsV2LaunchFactory", "setGraduationExecutor", [graduationExecutor]);
   await send(factory, "PonsV2LaunchFactory", "setLaunchFee", [0n]);
+  await send(revenueSplitter, "ForgeProtocolRevenueSplitter", "setForgeFactory", [factory]);
   if (opts.snipeTaxStartBps !== undefined) await send(factory, "PonsV2LaunchFactory", "setSnipeTaxStartBps", [opts.snipeTaxStartBps]);
   // Same launch configuration as W02's ForgeLifecycleTest: 1M supply, 1% curve fee, 30 ETH threshold.
   const launchConfig = { supply: 1_000_000n * 10n ** 18n, curveFeeBps: 100n, phantomQuote: 30n * 10n ** 18n, graduationThreshold: 30n * 10n ** 18n, poolFee: 0, tickSpacing: 10 };
@@ -170,6 +196,9 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
     memeHook,
     buybackVault,
     feeEscrow,
+    revenueSplitter,
+    treasury,
+    revenueAttestor,
     poolManager,
     positionManager,
     permit2,

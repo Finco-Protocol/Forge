@@ -17,6 +17,7 @@ export function Shell({ children }: { children: ReactNode }) {
     ["/", "Explore"],
     ["/launch", "Launch"],
     ["/dashboard", "Dashboard"],
+    ["/treasury", "Treasury"],
   ] as const;
   return (
     <>
