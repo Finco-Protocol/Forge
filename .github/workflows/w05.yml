@@ -1,0 +1,210 @@
+name: W05 Production Hardening
+
+# Exact-head CI for W05. W01–W04 workflows (ci.yml, w02.yml, w03.yml) are untouched and still
+# run every earlier gate (the W05 integration/unit/e2e specs ride on w03.yml's jobs).
+# No continue-on-error, no `|| true`. A green run NEVER enables production: the release gate
+# below can report at most ENGINEERING_PASS and always ends PRODUCTION_BLOCKED.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: v1.8.5
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.28.0"
+
+jobs:
+  forge-security:
+    name: "w05: forge security suites (owner powers, attestor compromise)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge build --profile forge
+      - name: F-03/F-04 owner powers, compromised attestor, revenue provenance, lifecycle
+        run: forge test --profile forge --match-contract "W05OwnerPowersTest|W05AttestorCompromiseTest|ForgeRevenueSplitterTest|ForgeRevenueSplitterInvariantTest|ForgeRevenueLifecycleTest" -vv
+
+  v4-local:
+    name: "w05: genuine Uniswap V4 integration (local)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/forge-web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: forge build --profile forge
+        working-directory: .
+      - run: git checkout -q foundry.lock
+        working-directory: .
+      - run: pnpm install --frozen-lockfile
+      - name: genuine PoolManager/PositionManager/Permit2 lifecycle, hook mining, deploy-plan dry-run
+        run: pnpm test:v4
+      - name: deployment manifest for 4663 (offline, NOT_EXECUTABLE) verifies and a tampered copy fails
+        run: |
+          pnpm w05:deploy-plan plan --env robinhood-4663 --out ../../w05-manifest-4663.json
+          pnpm w05:deploy-plan verify --manifest ../../w05-manifest-4663.json
+          node -e "const f='../../w05-manifest-4663.json',m=JSON.parse(require('fs').readFileSync(f));m.chainId=1;require('fs').writeFileSync('../../w05-tampered.json',JSON.stringify(m))"
+          if pnpm w05:deploy-plan verify --manifest ../../w05-tampered.json; then echo "::error::tampered manifest verified"; exit 1; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: w05-deploy-manifest-4663
+          path: w05-manifest-4663.json
+
+  v4-fork-4663:
+    name: "w05: Robinhood 4663 fork simulation (no broadcast)"
+    runs-on: ubuntu-latest
+    env:
+      FORGE_FORK_RPC_URL: https://rpc.mainnet.chain.robinhood.com
+    defaults:
+      run:
+        working-directory: apps/forge-web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: forge build --profile forge
+        working-directory: .
+      - run: git checkout -q foundry.lock
+        working-directory: .
+      - run: pnpm install --frozen-lockfile
+      - name: fork tests (anvil --fork-url; every transaction is local; includes runtime identity, CREATE2 proxy presence, block.number/blockhash probe)
+        run: pnpm test:v4:fork
+      - name: deploy-plan DRY_RUN on the 4663 fork
+        run: pnpm w05:deploy-plan dry-run --env fork-4663 --out ../../w05-fork-dryrun.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: w05-fork-dryrun
+          path: w05-fork-dryrun.json
+
+  postgres:
+    name: "w05: PostgreSQL production-mode suite"
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: forge
+          POSTGRES_PASSWORD: forge
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U forge"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      FORGE_TEST_DATABASE_URL: postgres://forge:forge@localhost:5432/postgres
+      FORGE_TEST_REQUIRE_PG: "1"
+      FOUNDRY_OFFLINE: "true"
+    defaults:
+      run:
+        working-directory: apps/forge-web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: forge build --profile forge
+        working-directory: .
+      - run: git checkout -q foundry.lock
+        working-directory: .
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client-16 || true
+        working-directory: .
+      - name: concurrency, migrations, materialized-ledger equivalence on real PostgreSQL
+        run: pnpm test:pg
+      - name: backup / restore rehearsal (pg_dump → pg_restore → ledger digest match)
+        env:
+          FORGE_REHEARSAL_ADMIN_URL: postgres://forge:forge@localhost:5432/postgres
+          PG_BIN: /usr/lib/postgresql/16/bin
+        run: pnpm db:backup-rehearsal
+
+  release-gate:
+    name: "w05: release-readiness gate (ENGINEERING_PASS only; never production-ready)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    defaults:
+      run:
+        working-directory: apps/forge-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: offline deployment manifest verifies (input to the gate)
+        id: deploy
+        run: |
+          pnpm w05:deploy-plan plan --env robinhood-4663 --out ../../w05-manifest-4663.json
+          pnpm w05:deploy-plan verify --manifest ../../w05-manifest-4663.json
+          echo "ok=1" >> "$GITHUB_OUTPUT"
+      - name: manifest is stamped from the committed items (tamper check)
+        run: |
+          cp ../../release/readiness-manifest.json /tmp/committed.json
+          pnpm release:manifest
+          diff /tmp/committed.json ../../release/readiness-manifest.json
+      - name: collect exact-head results of every other required job
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          DEPLOY_VERIFY_OK: ${{ steps.deploy.outputs.ok }}
+        run: pnpm exec tsx scripts/w05/collect-ci.ts --out /tmp/gate
+      - name: evaluate the release gate
+        run: pnpm exec tsx scripts/w05/release-gate.ts evaluate --ci /tmp/gate/ci-results.json --reconciliation /tmp/gate/reconciliation.json --deploy /tmp/gate/deploy.json --signers /tmp/gate/signers.json --out /tmp/gate/report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: w05-release-readiness-report
+          path: /tmp/gate/

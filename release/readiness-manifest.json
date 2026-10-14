@@ -166,6 +166,13 @@
       "evidenceRequired": "restore drill record with ledger digest match"
     },
     {
+      "id": "B08_PRODUCTION_HOOK_SALT",
+      "class": "B",
+      "title": "Production PonsV2MemeHook CREATE2 salt mined for the REAL constructor arguments (escrow, splitter, owner) with mask 0x2044 and reproduced by a second operator",
+      "blocks": "OPERATOR_CONFIGURATION_REQUIRED",
+      "evidenceRequired": "hook-mine evidence JSON (initCodeHash, salt, address) + second-operator reproduction hash"
+    },
+    {
       "id": "C01_SMART_CONTRACT_AUDIT",
       "class": "C",
       "title": "Independent smart-contract security audit of the Forge-owned stack at a pinned commit",
@@ -208,5 +215,5 @@
       "evidenceRequired": "governance decision record + review hash"
     }
   ],
-  "integrity": "0x1662e763e2775180ad88de357fe3c14f3ace51ebaca8a9aa89defa3552473736"
+  "integrity": "0xbb0d695a9a38801822c80835acc48a889bb8e216f48ce10ec7e41fbd5a889055"
 }

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { currentFlags } from "@/release/flags";
 import { evaluateGate, evidenceMessage, manifestIntegrity, type GateInputs, type ReadinessManifest, type SignedEvidence } from "@/release/gate";
 
 const ROOT = path.resolve(__dirname, "..", "..", "..", "..");
@@ -55,6 +56,10 @@ describe("W05 release gate", () => {
 
   it("the committed findings register has no OPEN critical/high finding", () => {
     expect(findings.filter((f: { severity: string; status: string }) => ["critical", "high"].includes(f.severity) && f.status === "open")).toEqual([]);
+  });
+
+  it("the REAL compiled safety constants equal the manifest's required flags", () => {
+    expect(currentFlags()).toEqual(committed.expectedFlags);
   });
 
   it("all-green engineering yields ENGINEERING_PASS but still OPERATOR/AUDIT/LEGAL required and PRODUCTION_BLOCKED", async () => {
