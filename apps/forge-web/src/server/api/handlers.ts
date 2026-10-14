@@ -29,6 +29,7 @@ import { verifyLedger, DISCLAIMER } from "../proof/ledger";
 import { revocationHealth } from "../worker";
 import { PRODUCTION_BLOCKED, FORGE_FEE_POLICY_AUTHORITY_UNPROVEN } from "../config";
 import robinhood from "../../../config/networks/robinhood-4663.json";
+import { creatorEarnings, governanceReport, prepareClaim, recordClaimSubmission, treasuryReport } from "../finance/service";
 
 type Handler = (ctx: AppContext, req: Request, params: Record<string, string>) => Promise<Response>;
 
@@ -299,7 +300,7 @@ const publicConfig: Handler = async (ctx) =>
     chainId: ctx.cfg.chainId,
     rpcUrl: ctx.cfg.network === "sandbox" ? ctx.cfg.rpcUrl : null,
     explorerUrl: ctx.cfg.chainId === robinhood.chainId ? robinhood.explorerUrl : null,
-    addresses: Object.fromEntries(Object.entries(ctx.cfg.addresses).map(([k, v]) => [k, String(v)])),
+    addresses: Object.fromEntries(Object.entries(ctx.cfg.addresses).map(([k, v]) => [k, v === null ? null : String(v)])),
     flags: { PRODUCTION_BLOCKED, FORGE_FEE_POLICY_AUTHORITY_UNPROVEN, FINCO_BURN_ENABLED: false },
     policy: { allowPrivateRepos: ctx.cfg.policy.allowPrivateRepos, allowForkRepos: ctx.cfg.policy.allowForkRepos },
     githubAppSlug: ctx.cfg.github.appSlug,
@@ -311,6 +312,32 @@ const health: Handler = async (ctx) => {
   const revocations = await revocationHealth(ctx);
   // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO).
   return json({ ok: block !== null, block, revocations });
+};
+
+// ── W04 economics & treasury ─────────────────────────────────────────────
+async function requireWallet(ctx: AppContext, req: Request, csrf: boolean) {
+  const s = await requireGithubSession(ctx, req, { csrf });
+  const wallet = await activeWalletBinding(ctx.db, s.githubUserId);
+  if (!wallet) refuse("WALLET_REQUIRED", "Bind a wallet first: earnings belong to the wallet that is the escrow recipient.", 409);
+  return { s, wallet: wallet!.address };
+}
+const financeCreator: Handler = async (ctx, req) => {
+  const { wallet } = await requireWallet(ctx, req, false);
+  return json(await creatorEarnings(ctx, wallet));
+};
+const financeTreasury: Handler = async (ctx) => json(await treasuryReport(ctx));
+const financeGovernance: Handler = async (ctx) => json(await governanceReport(ctx));
+const claimPrepare: Handler = async (ctx, req) => {
+  const { s, wallet } = await requireWallet(ctx, req, true);
+  await rateLimit(ctx.db, `claim:${s.githubUserId}`, 60, 600);
+  return json(await prepareClaim(ctx, wallet, await readJson(req)));
+};
+const claimSubmitted: Handler = async (ctx, req) => {
+  const { s, wallet } = await requireWallet(ctx, req, true);
+  await rateLimit(ctx.db, `claim:${s.githubUserId}`, 60, 600);
+  const r = await recordClaimSubmission(ctx, wallet, await readJson(req));
+  await audit(ctx.db, `github:${s.githubUserId}`, "claim_submitted", r.txHash, { wallet, status: r.status.state });
+  return json(r);
 };
 
 const ROUTES: Array<[string, RegExp, string[], Handler]> = [];
@@ -343,6 +370,11 @@ route("GET", "/api/tokens", tokenList);
 route("GET", "/api/tokens/:address", tokenDetail);
 route("GET", "/api/proof/ledger", ledger);
 route("GET", "/api/dashboard", dashboard);
+route("GET", "/api/finance/creator", financeCreator);
+route("GET", "/api/finance/treasury", financeTreasury);
+route("GET", "/api/finance/governance", financeGovernance);
+route("POST", "/api/finance/claims/prepare", claimPrepare);
+route("POST", "/api/finance/claims/submitted", claimSubmitted);
 
 export async function dispatch(ctx: AppContext, req: Request): Promise<Response> {
   try {

@@ -38,6 +38,27 @@ export function formatUnits18(v?: string | null, digits = 4): string {
 
 export const bps = (v: number | string) => `${(Number(v) / 100).toFixed(2)}%`;
 
+/** Formats base units with the asset's OWN decimals. Never converts between assets. */
+export function formatUnits(v?: string | null, decimals = 18, digits = 6): string {
+  if (v === null || v === undefined || v === "") return "—";
+  const b = BigInt(v);
+  const neg = b < 0n;
+  const abs = neg ? -b : b;
+  const unit = 10n ** BigInt(decimals);
+  const whole = abs / unit;
+  const frac = (abs % unit).toString().padStart(decimals, "0").slice(0, digits).replace(/0+$/, "");
+  return `${neg ? "-" : ""}${whole}${frac ? `.${frac}` : ""}`;
+}
+
+export interface AssetInfo {
+  asset: string;
+  symbol: string;
+  decimals: number;
+  native: boolean;
+}
+
+export const amt = (v: string | null | undefined, a?: AssetInfo | null) => `${formatUnits(v, a?.decimals ?? 18)} ${a?.symbol ?? ""}`.trim();
+
 export function ago(ts?: string | number | null): string {
   if (!ts) return "—";
   const t = typeof ts === "number" || /^\d+$/.test(String(ts)) ? Number(ts) * 1000 : Date.parse(String(ts));

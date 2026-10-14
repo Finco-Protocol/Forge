@@ -64,6 +64,12 @@ export interface ForgeAddresses {
   launchDeployer: Address;
   locker: Address;
   memeHook: Address;
+  /** W04: canonical escrow and buyback vault (from the factory wiring). */
+  feeEscrow: Address | null;
+  buybackVault: Address | null;
+  /** W04: ForgeProtocolRevenueSplitter, or null when not deployed (70/20/10 then unavailable). */
+  revenueSplitter: Address | null;
+  graduationExecutor: Address | null;
   deployBlock: bigint;
 }
 
@@ -71,6 +77,7 @@ export type ForgeConfig = ReturnType<typeof buildConfig>;
 
 function readDeployment(file: string): ForgeAddresses {
   const raw = JSON.parse(readFileSync(path.resolve(file), "utf8")) as Record<string, string>;
+  const opt = (k: string): Address | null => (raw[k] ? getAddress(raw[k]!) : null);
   const need = (k: string): Address => {
     const v = raw[k];
     if (!v) throw new Error(`deployment file missing ${k}`);
@@ -83,6 +90,10 @@ function readDeployment(file: string): ForgeAddresses {
     launchDeployer: need("launchDeployer"),
     locker: need("locker"),
     memeHook: need("memeHook"),
+    feeEscrow: opt("feeEscrow"),
+    buybackVault: opt("buybackVault"),
+    revenueSplitter: opt("revenueSplitter"),
+    graduationExecutor: opt("graduationExecutor"),
     deployBlock: BigInt(raw.deployBlock ?? "0"),
   };
 }

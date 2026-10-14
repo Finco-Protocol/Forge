@@ -15,7 +15,18 @@
  *   range commit in one transaction; a crash re-processes the same range.
  */
 import { decodeEventLog, getAddress, type Abi, type Address, type Hex, type Log } from "viem";
-import { forgeBindingRegistryAbi, forgeLaunchAuthorizerAbi, ponsV2BondingCurveAbi, ponsV2LaunchFactoryAbi, ponsV2LaunchLockerAbi, ponsV2LauncherTokenAbi } from "@/shared/abis.generated";
+import {
+  forgeBindingRegistryAbi,
+  forgeLaunchAuthorizerAbi,
+  forgeProtocolRevenueSplitterAbi,
+  ponsV2BondingCurveAbi,
+  ponsV2BuybackVaultAbi,
+  ponsV2FeeEscrowAbi,
+  ponsV2LaunchFactoryAbi,
+  ponsV2LaunchLockerAbi,
+  ponsV2LauncherTokenAbi,
+  ponsV2MemeHookAbi,
+} from "@/shared/abis.generated";
 import type { AppContext } from "../context";
 import type { Queryable } from "../db";
 import { readLaunchedToken, readLockState } from "../chain/forge";
@@ -53,6 +64,12 @@ export class ForgeIndexer {
       { address: a.authorizer, abi: forgeLaunchAuthorizerAbi as Abi },
       { address: a.registry, abi: forgeBindingRegistryAbi as Abi },
       { address: a.locker, abi: ponsV2LaunchLockerAbi as Abi },
+      // W04 financial sources: the shared hook, the canonical escrow, the
+      // buyback vault and the Forge revenue splitter — Forge-owned only.
+      { address: a.memeHook, abi: ponsV2MemeHookAbi as Abi },
+      ...(a.feeEscrow ? [{ address: a.feeEscrow, abi: ponsV2FeeEscrowAbi as Abi }] : []),
+      ...(a.buybackVault ? [{ address: a.buybackVault, abi: ponsV2BuybackVaultAbi as Abi }] : []),
+      ...(a.revenueSplitter ? [{ address: a.revenueSplitter, abi: forgeProtocolRevenueSplitterAbi as Abi }] : []),
     ];
   }
 
@@ -104,7 +121,7 @@ export class ForgeIndexer {
   async rollbackTo(ancestor: bigint): Promise<string[]> {
     const { cfg } = this.ctx;
     return this.ctx.db.tx(async (q) => {
-      const touched = await tokensForEvents(q, cfg.chainId, `block_number > ${ancestor.toString()}`);
+      const touched = await tokensForEvents(q, cfg.chainId, cfg.addresses, `block_number > ${ancestor.toString()}`);
       await q.query("DELETE FROM chain_events WHERE chain_id = $1 AND block_number > $2", [cfg.chainId, ancestor.toString()]);
       await q.query("DELETE FROM indexed_blocks WHERE chain_id = $1 AND block_number > $2", [cfg.chainId, ancestor.toString()]);
       const anc = await q.query<{ block_hash: string }>("SELECT block_hash FROM indexed_blocks WHERE chain_id = $1 AND block_number = $2", [cfg.chainId, ancestor.toString()]);
@@ -202,7 +219,7 @@ export class ForgeIndexer {
           [cfg.chainId, d.blockNumber.toString(), d.blockHash, d.txHash.toLowerCase(), d.logIndex, d.address, d.eventName, jsonArgs(d.args), blocks.get(d.blockNumber)!.timestamp.toString()],
         );
       }
-      const touched = await tokensForEvents(q, cfg.chainId, `block_number BETWEEN ${from.toString()} AND ${to.toString()}`);
+      const touched = await tokensForEvents(q, cfg.chainId, cfg.addresses, `block_number BETWEEN ${from.toString()} AND ${to.toString()}`);
       for (const t of touched) await rebuildTokenProjection(q, cfg.chainId, cfg.addresses, t);
       await q.query("UPDATE indexer_checkpoints SET last_block = $2, last_block_hash = $3, updated_at = now() WHERE name = $1", [
         checkpointName(this.ctx),
@@ -261,13 +278,19 @@ export class ForgeIndexer {
   }
 }
 
-/** Token addresses referenced by events matching `where` (factory/locker events by args.token, curve events via tokens.curve). */
-async function tokensForEvents(q: Queryable, chainId: number, where: string): Promise<string[]> {
+/**
+ * Token addresses referenced by events matching `where`: factory/locker
+ * events by args.token, curve events via tokens.curve. Escrow/splitter
+ * events also carry a `token` argument, but there it names a quote ASSET,
+ * so only factory and locker events are read by argument.
+ */
+async function tokensForEvents(q: Queryable, chainId: number, a: { factory: string; locker: string }, where: string): Promise<string[]> {
   const { rows } = await q.query<{ token: string }>(
-    `SELECT DISTINCT COALESCE(e.args->>'token', t.token) AS token
+    `SELECT DISTINCT COALESCE(CASE WHEN e.address IN ($2, $3) THEN e.args->>'token' END, t.token) AS token
        FROM chain_events e LEFT JOIN tokens t ON t.curve = e.address
-      WHERE e.chain_id = $1 AND ${where} AND (e.args->>'token' IS NOT NULL OR t.token IS NOT NULL)`,
-    [chainId],
+      WHERE e.chain_id = $1 AND ${where}
+        AND ((e.address IN ($2, $3) AND e.args->>'token' IS NOT NULL) OR t.token IS NOT NULL)`,
+    [chainId, a.factory, a.locker],
   );
   return rows.map((r) => getAddress(r.token));
 }

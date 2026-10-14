@@ -243,11 +243,7 @@ contract ForgeProtocolRevenueSplitter is Ownable2Step, ReentrancyGuard {
      * allocated, unpaid entitlement in `asset`. Partial claims are allowed,
      * so a per-transfer limit on an asset never strands the liability.
      */
-    function claimTreasury(address asset, uint256 amount)
-        external
-        nonReentrant
-        returns (uint256)
-    {
+    function claimTreasury(address asset, uint256 amount) external nonReentrant returns (uint256) {
         if (msg.sender != treasuryRecipient) revert NotTreasuryRecipient();
         AssetLedger storage l = _ledgers[asset];
         uint256 available = l.treasuryAllocated - l.treasuryPaid;
@@ -390,7 +386,8 @@ contract ForgeProtocolRevenueSplitter is Ownable2Step, ReentrancyGuard {
 
     /// @notice Reserve execution status: always disabled in this version.
     function burnReadiness() external pure returns (bool enabled, string memory status) {
-        return (FINCO_BURN_ENABLED, "DISABLED: FINCO_BURN_ENABLED=false; reserve is a liability only");
+        return
+            (FINCO_BURN_ENABLED, "DISABLED: FINCO_BURN_ENABLED=false; reserve is a liability only");
     }
 
     // ── Internals ────────────────────────────────────────────────────────

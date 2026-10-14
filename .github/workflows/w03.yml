@@ -94,6 +94,9 @@ jobs:
       - name: "Forge calldata-authorization suite (W02-SIZE-01 remediation, all entry points)"
         working-directory: .
         run: forge test --profile forge --match-contract ForgeLaunchCallTest -vvv
+      - name: "W04 revenue splitter: unit + fuzz + invariant + full-stack revenue lifecycle (canonical escrow)"
+        working-directory: .
+        run: forge test --profile forge --match-contract "ForgeRevenueSplitterTest|ForgeRevenueSplitterInvariantTest|ForgeRevenueLifecycleTest" -vv
       - uses: actions/upload-artifact@v4
         with:
           name: forge-out
