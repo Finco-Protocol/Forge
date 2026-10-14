@@ -23,6 +23,11 @@
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
     "test:fork": "vitest run --project fork",
+    "test:pg": "vitest run --project pg",
+    "ledger:rebuild": "tsx scripts/w05/ledger-admin.ts rebuild",
+    "ledger:check": "tsx scripts/w05/ledger-admin.ts check",
+    "bench:ledger": "tsx scripts/w05/bench-ledger.ts",
+    "db:backup-rehearsal": "tsx scripts/w05/db-backup-rehearsal.ts",
     "size:check": "tsx scripts/size-gate.ts"
   },
   "dependencies": {

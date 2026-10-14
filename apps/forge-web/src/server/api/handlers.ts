@@ -3,6 +3,7 @@
  * integration tests alike, so acceptance runs the exact production path:
  * cookies, CSRF, sessions, validation, services.
  */
+import { systemHealth } from "../ops/health";
 import { getAddress, isAddress, isHex, type Hex } from "viem";
 import type { AppContext } from "../context";
 import { ForgeError, refuse } from "../errors";
@@ -310,8 +311,11 @@ const publicConfig: Handler = async (ctx) =>
 const health: Handler = async (ctx) => {
   const block = await ctx.client.getBlockNumber({ cacheTime: 0 }).catch(() => null);
   const revocations = await revocationHealth(ctx);
-  // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO).
-  return json({ ok: block !== null, block, revocations });
+  // W05: db latency/pool/migration version, indexer lag, worker heartbeats, ledger integrity.
+  const system = await systemHealth(ctx);
+  // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO),
+  // `ledger.halted`, `db.ok=false` and `worker.ok=false` (no live heartbeat; expected with no worker running).
+  return json({ ok: block !== null && system.db.ok && system.ledger.ok, block, revocations, ...system });
 };
 
 // ── W04 economics & treasury ─────────────────────────────────────────────

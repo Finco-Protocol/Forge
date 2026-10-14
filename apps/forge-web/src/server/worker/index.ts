@@ -12,7 +12,10 @@ import { revokeOnChain } from "../eligibility/registry-ops";
 import { reconcileAll, reconcileRepository } from "../github/reconcile";
 import { audit } from "../audit";
 import { readRegistryState } from "../chain/forge";
-import { runRevenueAttestation } from "../finance/service";
+import { hostname } from "node:os";
+import { randomUUID } from "node:crypto";
+import type { Queryable } from "../db";
+import { maybeRunLedgerSelfCheck, runRevenueAttestation } from "../finance/service";
 import type { AttestationOutcome } from "../finance/attestor";
 
 /** Non-critical jobs give up (with an alert) after this many attempts. */
@@ -23,13 +26,36 @@ const CRITICAL_MAX_BACKOFF_SECONDS = 60;
 /** A critical job retrying this many times raises an operator alert (once). */
 const ALERT_AFTER_ATTEMPTS = 3;
 
-export async function runJobs(ctx: AppContext, limit = 20): Promise<Array<{ id: string; kind: string; ok: boolean; error?: string }>> {
-  const { rows } = await ctx.db.query<{ id: string; kind: string; payload: Record<string, string>; attempts: number; alerted_at: Date | null }>(
-    `UPDATE jobs SET attempts = attempts + 1 WHERE id IN (
+export interface ClaimedJob {
+  id: string;
+  kind: string;
+  payload: Record<string, string>;
+  attempts: number;
+  alerted_at: Date | null;
+}
+
+/**
+ * Claims up to `limit` ready jobs. FOR UPDATE SKIP LOCKED keeps concurrent
+ * claimers from blocking on or double-claiming the same row WITHIN the claim
+ * statement; the lease (run_after pushed `leaseSeconds` ahead) keeps the job
+ * invisible to other workers AFTER the claim commits, while it is processed.
+ * (W05: without the lease a second worker could re-claim an in-flight job —
+ * see test/pg/worker-concurrency.test.ts.) The processing outcome always
+ * rewrites status/run_after; a crashed worker's job becomes visible again
+ * when its lease expires.
+ */
+export async function claimJobs(db: Queryable, limit: number, leaseSeconds: number): Promise<ClaimedJob[]> {
+  const { rows } = await db.query<ClaimedJob>(
+    `UPDATE jobs SET attempts = attempts + 1, run_after = now() + ($2 || ' seconds')::interval WHERE id IN (
        SELECT id FROM jobs WHERE status = 'pending' AND run_after <= now() ORDER BY priority, id LIMIT $1 FOR UPDATE SKIP LOCKED
      ) RETURNING id::text, kind, payload, attempts, alerted_at`,
-    [limit],
+    [limit, String(leaseSeconds)],
   );
+  return rows;
+}
+
+export async function runJobs(ctx: AppContext, limit = 20): Promise<Array<{ id: string; kind: string; ok: boolean; error?: string }>> {
+  const rows = await claimJobs(ctx.db, limit, ctx.cfg.worker.jobLeaseSeconds);
   rows.sort((a, b) => Number(CRITICAL_KINDS.has(b.kind)) - Number(CRITICAL_KINDS.has(a.kind)) || Number(a.id) - Number(b.id));
   const results = [];
   for (const j of rows) {
@@ -148,14 +174,14 @@ export interface WorkerPass {
   attestations: AttestationOutcome[];
 }
 
-export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean } = {}): Promise<WorkerPass> {
+export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean; shouldStop?: () => boolean } = {}): Promise<WorkerPass> {
   // Revocations first: they narrow eligibility and must not wait behind routine indexing.
   const firstJobs = await runJobs(ctx);
   await ensureRevocationsFinal(ctx);
   const indexer = new ForgeIndexer(ctx);
   let indexed = 0;
   let reorgedTo: bigint | null = null;
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 50 && !opts.shouldStop?.(); i++) {
     const r = await indexer.tick();
     indexed += r.events;
     if (r.reorgedTo !== null) {
@@ -163,6 +189,12 @@ export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean
       continue;
     }
     if (r.to === null) break;
+  }
+  // W05: periodic materialized-vs-reference ledger self-check (halts on divergence / splitter deficit).
+  try {
+    await maybeRunLedgerSelfCheck(ctx);
+  } catch (e) {
+    console.error("[forge-worker] ledger self-check:", (e as Error).message.split("\n")[0]);
   }
   // W04 Correction A: raise splitter ceilings from finalised, indexed evidence, then index the authorizations.
   let attestations: AttestationOutcome[] = [];
@@ -194,23 +226,77 @@ export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean
   return { indexed, reorgedTo, receipts, retractions, jobs: firstJobs.length + jobs.length, attestations };
 }
 
-export function startWorkerLoop(ctx: AppContext, intervalMs = 2_000, reconcileEveryMs = 10 * 60_000) {
+export type WorkerState = "starting" | "running" | "stopping" | "stopped";
+
+export async function recordHeartbeat(
+  db: Queryable,
+  w: { id: string; applicationName: string },
+  state: WorkerState,
+  pass?: { ms: number; error: string | null },
+) {
+  await db.query(
+    `INSERT INTO worker_heartbeats(worker_id, application_name, pid, hostname, state, passes, last_pass_ms, last_error)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (worker_id) DO UPDATE SET state = $5, beat_at = now(),
+       passes = worker_heartbeats.passes + $6, last_pass_ms = COALESCE($7, worker_heartbeats.last_pass_ms), last_error = $8`,
+    [w.id, w.applicationName, process.pid, hostname(), state, pass ? 1 : 0, pass ? Math.round(pass.ms) : null, pass?.error ?? null],
+  );
+}
+
+export interface WorkerHandle {
+  readonly id: string;
+  /**
+   * Graceful stop: no new pass starts, the current pass stops picking new
+   * indexer ranges and finishes what it holds, the heartbeat is marked
+   * `stopped`. Resolves when the loop has fully exited (the caller then
+   * closes the pool). Idempotent.
+   */
+  stop(): Promise<void>;
+  /** Resolves when the loop exits. */
+  readonly done: Promise<void>;
+}
+
+export function startWorkerLoop(ctx: AppContext, intervalMs = 2_000, reconcileEveryMs = 10 * 60_000): WorkerHandle {
   let stopped = false;
   let lastReconcile = 0;
+  let wake: (() => void) | null = null;
+  const w = { id: `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`, applicationName: ctx.cfg.db.pool.applicationName };
+  const beat = (state: WorkerState, pass?: { ms: number; error: string | null }) =>
+    recordHeartbeat(ctx.db, w, state, pass).catch((e) => console.error("[forge-worker] heartbeat:", (e as Error).message));
   const loop = async () => {
+    await beat("starting");
     while (!stopped) {
       const reconcile = Date.now() - lastReconcile > reconcileEveryMs;
+      const t0 = performance.now();
+      let error: string | null = null;
       try {
-        await runWorkerOnce(ctx, { reconcile });
+        await runWorkerOnce(ctx, { reconcile, shouldStop: () => stopped });
         if (reconcile) lastReconcile = Date.now();
       } catch (e) {
+        error = (e as Error).message.split("\n")[0]!;
         console.error("[forge-worker]", (e as Error).message);
       }
-      await new Promise((r) => setTimeout(r, intervalMs));
+      await beat(stopped ? "stopping" : "running", { ms: performance.now() - t0, error });
+      if (stopped) break;
+      await new Promise<void>((r) => {
+        const t = setTimeout(r, intervalMs);
+        wake = () => {
+          clearTimeout(t);
+          r();
+        };
+      });
+      wake = null;
     }
+    await beat("stopped");
   };
-  void loop();
-  return () => {
-    stopped = true;
+  const done = loop();
+  return {
+    id: w.id,
+    done,
+    stop: () => {
+      stopped = true;
+      (wake as (() => void) | null)?.();
+      return done;
+    },
   };
 }

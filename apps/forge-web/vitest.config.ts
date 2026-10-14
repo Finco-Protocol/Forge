@@ -21,6 +21,19 @@ export default defineConfig({
         },
       },
       { resolve: { alias }, test: { name: "fork", include: ["test/fork/**/*.test.ts"], environment: "node", testTimeout: 60_000 } },
+      // W05: real PostgreSQL (opt-in via FORGE_TEST_DATABASE_URL; FORGE_TEST_REQUIRE_PG=1 makes it mandatory). See test/helpers/pg.ts.
+      {
+        resolve: { alias },
+        test: {
+          name: "pg",
+          include: ["test/pg/**/*.test.ts"],
+          environment: "node",
+          testTimeout: 180_000,
+          hookTimeout: 240_000,
+          pool: "forks",
+          poolOptions: { forks: { singleFork: true } },
+        },
+      },
     ],
   },
 });

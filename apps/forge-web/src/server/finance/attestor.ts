@@ -31,6 +31,7 @@ import type { AppContext } from "../context";
 import { audit } from "../audit";
 import { REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED, ROBINHOOD_CHAIN_ID } from "../config";
 import { verifiedEligibleRevenue, NATIVE, type Ledger } from "./ledger";
+import { ledgerIntegrity, signingBlockedReason } from "./materialized";
 
 export const SPLITTER_EIP712_DOMAIN = { name: "FINCO Forge Revenue Splitter", version: "1" } as const;
 export const ELIGIBLE_REVENUE_TYPES = {
@@ -71,7 +72,7 @@ export function eligibleRevenueDigest(chainId: number, splitter: Address, auth: 
 }
 
 export type AttestationOutcome =
-  | { asset: Address | null; status: "DISABLED" | "ATTESTOR_MISMATCH" | "BINDING_MISMATCH" | "NO_CHECKPOINT"; reason: string }
+  | { asset: Address | null; status: "DISABLED" | "ATTESTOR_MISMATCH" | "BINDING_MISMATCH" | "NO_CHECKPOINT" | "LEDGER_HALTED"; reason: string }
   | { asset: Address; status: "UP_TO_DATE" | "ASSET_NOT_APPROVED" | "STALE_EVIDENCE"; cumulative: string }
   | { asset: Address; status: "RECONCILIATION_MISMATCH"; cumulative: string; reason: string }
   | { asset: Address; status: "AUTHORIZED"; cumulative: string; nonce: string; evidenceBlock: string; txHash: Hex };
@@ -89,6 +90,8 @@ export async function syncRevenueAttestations(
   ctx: AppContext,
   load: () => Promise<{ ledger: Ledger; checkpoint: bigint | null }>,
   eligibleLaunches: EligibleLaunchResolver,
+  /** W05: refreshes the ledger self-check for the evidence block before the first signature. */
+  refreshIntegrity?: (checkpoint: bigint) => Promise<void>,
 ): Promise<AttestationOutcome[]> {
   const splitter = ctx.cfg.addresses.revenueSplitter;
   const escrow = ctx.cfg.addresses.feeEscrow;
@@ -98,6 +101,11 @@ export async function syncRevenueAttestations(
   if (ctx.cfg.chainId === ROBINHOOD_CHAIN_ID && !REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED) {
     return [{ asset: null, status: "DISABLED", reason: "PRODUCTION_BLOCKED: production revenue attestation is disabled pending W05 custody approval." }];
   }
+  // W05 fail-closed: a halted ledger (materialized/reference divergence or an
+  // unexplained splitter deficit) blocks every signature until an operator
+  // clears it after a passing self-check.
+  const integrity = await ledgerIntegrity(ctx.db, ctx.cfg.chainId);
+  if (integrity?.halted) return [{ asset: null, status: "LEDGER_HALTED", reason: `LEDGER_HALTED: ${integrity.haltReason ?? "integrity failure"}` }];
   const sp = { address: splitter, abi: forgeProtocolRevenueSplitterAbi } as const;
   const [onchainAttestor, onchainEscrow, onchainFactory] = await Promise.all([
     ctx.client.readContract({ ...sp, functionName: "revenueAttestor" }),
@@ -149,6 +157,12 @@ export async function syncRevenueAttestations(
     if (cumulative > atLedger.escrowClaimed + escrowed) {
       out.push({ asset, status: "RECONCILIATION_MISMATCH", cumulative: cumulative.toString(), reason: `Recomputed eligible revenue ${cumulative} exceeds escrow claimed + held (${atLedger.escrowClaimed + escrowed}) at block ${checkpoint}.` });
       continue;
+    }
+    if (refreshIntegrity) await refreshIntegrity(checkpoint);
+    const blocked = await signingBlockedReason(ctx.db, ctx.cfg.chainId);
+    if (blocked) {
+      out.push({ asset, status: "LEDGER_HALTED", reason: blocked });
+      break;
     }
     const evidence = await ctx.client.getBlock({ blockNumber: checkpoint });
     const auth: EligibleRevenueAuth = {
