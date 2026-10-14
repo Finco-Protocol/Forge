@@ -196,3 +196,37 @@ runtimes ≤ 24,576 B, factory margin ≥ 64 B).
 The security lint baseline gains one reviewed pin:
 `require-revert-in-loop` on the zero-address refusal inside the bounded
 canonical-exemption loop (moved verbatim from the factory).
+
+## 8. W04 — economics, revenue distribution & treasury (sandbox)
+
+**No existing financial contract was modified.** `PonsV2LaunchFactory` (24,470 B), the curve, hook, escrow, vault, deployer, executor and locker, `contractsV2-deployed/` and all provenance are byte-for-byte unchanged.
+
+**Additions (Forge-owned, external):**
+- `contractsV2-forge/src/v2/forge/ForgeProtocolRevenueSplitter.sol` (6,383 B runtime).
+  - It is the escrow key the hook's `protocolFeeRecipient` names. It claims only its own `PonsV2FeeEscrow` balance and allocates the measured receipt: 2/3 to the treasury, 1/3 to the FINCO reserve, with cumulative-floor rounding.
+  - It separates non-revenue: the launch fee, direct transfers, rescues and graduation residual.
+  - The treasury recipient is timelocked. The reserve has no exit (`FINCO_BURN_ENABLED` is a constant `false`).
+  - Design and limits: `docs/W04-ECONOMICS-ARCHITECTURE.md`.
+- `contractsV2-forge/src/v2/forge/IFincoBurnReserveExecutor.sol`: an architectural interface only, not implemented or referenced.
+
+**Sandbox wiring (apps/forge-web/scripts/sandbox-lib.ts):**
+- The sandbox deploys the canonical `PonsV2FeeEscrow`, replacing W02's `MockFeeEscrow`, so escrow events and claim semantics are real.
+- It deploys the splitter, names it as the hook's `protocolFeeRecipient` in the hook constructor (before any launch), and wires `splitter.setForgeFactory(factory)`.
+- The treasury recipient is the test-only Anvil key #8.
+
+**Test-only mocks:**
+- `test-forge/mocks/FeeOnTransferToken.sol`
+- `test-forge/mocks/SandboxSwapRouter.sol`: an exact-input router for the W02 mini pool manager, so sandbox E2E can trade a graduated pool through the real hook. It is never part of any deployable stack.
+
+**Evidence:**
+
+| Suite | Tests |
+| --- | --- |
+| `test-forge/ForgeRevenueSplitter.t.sol` (unit and fuzz) | 19 |
+| `ForgeRevenueSplitterInvariantTest` | 3 invariants |
+| `test-forge/ForgeRevenueLifecycle.t.sol` (real stack, canonical escrow) | 7 |
+| W04 integration (`economics.test.ts`) | 13 |
+| Ledger unit tests | 7 |
+| Browser E2E (`w04-economics.spec.ts`) | 1 |
+
+The security-lint baseline gains 10 reviewed W04 pins: the balance-delta measurement around the canonical escrow, uint64 timelock casts, timelock timestamps, and native sends limited to the treasury recipient. The two remaining W04 warnings were fixed in code: modifier order, and emitting events before transfers.
