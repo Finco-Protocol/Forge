@@ -14,3 +14,15 @@ Thumbs.db
 # W02 local artifacts
 .w02-recovery/*-api.json
 broadcast/
+
+# W03 web app
+apps/forge-web/node_modules/
+apps/forge-web/.next/
+apps/forge-web/.sandbox/
+apps/forge-web/.data/
+apps/forge-web/next-env.d.ts
+apps/forge-web/tsconfig.tsbuildinfo
+apps/forge-web/playwright-report/
+apps/forge-web/test-results/
+apps/forge-web/.env
+apps/forge-web/.env.local
