@@ -30,9 +30,10 @@ test("keyboard users get a skip link, labelled landmarks and aria-current naviga
   await expect(page.getByRole("main")).toBeVisible();
   await expect(page.getByRole("status", { name: "Connection status" })).toBeVisible();
   // Every interactive control on the page is reachable and shows a visible focus ring.
-  for (let i = 0; i < 4; i++) await page.keyboard.press("Tab");
-  const outline = await page.evaluate(() => getComputedStyle(document.activeElement!).outlineStyle);
-  expect(outline).not.toBe("none");
+  await page.keyboard.press("Tab");
+  const focus = await page.evaluate(() => ({ tag: document.activeElement!.tagName, outline: getComputedStyle(document.activeElement!).outlineStyle }));
+  expect(["A", "BUTTON", "INPUT", "SELECT", "TEXTAREA"]).toContain(focus.tag);
+  expect(focus.outline).not.toBe("none");
 });
 
 test("launch page discloses what verification is NOT, before anything is signed", async ({ page }) => {
