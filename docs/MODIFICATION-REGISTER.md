@@ -250,3 +250,7 @@ The security-lint baseline gains 10 reviewed W04 pins: the balance-delta measure
 | W04 integration (`economics.test.ts`) | 30 |
 | Ledger, provenance and claim unit tests | 11 |
 | Browser E2E (`w04-economics.spec.ts`) | 1 |
+
+## 9. W05 — production hardening, governance and beta readiness
+
+Only one contract file changed: `ForgeProtocolRevenueSplitter.sol` (Forge-owned) — strictly sequential attestation nonce, new error `CeilingExceedsEscrow` (ceiling ≤ escrow claimed + held), and a non-zero `graduationThreshold` check in `setAssetApproved` (finding W05-01). Runtime 11,220 B; factory unchanged at 24,470 B. No PONS/deployed-source evidence, escrow, hook, curve, factory or vendored code modified. New: migrations 004 (signer audit), 005 (ledger materialization), 006 (ops controls); forge tests `W05OwnerPowers`, `W05AttestorCompromise`; docs `W05-*`; `.github/workflows/w05.yml`; `release/`. Flags unchanged.

@@ -36,7 +36,9 @@
     "size:check": "tsx scripts/size-gate.ts",
     "release:manifest": "tsx scripts/w05/release-gate.ts manifest",
     "release:gate": "tsx scripts/w05/release-gate.ts evaluate",
-    "bench:platform": "tsx scripts/w05/bench-platform.ts"
+    "bench:platform": "tsx scripts/w05/bench-platform.ts",
+    "ops:github-app-check": "tsx scripts/w05/github-app-check.ts",
+    "ops:control": "tsx scripts/w05/ops-control.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.9",

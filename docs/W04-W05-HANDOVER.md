@@ -36,3 +36,7 @@ It does **not** activate production fee routing. `PRODUCTION_BLOCKED=true`, `FIN
   - The treasury recipient claims with `claimTreasury`.
 - **Recording unattributed surplus:** call `recordUnattributed(asset)` when the reconciliation shows `RECONCILED_WITH_UNRECORDED_SURPLUS`.
 - **Policy changes** follow `docs/W04-ECONOMICS-ARCHITECTURE.md` §5. Never repoint an existing launch; snapshots are immutable.
+
+## W05 outcome (see `W05-*.md`)
+
+W05 hardened the stack and added release gating; it did **not** make anything production-ready. Closed: W05-01 (attestor bounds), materialized ledger/Postgres mode, KMS adapters (disabled), genuine-V4 local lifecycle, deploy tooling (dry-run only), monitoring + 15 drills. Still open and visible in `release/readiness-manifest.json`: B01–B08 operator items, C01–C06 external audit/legal items, F-03/F-04 owner powers (disclosed, not approved), Robinhood fork/ArbOS `blockhash` semantics (CI-only, never run locally), hook CREATE2 production salt. Release gate cannot report production readiness.
