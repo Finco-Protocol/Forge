@@ -57,8 +57,10 @@ interface IForgeQuotePolicy {
  * cumulative protocol-leg escrow credits made by Forge curves and the Forge
  * hook, recomputed from finalised canonical events. A faulty attestor can at
  * worst authorise pulling third-party credits already sitting under this
- * key; it can never mint, never reach creator funds, never withdraw, and is
- * bounded by the escrow balance. The attestor is separate from the owner and
+ * key AT SIGNING TIME (W05: the ceiling is capped on chain at escrow claimed
+ * + escrow held, and nonces are strictly sequential); it can never mint,
+ * never reach creator funds, never withdraw, and is bounded by the escrow
+ * balance. The attestor is separate from the owner and
  * the treasury recipient, its rotation is timelocked, and the owner can
  * revoke it instantly (fail closed). Production signing stays disabled until
  * W05 key-custody approval.
@@ -144,6 +146,7 @@ contract ForgeProtocolRevenueSplitter is EIP712, Ownable2Step, ReentrancyGuard {
     error WrongFactory();
     error StaleEvidence();
     error RolesNotSeparated();
+    error CeilingExceedsEscrow(uint256 cumulativeEligible, uint256 escrowClaimedPlusHeld);
 
     event ForgeFactorySet(address indexed factory);
     event AssetApprovalUpdated(address indexed asset, bool approved);
@@ -289,8 +292,19 @@ contract ForgeProtocolRevenueSplitter is EIP712, Ownable2Step, ReentrancyGuard {
             revert StaleEvidence();
         }
         AssetLedger storage l = _ledgers[auth.asset];
-        if (auth.nonce <= l.authNonce) revert StaleNonce();
+        // W05: strictly sequential nonces, so a compromised attestor cannot
+        // exhaust the nonce space and lock out every future attestor.
+        if (auth.nonce != l.authNonce + 1) revert StaleNonce();
         if (auth.cumulativeEligible < l.eligibleCeiling) revert CeilingDecrease();
+        // W05: a ceiling can never exceed what the escrow has actually paid
+        // this key plus what it still holds for it, so an overstating
+        // attestor cannot pre-authorise FUTURE third-party credits.
+        uint256 held = auth.asset == NATIVE
+            ? feeEscrow.balanceOf(address(this))
+            : feeEscrow.balanceOfToken(address(this), auth.asset);
+        if (auth.cumulativeEligible > l.escrowClaimed + held) {
+            revert CeilingExceedsEscrow(auth.cumulativeEligible, l.escrowClaimed + held);
+        }
         if (eligibleRevenueDigest(auth).recover(signature) != attestor) {
             revert InvalidAttestation();
         }

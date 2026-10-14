@@ -11003,6 +11003,22 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "error",
+    "name": "CeilingExceedsEscrow",
+    "inputs": [
+      {
+        "name": "cumulativeEligible",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "escrowClaimedPlusHeld",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ECDSAInvalidSignature",
     "inputs": []
   },

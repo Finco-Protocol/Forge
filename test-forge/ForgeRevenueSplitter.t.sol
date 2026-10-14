@@ -92,7 +92,6 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
     address internal constant NATIVE = address(0);
 
     mapping(address asset => uint256) internal eligible;
-    mapping(address asset => uint64) internal nonces;
     uint256 internal homeChainId;
 
     function setUp() public {
@@ -117,7 +116,10 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
         internal
         returns (ForgeProtocolRevenueSplitter.EligibleRevenue memory)
     {
-        return _authFor(splitter, address(factory), asset, cumulative, ++nonces[asset]);
+        // W05: nonces are strictly sequential on chain; always use the next one.
+        return _authFor(
+            splitter, address(factory), asset, cumulative, splitter.ledger(asset).authNonce + 1
+        );
     }
 
     /// Attests `added` more VERIFIED protocol-leg credits for `asset`.
@@ -399,7 +401,7 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
         // A valid signature over different fields is not reusable.
         a = _auth(NATIVE, 0.3 ether);
         sig = _sign(splitter, attestorKey, a);
-        a.cumulativeEligible = 100 ether;
+        a.deadline += 1; // any field change invalidates the signature
         vm.expectRevert(ForgeProtocolRevenueSplitter.InvalidAttestation.selector);
         splitter.authorizeEligibleRevenue(a, sig);
     }
@@ -527,23 +529,36 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
     // ── L: a failed escrow claim leaves no state behind ─────────────────
 
     function test_L_failed_escrow_claim_no_mutation() public {
-        // Over-attested ceiling (above the escrow balance): the pull of an
-        // explicit amount fails inside the escrow and the whole call reverts.
+        // W05: an over-attested ceiling (above escrow claimed + held) is
+        // refused at authorization time.
         vm.deal(address(this), 1 ether);
         source.creditNative{value: 1 ether}(escrow, address(splitter));
-        _attest(NATIVE, 3 ether);
-        ForgeProtocolRevenueSplitter.AssetLedger memory before = splitter.ledger(NATIVE);
+        ForgeProtocolRevenueSplitter.EligibleRevenue memory a = _auth(NATIVE, 3 ether);
+        bytes memory sig = _sign(splitter, attestorKey, a);
         vm.expectRevert(
-            abi.encodeWithSelector(PonsV2FeeEscrow.InsufficientBalance.selector, 2 ether, 1 ether)
+            abi.encodeWithSelector(
+                ForgeProtocolRevenueSplitter.CeilingExceedsEscrow.selector, 3 ether, 1 ether
+            )
         );
-        splitter.pullRevenue(NATIVE, 2 ether);
+        splitter.authorizeEligibleRevenue(a, sig);
+
+        // A failing escrow claim reverts the whole pull: no state is kept.
+        _attest(NATIVE, 1 ether);
+        ForgeProtocolRevenueSplitter.AssetLedger memory before = splitter.ledger(NATIVE);
+        vm.mockCallRevert(
+            address(escrow),
+            abi.encodeWithSignature("claim(uint256)", 0.5 ether),
+            abi.encodeWithSelector(PonsV2FeeEscrow.TransferFailed.selector)
+        );
+        vm.expectRevert(PonsV2FeeEscrow.TransferFailed.selector);
+        splitter.pullRevenue(NATIVE, 0.5 ether);
+        vm.clearMockedCalls();
         ForgeProtocolRevenueSplitter.AssetLedger memory afterL = splitter.ledger(NATIVE);
         assertEq(afterL.escrowClaimed, before.escrowClaimed);
         assertEq(afterL.revenueReceived, before.revenueReceived);
         assertEq(splitter.allocationCount(), 0);
-        // amount = 0 clamps to the escrow balance.
         assertEq(splitter.pullRevenue(NATIVE, 0), 1 ether);
-        assertEq(splitter.verifiedHeadroom(NATIVE), 2 ether);
+        assertEq(splitter.verifiedHeadroom(NATIVE), 0);
         _assertConserved(NATIVE);
     }
 

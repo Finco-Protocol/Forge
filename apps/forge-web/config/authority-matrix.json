@@ -1,0 +1,1175 @@
+{
+ "$comment": "W05 contract authority matrix for the Forge-owned stack. Machine-checked by apps/forge-web/test/unit/w05-authority-matrix.test.ts (every state-changing ABI function must be classified) and test/integration/w05-authority-enforcement.test.ts (every 'owner'/'forge-factory' entry is refused for a stranger). Ownership: every listed Ownable contract is Ownable2Step; renounceOwnership is disabled except where noted.",
+ "version": 1,
+ "contracts": {
+  "PonsV2LaunchFactory": {
+   "ownership": "Ownable2Step",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "acceptOwnership()",
+     "access": "pending-owner",
+     "category": "governance",
+     "timelock": "Ownable2Step two-step",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "transferOwnership(address)",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none (two-step)",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferStarted"
+     ],
+     "note": "renounceOwnership is disabled"
+    },
+    {
+     "signature": "addLaunchConfig((uint256,uint256,uint256,uint256,uint24,int24,bool))",
+     "access": "owner",
+     "category": "launch-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "LaunchConfigAdded"
+     ],
+     "note": "future launches only"
+    },
+    {
+     "signature": "updateLaunchConfig(uint256,(uint256,uint256,uint256,uint256,uint24,int24,bool))",
+     "access": "owner",
+     "category": "launch-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "LaunchConfigUpdated"
+     ],
+     "note": "future launches only; launches snapshot config"
+    },
+    {
+     "signature": "setLaunchFee(uint256)",
+     "access": "owner",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "LaunchFeeUpdated"
+     ],
+     "note": "paid to the hook's LIVE protocolFeeRecipient; non-revenue"
+    },
+    {
+     "signature": "setLaunchEnabled(bool)",
+     "access": "owner",
+     "category": "emergency",
+     "timelock": "none",
+     "emergency": true,
+     "monitoringEvents": [
+      "LaunchEnabledUpdated"
+     ],
+     "note": "global launch stop"
+    },
+    {
+     "signature": "setWhitelistedLauncher(address,bool)",
+     "access": "owner",
+     "category": "launch-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "WhitelistedLauncherUpdated"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setPairTokenEconomics(address,uint256,uint256,uint8)",
+     "access": "owner",
+     "category": "quote-asset-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "PairTokenEconomicsUpdated"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setPairTokenApproved(address,bool)",
+     "access": "owner",
+     "category": "quote-asset-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "PairTokenApprovalUpdated"
+     ],
+     "note": "new launches only"
+    },
+    {
+     "signature": "setMaxCreatorTaxBps(uint256)",
+     "access": "owner",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "MaxCreatorTaxUpdated"
+     ],
+     "note": "cap for future launches"
+    },
+    {
+     "signature": "setSnipeTaxStartBps(uint256)",
+     "access": "owner",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "SnipeTaxStartBpsUpdated"
+     ],
+     "note": "snapshotted at curve init"
+    },
+    {
+     "signature": "setSnipeTaxSeconds(uint256)",
+     "access": "owner",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "SnipeTaxSecondsUpdated"
+     ],
+     "note": "snapshotted at curve init"
+    },
+    {
+     "signature": "setGraduationExecutor(address)",
+     "access": "owner",
+     "category": "wiring-once",
+     "timelock": "one-time (AlreadySet)",
+     "emergency": false,
+     "monitoringEvents": [
+      "GraduationExecutorSet"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setLaunchDeployer(address)",
+     "access": "owner",
+     "category": "wiring-once",
+     "timelock": "one-time (AlreadySet)",
+     "emergency": false,
+     "monitoringEvents": [
+      "LaunchDeployerSet"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setLaunchForwarder(address)",
+     "access": "owner",
+     "category": "wiring",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "LaunchForwarderSet"
+     ],
+     "note": "forwarder may call launchTokenFor"
+    },
+    {
+     "signature": "launchToken((string,string,string,string,(string,string,string,string,string),address,uint16,bool,bytes32,bytes32,uint64,uint64,uint64,bytes,bytes),uint256,address,address[])",
+     "access": "authorized-creator",
+     "category": "launch",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "TokenLaunched"
+     ],
+     "note": "M-ELIG: creator consent + eligibility attestation checked by ForgeLaunchAuthorizer"
+    },
+    {
+     "signature": "launchToken((string,string,string,string,(string,string,string,string,string),address,uint16,bool,bytes32,bytes32,uint64,uint64,uint64,bytes,bytes),uint256,address)",
+     "access": "authorized-creator",
+     "category": "launch",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "TokenLaunched"
+     ],
+     "note": "M-ELIG"
+    },
+    {
+     "signature": "launchTokenFor((string,string,string,string,(string,string,string,string,string),address,uint16,bool,bytes32,bytes32,uint64,uint64,uint64,bytes,bytes),uint256,address,address,address[])",
+     "access": "launch-forwarder",
+     "category": "launch",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "TokenLaunched"
+     ],
+     "note": "forwarder set by owner; still M-ELIG checked"
+    },
+    {
+     "signature": "transferCreatorFeeRecipient(address,address)",
+     "access": "creator-fee-recipient",
+     "category": "recipient-change",
+     "timelock": "none (self-service)",
+     "emergency": false,
+     "monitoringEvents": [
+      "CreatorFeeRecipientUpdated"
+     ],
+     "note": "current recipient only"
+    },
+    {
+     "signature": "setBuybackEnabled(address,bool)",
+     "access": "creator-or-owner-disable",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "BuybackEnabledUpdated"
+     ],
+     "note": "owner may only DISABLE"
+    },
+    {
+     "signature": "setCreatorFeeRecipient(address,address)",
+     "access": "owner",
+     "category": "recipient-change",
+     "timelock": "3 days notice + 3 days window",
+     "emergency": false,
+     "monitoringEvents": [
+      "CreatorFeeRecipientChangeProposed"
+     ],
+     "note": "F-03 standing owner power over creator fee routing"
+    },
+    {
+     "signature": "executeCreatorFeeRecipientChange(address)",
+     "access": "anyone-after-timelock",
+     "category": "recipient-change",
+     "timelock": "enforced (3d + 3d)",
+     "emergency": false,
+     "monitoringEvents": [
+      "CreatorFeeRecipientUpdated"
+     ],
+     "note": "F-03 execution; permissionless once matured"
+    },
+    {
+     "signature": "cancelCreatorFeeRecipientChange(address)",
+     "access": "owner",
+     "category": "recipient-change",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "CreatorFeeRecipientChangeCancelled"
+     ],
+     "note": "creator cannot cancel"
+    },
+    {
+     "signature": "graduate(address)",
+     "access": "anyone",
+     "category": "graduation",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "LaunchSwept"
+     ],
+     "note": "when the curve is ready"
+    },
+    {
+     "signature": "forceSweptGraduation(address)",
+     "access": "owner",
+     "category": "rescue",
+     "timelock": "none",
+     "emergency": true,
+     "monitoringEvents": [
+      "LaunchForceSwept"
+     ],
+     "note": "F-04 class: halts a curve into Swept"
+    },
+    {
+     "signature": "createGraduatedPool(address)",
+     "access": "anyone",
+     "category": "graduation",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "PoolGraduated"
+     ],
+     "note": "permissionless; closes the rescue window"
+    },
+    {
+     "signature": "rescueCurveFees(address)",
+     "access": "owner",
+     "category": "rescue",
+     "timelock": "none",
+     "emergency": true,
+     "monitoringEvents": [],
+     "note": "F-04: pays split directly, escrow bypassed; protocol leg non-revenue. Monitored via the CURVE event FeesRescued"
+    },
+    {
+     "signature": "rescueSweptGraduation(address,address)",
+     "access": "owner",
+     "category": "rescue",
+     "timelock": "7 days after sweep (GRADUATION_RESCUE_DELAY)",
+     "emergency": true,
+     "monitoringEvents": [
+      "LaunchGraduationRescued"
+     ],
+     "note": "F-04: owner-chosen recipient for holders' reserves; HIGH owner trust"
+    }
+   ]
+  },
+  "ForgeLaunchAuthorizer": {
+   "ownership": "Ownable2Step",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "acceptOwnership()",
+     "access": "pending-owner",
+     "category": "governance",
+     "timelock": "Ownable2Step two-step",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "transferOwnership(address)",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none (two-step)",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferStarted"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "renounceOwnership()",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": "W05 finding: renounce is NOT disabled here; renouncing freezes the eligibility authority forever"
+    },
+    {
+     "signature": "setForgeFactory(address)",
+     "access": "owner",
+     "category": "wiring-once",
+     "timelock": "one-time (FactoryAlreadySet)",
+     "emergency": false,
+     "monitoringEvents": [
+      "FactorySet"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setEligibilityAuthority(address)",
+     "access": "owner",
+     "category": "signer-rotation",
+     "timelock": "none",
+     "emergency": true,
+     "monitoringEvents": [
+      "EligibilityAuthorityUpdated"
+     ],
+     "note": "address(0) = launch kill switch"
+    },
+    {
+     "signature": "requireAuthorizedLaunch((address,address,uint64,uint256,address,bytes32,bytes32,bytes32,uint64,uint64,uint16,bytes32),address,bool,bytes,bytes)",
+     "access": "forge-factory",
+     "category": "launch",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "LaunchAuthorized"
+     ],
+     "note": "factory-only"
+    },
+    {
+     "signature": "requireAuthorizedLaunchCall(bytes,address,bytes32)",
+     "access": "forge-factory",
+     "category": "launch",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "LaunchAuthorized"
+     ],
+     "note": "factory-only"
+    }
+   ]
+  },
+  "ForgeBindingRegistry": {
+   "ownership": "Ownable2Step",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "acceptOwnership()",
+     "access": "pending-owner",
+     "category": "governance",
+     "timelock": "Ownable2Step two-step",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "transferOwnership(address)",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none (two-step)",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferStarted"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "renounceOwnership()",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": "W05 finding: renounce is NOT disabled; renouncing freezes authority rotation"
+    },
+    {
+     "signature": "applyBindingOp((uint64,address,uint64,uint64,uint64,bytes32,string,bool),bytes)",
+     "access": "authority-signature",
+     "category": "eligibility",
+     "timelock": "signed op deadline <= 10 min",
+     "emergency": false,
+     "monitoringEvents": [
+      "OperationApplied",
+      "Bound",
+      "Revoked"
+     ],
+     "note": "relayed by anyone; authority EIP-712 signature"
+    },
+    {
+     "signature": "invalidatePendingOps(uint64)",
+     "access": "authority-or-owner",
+     "category": "emergency",
+     "timelock": "none",
+     "emergency": true,
+     "monitoringEvents": [
+      "PendingOpsInvalidated"
+     ],
+     "note": "barrier against parked signatures"
+    },
+    {
+     "signature": "setEligibilityAuthority(address)",
+     "access": "owner",
+     "category": "signer-rotation",
+     "timelock": "none",
+     "emergency": true,
+     "monitoringEvents": [
+      "AuthorityUpdated"
+     ],
+     "note": "signer compromise response"
+    }
+   ]
+  },
+  "PonsV2MemeHook": {
+   "ownership": "Ownable2Step",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "acceptOwnership()",
+     "access": "pending-owner",
+     "category": "governance",
+     "timelock": "Ownable2Step two-step",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "transferOwnership(address)",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none (two-step)",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferStarted"
+     ],
+     "note": "renounceOwnership is disabled"
+    },
+    {
+     "signature": "setFactory(address)",
+     "access": "owner",
+     "category": "wiring-once",
+     "timelock": "one-time (AlreadySet)",
+     "emergency": false,
+     "monitoringEvents": [
+      "FactorySet"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setBuybackVault(address)",
+     "access": "owner",
+     "category": "wiring-once",
+     "timelock": "one-time (AlreadySet)",
+     "emergency": false,
+     "monitoringEvents": [
+      "BuybackVaultSet"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setProtocolFeeShareBps(uint256)",
+     "access": "owner",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "ProtocolFeeShareUpdated"
+     ],
+     "note": "future launches only (snapshot)"
+    },
+    {
+     "signature": "setBuybackBurnBps(uint256)",
+     "access": "owner",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "BuybackBurnBpsUpdated"
+     ],
+     "note": "future launches only"
+    },
+    {
+     "signature": "setHookFeeBps(uint256)",
+     "access": "owner",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "HookFeeBpsUpdated"
+     ],
+     "note": "future launches only"
+    },
+    {
+     "signature": "setMaxInternalPriceImpactBps(uint256)",
+     "access": "owner",
+     "category": "fee-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "MaxInternalPriceImpactUpdated"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setProtocolFeeRecipient(address)",
+     "access": "owner",
+     "category": "recipient-change",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "ProtocolFeeRecipientUpdated"
+     ],
+     "note": "future launches' protocol leg + LIVE launch-fee recipient; must stay the splitter"
+    },
+    {
+     "signature": "setFeeSweepOperator(address)",
+     "access": "owner",
+     "category": "operator",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "FeeSweepOperatorUpdated"
+     ],
+     "note": "F-05: operator chooses swap floors"
+    },
+    {
+     "signature": "registerPool((address,address,uint24,int24,address),address,address,address,uint16,bool,(address,uint16,uint16,uint16,uint16))",
+     "access": "forge-factory",
+     "category": "graduation",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "PoolRegistered"
+     ],
+     "note": "factory-only"
+    },
+    {
+     "signature": "setCreatorFeeRecipient(bytes32,address)",
+     "access": "forge-factory",
+     "category": "recipient-change",
+     "timelock": "inherits factory",
+     "emergency": false,
+     "monitoringEvents": [
+      "CreatorFeeRecipientUpdated"
+     ],
+     "note": "factory-only"
+    },
+    {
+     "signature": "setBuybackEnabled(bytes32,bool)",
+     "access": "forge-factory",
+     "category": "fee-policy",
+     "timelock": "inherits factory",
+     "emergency": false,
+     "monitoringEvents": [
+      "BuybackEnabledUpdated"
+     ],
+     "note": "factory-only"
+    },
+    {
+     "signature": "sweepPoolFees(bytes32,uint256,uint256)",
+     "access": "operator-or-creator",
+     "category": "fees",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "PoolFeesSwept"
+     ],
+     "note": "creator only when no internal swap is needed"
+    },
+    {
+     "signature": "rescuePoolFees(bytes32)",
+     "access": "owner",
+     "category": "rescue",
+     "timelock": "none",
+     "emergency": true,
+     "monitoringEvents": [
+      "PoolFeesRescued"
+     ],
+     "note": "F-04: direct split, escrow bypassed; never touches a native quote bucket"
+    },
+    {
+     "signature": "unlockCallback(bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "PoolManager only"
+    },
+    {
+     "signature": "beforeInitialize(address,(address,address,uint24,int24,address),uint160)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "V4 hook entry; PoolManager only"
+    },
+    {
+     "signature": "afterInitialize(address,(address,address,uint24,int24,address),uint160,int24)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "not enabled (permission bit off)"
+    },
+    {
+     "signature": "beforeAddLiquidity(address,(address,address,uint24,int24,address),(int24,int24,int256,bytes32),bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "not enabled"
+    },
+    {
+     "signature": "afterAddLiquidity(address,(address,address,uint24,int24,address),(int24,int24,int256,bytes32),int256,int256,bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "not enabled"
+    },
+    {
+     "signature": "beforeRemoveLiquidity(address,(address,address,uint24,int24,address),(int24,int24,int256,bytes32),bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "not enabled"
+    },
+    {
+     "signature": "afterRemoveLiquidity(address,(address,address,uint24,int24,address),(int24,int24,int256,bytes32),int256,int256,bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "not enabled"
+    },
+    {
+     "signature": "beforeSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "not enabled"
+    },
+    {
+     "signature": "afterSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),int256,bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "HookFeeCollected"
+     ],
+     "note": "V4 hook entry; PoolManager only"
+    },
+    {
+     "signature": "beforeDonate(address,(address,address,uint24,int24,address),uint256,uint256,bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "not enabled"
+    },
+    {
+     "signature": "afterDonate(address,(address,address,uint24,int24,address),uint256,uint256,bytes)",
+     "access": "pool-manager",
+     "category": "callback",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "not enabled"
+    }
+   ]
+  },
+  "PonsV2FeeEscrow": {
+   "ownership": "none (immutable wiring)",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "credit(address)",
+     "access": "anyone",
+     "category": "escrow",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "Credited"
+     ],
+     "note": "permissionless by design; third-party credits are UNATTRIBUTED"
+    },
+    {
+     "signature": "creditToken(address,address,uint256)",
+     "access": "anyone",
+     "category": "escrow",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "CreditedToken"
+     ],
+     "note": "permissionless by design"
+    },
+    {
+     "signature": "claim()",
+     "access": "self",
+     "category": "escrow",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "Claimed"
+     ],
+     "note": "pays msg.sender only"
+    },
+    {
+     "signature": "claim(uint256)",
+     "access": "self",
+     "category": "escrow",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "Claimed"
+     ],
+     "note": "pays msg.sender only"
+    },
+    {
+     "signature": "claimToken(address)",
+     "access": "self",
+     "category": "escrow",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "ClaimedToken"
+     ],
+     "note": "pays msg.sender only"
+    },
+    {
+     "signature": "claimToken(address,uint256)",
+     "access": "self",
+     "category": "escrow",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "ClaimedToken"
+     ],
+     "note": "pays msg.sender only"
+    }
+   ]
+  },
+  "ForgeProtocolRevenueSplitter": {
+   "ownership": "Ownable2Step",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "acceptOwnership()",
+     "access": "pending-owner",
+     "category": "governance",
+     "timelock": "Ownable2Step two-step",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "transferOwnership(address)",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none (two-step)",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferStarted"
+     ],
+     "note": "renounceOwnership is disabled"
+    },
+    {
+     "signature": "authorizeEligibleRevenue((address,address,address,uint256,uint64,uint64,uint64,bytes32),bytes)",
+     "access": "attestor-signature",
+     "category": "revenue",
+     "timelock": "deadline + blockhash evidence",
+     "emergency": false,
+     "monitoringEvents": [
+      "EligibleRevenueAuthorized"
+     ],
+     "note": "TRUSTED attestor; W05: sequential nonce, ceiling <= escrow claimed + held"
+    },
+    {
+     "signature": "pullRevenue(address,uint256)",
+     "access": "anyone",
+     "category": "revenue",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "RevenueAllocated"
+     ],
+     "note": "bounded by attested ceiling"
+    },
+    {
+     "signature": "recordUnattributed(address)",
+     "access": "anyone",
+     "category": "revenue",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "NonRevenueReceived"
+     ],
+     "note": "records surplus as non-revenue"
+    },
+    {
+     "signature": "claimTreasury(address,uint256)",
+     "access": "treasury-recipient",
+     "category": "treasury",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "TreasuryClaimed"
+     ],
+     "note": "never the reserve"
+    },
+    {
+     "signature": "releaseNonRevenue(address,uint256)",
+     "access": "owner",
+     "category": "treasury",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "NonRevenueReleased"
+     ],
+     "note": "only to the treasury recipient"
+    },
+    {
+     "signature": "setForgeFactory(address)",
+     "access": "owner",
+     "category": "wiring-once",
+     "timelock": "one-time (FactoryAlreadySet)",
+     "emergency": false,
+     "monitoringEvents": [
+      "ForgeFactorySet"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "setAssetApproved(address,bool)",
+     "access": "owner",
+     "category": "quote-asset-policy",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "AssetApprovalUpdated"
+     ],
+     "note": "approval source-derived from the factory"
+    },
+    {
+     "signature": "setPullsPaused(bool)",
+     "access": "owner",
+     "category": "emergency",
+     "timelock": "none",
+     "emergency": true,
+     "monitoringEvents": [
+      "PullsPausedUpdated"
+     ],
+     "note": "stops pulls, never claims"
+    },
+    {
+     "signature": "proposeTreasuryRecipient(address)",
+     "access": "owner",
+     "category": "recipient-change",
+     "timelock": "3 days notice + 3 days window",
+     "emergency": false,
+     "monitoringEvents": [
+      "TreasuryRecipientChangeProposed"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "executeTreasuryRecipientChange()",
+     "access": "anyone-after-timelock",
+     "category": "recipient-change",
+     "timelock": "enforced (3d + 3d)",
+     "emergency": false,
+     "monitoringEvents": [
+      "TreasuryRecipientUpdated"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "cancelTreasuryRecipientChange()",
+     "access": "owner",
+     "category": "recipient-change",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "TreasuryRecipientChangeCancelled"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "proposeRevenueAttestor(address)",
+     "access": "owner",
+     "category": "signer-rotation",
+     "timelock": "3 days notice + 3 days window",
+     "emergency": false,
+     "monitoringEvents": [
+      "RevenueAttestorChangeProposed"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "executeRevenueAttestorChange()",
+     "access": "anyone-after-timelock",
+     "category": "signer-rotation",
+     "timelock": "enforced (3d + 3d)",
+     "emergency": false,
+     "monitoringEvents": [
+      "RevenueAttestorUpdated"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "cancelRevenueAttestorChange()",
+     "access": "owner",
+     "category": "signer-rotation",
+     "timelock": "none",
+     "emergency": false,
+     "monitoringEvents": [
+      "RevenueAttestorChangeCancelled"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "revokeRevenueAttestor()",
+     "access": "owner",
+     "category": "emergency",
+     "timelock": "none (immediate)",
+     "emergency": true,
+     "monitoringEvents": [
+      "RevenueAttestorUpdated"
+     ],
+     "note": "stops NEW ceilings only; pair with setPullsPaused"
+    }
+   ]
+  },
+  "PonsV2BuybackVault": {
+   "ownership": "Ownable2Step",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "acceptOwnership()",
+     "access": "pending-owner",
+     "category": "governance",
+     "timelock": "Ownable2Step two-step",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "transferOwnership(address)",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none (two-step)",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferStarted"
+     ],
+     "note": "renounceOwnership is disabled"
+    },
+    {
+     "signature": "setFactory(address)",
+     "access": "owner",
+     "category": "wiring-once",
+     "timelock": "one-time (AlreadyInitialized)",
+     "emergency": false,
+     "monitoringEvents": [
+      "FactorySet"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "lock(address,uint256,address,address,uint16)",
+     "access": "authorized-locker",
+     "category": "vesting",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [
+      "Locked"
+     ],
+     "note": "curve or hook of a Forge launch"
+    },
+    {
+     "signature": "release(address)",
+     "access": "vest-beneficiary",
+     "category": "vesting",
+     "timelock": "linear 5-year vest",
+     "emergency": false,
+     "monitoringEvents": [
+      "Released"
+     ],
+     "note": "creator or protocol recipient"
+    },
+    {
+     "signature": "updateCreatorRecipient(address,address)",
+     "access": "forge-factory",
+     "category": "recipient-change",
+     "timelock": "inherits factory (F-03)",
+     "emergency": false,
+     "monitoringEvents": [
+      "CreatorRecipientUpdated"
+     ],
+     "note": "factory-only"
+    }
+   ]
+  },
+  "PonsV2LaunchLocker": {
+   "ownership": "Ownable2Step",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "acceptOwnership()",
+     "access": "pending-owner",
+     "category": "governance",
+     "timelock": "Ownable2Step two-step",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferred"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "transferOwnership(address)",
+     "access": "owner",
+     "category": "governance",
+     "timelock": "none (two-step)",
+     "emergency": false,
+     "monitoringEvents": [
+      "OwnershipTransferStarted"
+     ],
+     "note": "renounceOwnership is disabled"
+    },
+    {
+     "signature": "setFactory(address)",
+     "access": "owner",
+     "category": "wiring-once",
+     "timelock": "one-time (AlreadyInitialized)",
+     "emergency": false,
+     "monitoringEvents": [
+      "FactorySet"
+     ],
+     "note": ""
+    },
+    {
+     "signature": "lockPosition(address,uint256)",
+     "access": "forge-factory",
+     "category": "graduation",
+     "timelock": "permanent lock",
+     "emergency": false,
+     "monitoringEvents": [
+      "PositionLocked"
+     ],
+     "note": "no unlock function exists"
+    },
+    {
+     "signature": "lockTokenSupply(address,uint256)",
+     "access": "forge-factory",
+     "category": "graduation",
+     "timelock": "permanent lock",
+     "emergency": false,
+     "monitoringEvents": [
+      "TokenSupplyLocked"
+     ],
+     "note": ""
+    }
+   ]
+  },
+  "PonsV2GraduationExecutor": {
+   "ownership": "none (immutable wiring)",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "mintFullRangePosition(address,(address,address,uint24,int24,address),int24,int24,uint160,uint256,uint256,address,address,address)",
+     "access": "forge-factory",
+     "category": "graduation",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "factory-only"
+    }
+   ]
+  },
+  "PonsV2LaunchDeployer": {
+   "ownership": "none (immutable wiring)",
+   "upgradeable": false,
+   "functions": [
+    {
+     "signature": "deployLaunch((address,address,address,address,(address,uint16,uint16,uint16,uint16),address,address,uint256,uint256,uint256,bool,uint256,uint256,bytes32,string,string,string,string,(string,string,string,string,string)))",
+     "access": "forge-factory",
+     "category": "launch",
+     "timelock": "n/a",
+     "emergency": false,
+     "monitoringEvents": [],
+     "note": "factory-only"
+    }
+   ]
+  }
+ }
+}
