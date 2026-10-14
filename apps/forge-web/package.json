@@ -23,6 +23,11 @@
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
     "test:fork": "vitest run --project fork",
+    "test:v4": "vitest run --project v4",
+    "test:v4:fork": "vitest run --project v4-fork",
+    "w05:genuine-v4": "tsx scripts/w05/genuine-v4.ts",
+    "w05:hook-mine": "tsx scripts/w05/hook-mine.ts",
+    "w05:deploy-plan": "tsx scripts/w05/deploy-plan.ts",
     "size:check": "tsx scripts/size-gate.ts"
   },
   "dependencies": {

@@ -22,9 +22,13 @@ export interface Sandbox {
   stop(): Promise<void>;
 }
 
-export async function startSandbox(extraEnv: Record<string, string> = {}): Promise<Sandbox> {
+export async function startSandbox(
+  extraEnv: Record<string, string> = {},
+  opts: { deploy?: (rpcUrl: string) => Promise<SandboxDeployment> } = {},
+): Promise<Sandbox> {
   const anvil = await startAnvil();
-  const deployment = await deploySandbox(anvil.url);
+  // W05: `opts.deploy` lets the genuine-V4 suite inject its own stack; the default (mock) path is unchanged.
+  const deployment = await (opts.deploy ?? ((u: string) => deploySandbox(u)))(anvil.url);
   const dir = mkdtempSync(path.join(tmpdir(), "forge-w03-"));
   const deploymentFile = path.join(dir, "deployment.json");
   writeFileSync(deploymentFile, JSON.stringify(deployment));

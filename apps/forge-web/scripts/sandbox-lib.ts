@@ -11,17 +11,16 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
-  encodeAbiParameters,
   getContractAddress,
   http,
   keccak256,
   concat,
-  numberToHex,
   type Address,
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { loadArtifact, loadDeployedSize } from "./artifacts";
+import { CREATE2_PROXY, hookInitCode, mineHookSalt } from "./w05/hook-mine-lib";
 
 /** Anvil's default dev mnemonic keys (public, test-only). */
 export const ANVIL_KEYS = [
@@ -67,11 +66,14 @@ export interface SandboxDeployment {
   poolManager: Address;
   positionManager: Address;
   permit2: Address;
+  /** W05: which Uniswap V4 legs the stack is wired to (default: the W02 mini mocks). */
+  v4Source?: "W02_MINI_MOCKS" | "GENUINE_UNISWAP_V4";
+  /** W05: CREATE2 evidence of the hook (deployer contract, salt, init-code hash). */
+  hookCreate2?: { deployer: Address; salt: Hex; initCodeHash: Hex };
   eip170: Array<{ contract: string; runtimeBytes: number; exceeds: boolean }>;
   launchConfig: { supply: string; curveFeeBps: string; phantomQuote: string; graduationThreshold: string; poolFee: number; tickSpacing: number };
 }
 
-const HOOK_FLAGS = 0x2044n; // beforeInitialize | afterSwap | afterSwapReturnDelta
 /** EIP-170 runtime code size limit. */
 export const EIP170_LIMIT = 24_576;
 
@@ -99,10 +101,42 @@ export function eip170Report() {
   return out;
 }
 
-export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: bigint } = {}): Promise<SandboxDeployment> {
+export interface DeploySandboxOptions {
+  snipeTaxStartBps?: bigint;
+  /**
+   * W05: wire the Forge stack to EXTERNAL (genuine) Uniswap V4 contracts
+   * instead of deploying the W02 mini mocks. Omitted = unchanged mock path.
+   */
+  v4?: { poolManager: Address; positionManager: Address; permit2: Address };
+  /** W05: CREATE2 the hook through the deterministic-deployment proxy (0x4e59…) instead of the test HookDeployer. */
+  hookVia?: "HookDeployer" | "create2-proxy";
+  /**
+   * W05 fork mode: chain ids (e.g. 4663) that are accepted ONLY when the RPC
+   * is a loopback Anvil whose anvil_nodeInfo reports a fork. The real
+   * Robinhood RPC can never pass this check.
+   */
+  allowLocalForkOf?: number[];
+}
+
+/** True only for an Anvil on a loopback address that reports it is a fork. */
+export async function isLocalAnvilFork(rpcUrl: string): Promise<boolean> {
+  const host = new URL(rpcUrl).hostname;
+  if (!["127.0.0.1", "localhost", "[::1]", "::1"].includes(host)) return false;
+  try {
+    const r = await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "anvil_nodeInfo", params: [] }) });
+    const j = (await r.json()) as { result?: { forkConfig?: { forkUrl?: string | null } } };
+    return typeof j.result?.forkConfig?.forkUrl === "string" && j.result.forkConfig.forkUrl.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function deploySandbox(rpcUrl: string, opts: DeploySandboxOptions = {}): Promise<SandboxDeployment> {
   const probe = createPublicClient({ transport: http(rpcUrl), pollingInterval: 100 });
   const chainId = await probe.getChainId();
-  if (chainId !== 31337 && chainId !== 1337) throw new Error(`Refusing to deploy the sandbox to chain ${chainId} (local dev chains only).`);
+  const localDev = chainId === 31337 || chainId === 1337;
+  const localFork = !localDev && (opts.allowLocalForkOf ?? []).includes(chainId) && (await isLocalAnvilFork(rpcUrl));
+  if (!localDev && !localFork) throw new Error(`Refusing to deploy the sandbox to chain ${chainId} (local dev chains only).`);
   const chain = defineChain({ id: chainId, name: "anvil", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } });
   const pub = createPublicClient({ chain, transport: http(rpcUrl), pollingInterval: 100 });
   const gov = createWalletClient({ chain, transport: http(rpcUrl), account: privateKeyToAccount(SANDBOX_ROLES.governance) });
@@ -123,9 +157,18 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
     if (r.status !== "success") throw new Error(`${functionName} failed`);
   };
 
-  const poolManager = await deploy("MiniPoolManagerW02");
-  const permit2 = await deploy("MockPermit2");
-  const positionManager = await deploy("MiniPositionManager", [poolManager, permit2]);
+  let poolManager: Address, permit2: Address, positionManager: Address;
+  if (opts.v4) {
+    for (const [k, a] of Object.entries(opts.v4)) {
+      const code = await pub.getCode({ address: a });
+      if (!code || code === "0x") throw new Error(`external V4 ${k} ${a} has no code`);
+    }
+    ({ poolManager, permit2, positionManager } = opts.v4);
+  } else {
+    poolManager = await deploy("MiniPoolManagerW02");
+    permit2 = await deploy("MockPermit2");
+    positionManager = await deploy("MiniPositionManager", [poolManager, permit2]);
+  }
   // W04: the CANONICAL PonsV2FeeEscrow (byte-identical to the deploy-time
   // source), not the W02 mock, so escrow events and claim semantics are real.
   const feeEscrow = await deploy("PonsV2FeeEscrow");
@@ -137,26 +180,29 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
   // signed by a separate attestor key (not the owner, not the treasury).
   const revenueAttestor = privateKeyToAccount(SANDBOX_ROLES.revenueAttestor).address;
   const revenueSplitter = await deploy("ForgeProtocolRevenueSplitter", [feeEscrow, gov.account.address, treasury, revenueAttestor]);
-  const hookDeployer = await deploy("HookDeployer");
-
   const hook = loadArtifact("PonsV2MemeHook");
-  const initCode = concat([
-    hook.bytecode,
-    encodeAbiParameters(
-      [{ type: "address" }, { type: "address" }, { type: "address" }, { type: "address" }],
-      [poolManager, feeEscrow, revenueSplitter, gov.account.address],
-    ),
-  ]);
+  const initCode = hookInitCode(hook.bytecode, { poolManager, feeEscrow, protocolFeeRecipient: revenueSplitter, owner: gov.account.address });
   const initHash = keccak256(initCode);
-  let salt = 0n;
-  for (;;) {
-    const addr = getContractAddress({ opcode: "CREATE2", from: hookDeployer, salt: numberToHex(salt, { size: 32 }), bytecodeHash: initHash });
-    if ((BigInt(addr) & 0x3fffn) === HOOK_FLAGS) break;
-    salt++;
+  let hookDeployer: Address;
+  if (opts.hookVia === "create2-proxy") {
+    hookDeployer = CREATE2_PROXY;
+    const code = await pub.getCode({ address: hookDeployer });
+    if (!code || code === "0x") throw new Error(`deterministic-deployment proxy ${CREATE2_PROXY} is absent on chain ${chainId}`);
+  } else {
+    hookDeployer = await deploy("HookDeployer");
   }
-  const hookSalt = numberToHex(salt, { size: 32 });
-  const memeHook = getContractAddress({ opcode: "CREATE2", from: hookDeployer, salt: hookSalt, bytecodeHash: initHash });
-  await send(hookDeployer, "HookDeployer", "deploy", [initCode, hookSalt]);
+  // Deterministic: salts are searched from 0 upward (scripts/w05/hook-mine-lib.ts).
+  const { salt: hookSalt, address: memeHook } = mineHookSalt(hookDeployer, initHash);
+  if (memeHook !== getContractAddress({ opcode: "CREATE2", from: hookDeployer, salt: hookSalt, bytecodeHash: initHash })) throw new Error("hook CREATE2 address mismatch");
+  if (opts.hookVia === "create2-proxy") {
+    const hash = await gov.sendTransaction({ to: hookDeployer, data: concat([hookSalt, initCode]) });
+    const r = await pub.waitForTransactionReceipt({ hash });
+    if (r.status !== "success") throw new Error("hook CREATE2 via the deterministic-deployment proxy failed");
+    const code = await pub.getCode({ address: memeHook });
+    if (!code || code === "0x") throw new Error("hook not deployed at the mined address");
+  } else {
+    await send(hookDeployer, "HookDeployer", "deploy", [initCode, hookSalt]);
+  }
 
   const buybackVault = await deploy("PonsV2BuybackVault", [gov.account.address, memeHook, feeEscrow]);
   const locker = await deploy("PonsV2LaunchLocker", [gov.account.address, positionManager]);
@@ -202,6 +248,8 @@ export async function deploySandbox(rpcUrl: string, opts: { snipeTaxStartBps?: b
     poolManager,
     positionManager,
     permit2,
+    v4Source: opts.v4 ? "GENUINE_UNISWAP_V4" : "W02_MINI_MOCKS",
+    hookCreate2: { deployer: hookDeployer, salt: hookSalt, initCodeHash: initHash },
     eip170: eip170Report(),
     launchConfig: {
       supply: launchConfig.supply.toString(),
