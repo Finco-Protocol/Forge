@@ -22,8 +22,12 @@
  * trustless proof. A faulty attestor can at worst let the splitter pull
  * third-party credits already sitting under its own escrow key; it cannot
  * mint, cannot reach creator funds and cannot withdraw. Production signing is
- * disabled (REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED=false): the only
- * custody is the local-test signer, which refuses every chain but 31337/1337.
+ * disabled (REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED=false and, since
+ * W05, PRODUCTION_SIGNING_ENABLED=false): custody is the local-test signer or
+ * a KMS signer, both refusing every chain but 31337/1337, and both reached
+ * only through the W05 signing-policy guard (docs/W05-SIGNER-CUSTODY.md).
+ * Incident note: revokeRevenueAttestor() does NOT invalidate headroom that is
+ * already authorized; the procedure must also call setPullsPaused(true).
  */
 import { hashTypedData, type Address, type Hex } from "viem";
 import { forgeProtocolRevenueSplitterAbi, ponsV2FeeEscrowAbi } from "@/shared/abis.generated";
@@ -95,6 +99,8 @@ export async function syncRevenueAttestations(
   if (!splitter || !escrow) return [];
   const signer = ctx.revenueAttestor;
   if (!signer) return [{ asset: null, status: "DISABLED", reason: "No revenue attestor key configured: no ceilings are signed and pulls fail closed." }];
+  const role = ctx.signers?.status("revenue");
+  if (role && !role.enabled) return [{ asset: null, status: "DISABLED", reason: `Revenue attestor signing is disabled: ${role.reason}` }];
   if (ctx.cfg.chainId === ROBINHOOD_CHAIN_ID && !REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED) {
     return [{ asset: null, status: "DISABLED", reason: "PRODUCTION_BLOCKED: production revenue attestation is disabled pending W05 custody approval." }];
   }
@@ -164,7 +170,13 @@ export async function syncRevenueAttestations(
     const digest = eligibleRevenueDigest(ctx.cfg.chainId, splitter, auth);
     const onchainDigest = await ctx.client.readContract({ ...sp, functionName: "eligibleRevenueDigest", args: [auth] });
     if (onchainDigest !== digest) throw new Error("EIP-712 parity failure: local and on-chain EligibleRevenue digests differ.");
-    const signature = await signer.signDigest(digest);
+    // W05: custody signs only through the signing-policy guard, which re-derives the digest from
+    // the typed data against the revenue role's allowlist (this splitter, this chain, EligibleRevenue).
+    const { signature, digest: guarded } = await signer.signTypedData(
+      { domain: { ...SPLITTER_EIP712_DOMAIN, chainId: ctx.cfg.chainId, verifyingContract: splitter }, types: ELIGIBLE_REVENUE_TYPES, primaryType: "EligibleRevenue", message: { ...auth } },
+      { requestedBy: "forge:revenue-attestor" },
+    );
+    if (guarded !== digest) throw new Error("EIP-712 parity failure: custody guard digest differs.");
     const txHash = await ctx.relayer.writeContract({ ...sp, functionName: "authorizeEligibleRevenue", args: [auth, signature] });
     const receipt = await ctx.client.waitForTransactionReceipt({ hash: txHash });
     if (receipt.status !== "success") throw new Error(`authorizeEligibleRevenue reverted (${txHash}).`);

@@ -9,6 +9,13 @@ export const PRODUCTION_BLOCKED = true;
 export const FORGE_FEE_POLICY_AUTHORITY_UNPROVEN = true;
 /** W04 Correction A: no production revenue-attestor custody exists; W05 must approve one. */
 export const REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED = false;
+/**
+ * W05: global custody gate. While false, NO signer (local-test or KMS/HSM)
+ * signs for chain 4663 or any chain other than the local dev chains, and the
+ * signing-policy guard refuses any EIP-712 domain outside them. Turning this
+ * on is a separate, reviewed change (docs/W05-SIGNER-CUSTODY.md §9).
+ */
+export const PRODUCTION_SIGNING_ENABLED = false;
 export const ROBINHOOD_CHAIN_ID = 4663;
 export const ORIGINAL_PONS_FACTORY = getAddress(robinhoodManifest.originalPonsFactory.address);
 
@@ -17,6 +24,11 @@ const bool = (def: boolean) =>
     .enum(["true", "false", "1", "0"])
     .optional()
     .transform((v) => (v === undefined ? def : v === "true" || v === "1"));
+
+const address = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{40}$/, "expected a 20-byte hex address")
+  .transform((v) => getAddress(v));
 
 const hexKey = z.string().regex(/^0x[0-9a-fA-F]{64}$/, "expected a 32-byte hex private key");
 
@@ -46,7 +58,9 @@ const EnvSchema = z.object({
   FORGE_BINDING_HORIZON_SECONDS: z.coerce.number().int().positive().max(30 * 24 * 3600).default(7 * 24 * 3600),
   FORGE_ATTESTATION_TTL_SECONDS: z.coerce.number().int().positive().max(3 * 24 * 3600).default(30 * 60),
   FORGE_CONSENT_TTL_SECONDS: z.coerce.number().int().positive().max(24 * 3600).default(20 * 60),
-  FORGE_SIGNER_PROVIDER: z.enum(["local-test"]).default("local-test"),
+  // W05: "kms" requires an injected KMS backend (no cloud SDK is bundled) and
+  // is refused outside local dev chains while PRODUCTION_SIGNING_ENABLED=false.
+  FORGE_SIGNER_PROVIDER: z.enum(["local-test", "kms"]).default("local-test"),
   FORGE_AUTHORITY_PRIVATE_KEY: hexKey.optional(),
   FORGE_EVIDENCE_PRIVATE_KEY: hexKey.optional(),
   FORGE_RELAYER_PRIVATE_KEY: hexKey.optional(),
@@ -55,6 +69,24 @@ const EnvSchema = z.object({
   // closed (no verified headroom). local-test custody only (chain 31337/1337).
   FORGE_REVENUE_ATTESTOR_PRIVATE_KEY: hexKey.optional(),
   FORGE_SIGNING_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(30),
+  // W05 signer registry (docs/W05-SIGNER-CUSTODY.md). Key ids are references, never key material.
+  FORGE_AUTHORITY_KMS_KEY_ID: z.string().min(1).optional(),
+  FORGE_EVIDENCE_KMS_KEY_ID: z.string().min(1).optional(),
+  FORGE_REVENUE_ATTESTOR_KMS_KEY_ID: z.string().min(1).optional(),
+  FORGE_AUTHORITY_EXPECTED_ADDRESS: address.optional(),
+  FORGE_EVIDENCE_EXPECTED_ADDRESS: address.optional(),
+  FORGE_REVENUE_ATTESTOR_EXPECTED_ADDRESS: address.optional(),
+  FORGE_RELAYER_EXPECTED_ADDRESS: address.optional(),
+  /** Comma-separated roles (authority,evidence,revenue) or "all": refused before any custody call. */
+  FORGE_SIGNER_KILL_SWITCH: z
+    .string()
+    .optional()
+    .transform((v, c) => {
+      const roles = (v ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+      for (const r of roles) if (!["authority", "evidence", "revenue", "all"].includes(r)) c.addIssue({ code: "custom", message: `unknown signer role ${r}` });
+      return new Set(roles);
+    }),
+  FORGE_SIGNER_ROLE_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(1_000),
   DATABASE_URL: z.string().optional(),
   FORGE_PGLITE_DIR: z.string().optional(),
   FORGE_EMBEDDED_WORKER: bool(false),
@@ -119,6 +151,24 @@ export function buildConfig(env: Record<string, string | undefined>) {
   if (e.FORGE_NETWORK === "sandbox" && e.FORGE_CHAIN_ID === ROBINHOOD_CHAIN_ID) {
     throw new Error("Sandbox mode may not target chain 4663.");
   }
+  if (e.FORGE_SIGNER_PROVIDER === "kms") {
+    // Fail early; the KMS signer itself refuses again at construction and on every sign.
+    if (!PRODUCTION_SIGNING_ENABLED && e.FORGE_CHAIN_ID !== 31337 && e.FORGE_CHAIN_ID !== 1337) {
+      throw new Error(`PRODUCTION_BLOCKED: FORGE_SIGNER_PROVIDER=kms is refused for chain ${e.FORGE_CHAIN_ID} (PRODUCTION_SIGNING_ENABLED=false).`);
+    }
+    if (e.FORGE_AUTHORITY_PRIVATE_KEY || e.FORGE_EVIDENCE_PRIVATE_KEY || e.FORGE_REVENUE_ATTESTOR_PRIVATE_KEY) {
+      throw new Error("FORGE_SIGNER_PROVIDER=kms: in-process authority/evidence/revenue private keys must not be configured.");
+    }
+    const pairs: [string, string | undefined, string | undefined, boolean][] = [
+      ["AUTHORITY", e.FORGE_AUTHORITY_KMS_KEY_ID, e.FORGE_AUTHORITY_EXPECTED_ADDRESS, true],
+      ["EVIDENCE", e.FORGE_EVIDENCE_KMS_KEY_ID, e.FORGE_EVIDENCE_EXPECTED_ADDRESS, true],
+      ["REVENUE_ATTESTOR", e.FORGE_REVENUE_ATTESTOR_KMS_KEY_ID, e.FORGE_REVENUE_ATTESTOR_EXPECTED_ADDRESS, false],
+    ];
+    for (const [name, keyId, expected, required] of pairs) {
+      if (required && !keyId) throw new Error(`FORGE_SIGNER_PROVIDER=kms requires FORGE_${name}_KMS_KEY_ID.`);
+      if (keyId && !expected) throw new Error(`FORGE_${name}_KMS_KEY_ID requires FORGE_${name}_EXPECTED_ADDRESS (the address is verified against custody at startup).`);
+    }
+  }
   const deploymentFile = e.FORGE_DEPLOYMENT_FILE ?? path.resolve(process.cwd(), ".sandbox", "deployment.json");
   const addresses = readDeployment(deploymentFile);
   if (addresses.factory === ORIGINAL_PONS_FACTORY) throw new Error("The original PONS factory is not a Forge factory.");
@@ -162,6 +212,15 @@ export function buildConfig(env: Record<string, string | undefined>) {
       evidenceKey: e.FORGE_EVIDENCE_PRIVATE_KEY,
       relayerKey: e.FORGE_RELAYER_PRIVATE_KEY,
       revenueAttestorKey: e.FORGE_REVENUE_ATTESTOR_PRIVATE_KEY,
+      kmsKeyIds: { authority: e.FORGE_AUTHORITY_KMS_KEY_ID, evidence: e.FORGE_EVIDENCE_KMS_KEY_ID, revenue: e.FORGE_REVENUE_ATTESTOR_KMS_KEY_ID },
+      expected: {
+        authority: e.FORGE_AUTHORITY_EXPECTED_ADDRESS,
+        evidence: e.FORGE_EVIDENCE_EXPECTED_ADDRESS,
+        revenue: e.FORGE_REVENUE_ATTESTOR_EXPECTED_ADDRESS,
+        relayer: e.FORGE_RELAYER_EXPECTED_ADDRESS,
+      },
+      killSwitch: e.FORGE_SIGNER_KILL_SWITCH,
+      roleRateLimitPerHour: e.FORGE_SIGNER_ROLE_RATE_LIMIT_PER_HOUR,
     },
     db: { url: e.DATABASE_URL, pgliteDir: e.FORGE_PGLITE_DIR },
     embeddedWorker: e.FORGE_EMBEDDED_WORKER,

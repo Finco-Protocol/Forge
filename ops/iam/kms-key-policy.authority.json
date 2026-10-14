@@ -1,0 +1,117 @@
+{
+  "Version": "2012-10-17",
+  "Id": "forge-authority-signing-key",
+  "Statement": [
+    {
+      "Sid": "BreakGlassAdministrationWithMfaNoCryptoUse",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/forge-kms-break-glass-admin"
+      },
+      "Action": [
+        "kms:DescribeKey",
+        "kms:GetKeyPolicy",
+        "kms:PutKeyPolicy",
+        "kms:GetPublicKey",
+        "kms:ListResourceTags",
+        "kms:TagResource",
+        "kms:UntagResource",
+        "kms:EnableKey",
+        "kms:DisableKey",
+        "kms:CancelKeyDeletion"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "Bool": {
+          "aws:MultiFactorAuthPresent": "true"
+        }
+      }
+    },
+    {
+      "Sid": "SignerRoleSignsDigestsOnly",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/forge-eligibility-authority-signer"
+      },
+      "Action": "kms:Sign",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:SigningAlgorithm": "ECDSA_SHA_256",
+          "kms:MessageType": "DIGEST"
+        }
+      }
+    },
+    {
+      "Sid": "SignerRoleReadsPublicKey",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/forge-eligibility-authority-signer"
+      },
+      "Action": [
+        "kms:GetPublicKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenySignToEveryOtherPrincipal",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "kms:Sign",
+      "Resource": "*",
+      "Condition": {
+        "ArnNotEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/forge-eligibility-authority-signer"
+        }
+      }
+    },
+    {
+      "Sid": "DenyNonDigestSigning",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "kms:Sign",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "kms:MessageType": "DIGEST"
+        }
+      }
+    },
+    {
+      "Sid": "DenyNonEcdsaSha256Signing",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "kms:Sign",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "kms:SigningAlgorithm": "ECDSA_SHA_256"
+        }
+      }
+    },
+    {
+      "Sid": "DenyNonSigningUseAndDeletionToEveryone",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "kms:Decrypt",
+        "kms:Encrypt",
+        "kms:ReEncryptFrom",
+        "kms:ReEncryptTo",
+        "kms:GenerateDataKey",
+        "kms:GenerateDataKeyPair",
+        "kms:GenerateDataKeyPairWithoutPlaintext",
+        "kms:GenerateDataKeyWithoutPlaintext",
+        "kms:GenerateMac",
+        "kms:CreateGrant",
+        "kms:ImportKeyMaterial",
+        "kms:DeleteImportedKeyMaterial",
+        "kms:ScheduleKeyDeletion",
+        "kms:ReplicateKey",
+        "kms:UpdatePrimaryRegion"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
