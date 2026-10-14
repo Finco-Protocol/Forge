@@ -44,11 +44,27 @@ describe("Robinhood Chain 4663 — Uniswap V4 wiring (read-only)", () => {
     expect(getAddress(await client!.readContract({ address: factory, abi, functionName: "poolManager" }))).toBe(getAddress(manifest.uniswapV4.poolManager.address));
   });
 
-  it("applies the standard EIP-170 code-size limit (24,576 B), probed read-only via eth_estimateGas", async () => {
-    // Init code returning N zero bytes: PUSH2 N, PUSH1 0, RETURN. Nothing is broadcast.
-    const at = await client!.estimateGas({ account: "0x000000000000000000000000000000000000dEaD", data: "0x6160006000f3" });
-    expect(at > 0n).toBe(true);
-    await expect(client!.estimateGas({ account: "0x000000000000000000000000000000000000dEaD", data: "0x6160016000f3" })).rejects.toThrow();
+  it("measures the chain's contract code-size limit read-only (eth_estimateGas) — no chain-specific exception is ASSUMED", async () => {
+    // Init code returning N zero bytes: PUSH3 N, PUSH1 0, RETURN. Nothing is broadcast.
+    const initFor = (n: number) => `0x62${n.toString(16).padStart(6, "0")}6000f3` as const;
+    const accepts = (n: number) =>
+      client!.estimateGas({ account: "0x000000000000000000000000000000000000dEaD", data: initFor(n) }).then(
+        () => true,
+        () => false,
+      );
+    // The Forge factory is gated at the STANDARD limit regardless (pnpm size:check); the chain must accept that.
+    expect(await accepts(24_576)).toBe(true);
+    // Binary-search the largest accepted runtime up to 128 KiB (bounded by the RPC's gas cap; reported as observed).
+    let lo = 24_576;
+    let hi = 131_072;
+    if (await accepts(hi)) lo = hi;
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (await accepts(mid)) lo = mid;
+      else hi = mid;
+    }
+    console.log(`ROBINHOOD_4663_OBSERVED_MAX_RUNTIME_BYTES=${lo} (standard EIP-170 = 24576)`);
+    expect(lo).toBeGreaterThanOrEqual(24_576);
   });
 
   it("no Forge factory is configured for production (PRODUCTION_BLOCKED)", () => {

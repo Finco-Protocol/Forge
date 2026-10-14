@@ -27,7 +27,7 @@ After: eligibility *verification* moved into `ForgeLaunchAuthorizer.requireAutho
 
 - All W03 integration and browser tests now run on a **standard** Anvil with EIP-170 enforced (an explicit test proves a 24,577 B runtime is rejected there). `--disable-code-size-limit` is no longer used anywhere.
 - CI gate `pnpm size:check` fails on any Forge runtime > 24,576 B or factory margin < 64 B.
-- Robinhood Chain 4663's limit is probed read-only in CI (`eth_estimateGas` of a 24,576 B vs 24,577 B creation); see the PR's exact-head CI for the observed result. No chain-specific exception is assumed.
+- **Robinhood Chain 4663 does NOT apply the standard 24,576 B limit** on its public RPC: `eth_estimateGas` accepted a 24,577 B creation (CI, 2026-10-14). The read-only CI job binary-searches and logs the largest accepted runtime (`ROBINHOOD_4663_OBSERVED_MAX_RUNTIME_BYTES`). This is RPC-simulation evidence only, not the chain's configured `MaxCodeSize`; Forge does **not** rely on it — the factory is gated at the standard limit so it deploys on any EVM chain.
 - The 106 B margin is small. Further measured levers if future changes need room: optimizer runs 50 (−106 B), moving `previewLaunchEconomics` to a lens contract (−~280 B).
 
 ### Evidence classes (do not conflate)
@@ -38,7 +38,7 @@ After: eligibility *verification* moved into `ForgeLaunchAuthorizer.requireAutho
 | Forge-owned stack compiles, W01/W02 Foundry suites | passing (CI) |
 | Functional sandbox (real W02 contracts on Anvil, mocked GitHub) | passing: acceptance 1–15, all negatives, Playwright |
 | Standard-EVM deployability (EIP-170) | **proven on standard Anvil**; CI size gate |
-| Robinhood 4663 read-only (V4 wiring, code-size limit probe) | CI job against the live public RPC |
+| Robinhood 4663 read-only (V4 wiring, code-size limit probe) | CI job against the live public RPC; observed limit above 24,576 B (not relied upon) |
 | Production Uniswap V4 acceptance on 4663 | **NOT done** — no Forge stack deployed, no real-money pools |
 | External security audit | **NOT done** — W04 |
 
