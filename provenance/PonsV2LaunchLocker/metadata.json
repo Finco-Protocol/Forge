@@ -1,0 +1,619 @@
+{
+   "compiler" : {
+      "version" : "0.8.26+commit.8a97fa7a"
+   },
+   "language" : "Solidity",
+   "output" : {
+      "abi" : [
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "initialOwner",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "address",
+                  "name" : "positionManager_",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "nonpayable",
+            "type" : "constructor"
+         },
+         {
+            "inputs" : [],
+            "name" : "AlreadyInitialized",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "NotFactory",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "NotPositionManager",
+            "type" : "error"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "owner",
+                  "type" : "address"
+               }
+            ],
+            "name" : "OwnableInvalidOwner",
+            "type" : "error"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "account",
+                  "type" : "address"
+               }
+            ],
+            "name" : "OwnableUnauthorizedAccount",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "OwnershipCannotBeRenounced",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "PositionAlreadyLocked",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "PositionNotHeld",
+            "type" : "error"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "SafeERC20FailedOperation",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "ZeroAddress",
+            "type" : "error"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : false,
+                  "internalType" : "address",
+                  "name" : "factory",
+                  "type" : "address"
+               }
+            ],
+            "name" : "FactorySet",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "previousOwner",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "newOwner",
+                  "type" : "address"
+               }
+            ],
+            "name" : "OwnershipTransferStarted",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "previousOwner",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "newOwner",
+                  "type" : "address"
+               }
+            ],
+            "name" : "OwnershipTransferred",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "uint256",
+                  "name" : "tokenId",
+                  "type" : "uint256"
+               }
+            ],
+            "name" : "PositionLocked",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : false,
+                  "internalType" : "uint256",
+                  "name" : "amount",
+                  "type" : "uint256"
+               }
+            ],
+            "name" : "TokenSupplyLocked",
+            "type" : "event"
+         },
+         {
+            "inputs" : [],
+            "name" : "acceptOwnership",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "factory",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "isLocked",
+            "outputs" : [
+               {
+                  "internalType" : "bool",
+                  "name" : "",
+                  "type" : "bool"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "uint256",
+                  "name" : "tokenId",
+                  "type" : "uint256"
+               }
+            ],
+            "name" : "lockPosition",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "uint256",
+                  "name" : "amount",
+                  "type" : "uint256"
+               }
+            ],
+            "name" : "lockTokenSupply",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "lockedPositions",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "tokenId",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "lockedTokenSupply",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "amount",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "uint256",
+                  "name" : "",
+                  "type" : "uint256"
+               },
+               {
+                  "internalType" : "bytes",
+                  "name" : "",
+                  "type" : "bytes"
+               }
+            ],
+            "name" : "onERC721Received",
+            "outputs" : [
+               {
+                  "internalType" : "bytes4",
+                  "name" : "",
+                  "type" : "bytes4"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "owner",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "pendingOwner",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "positionManager",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "renounceOwnership",
+            "outputs" : [],
+            "stateMutability" : "pure",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "factory_",
+                  "type" : "address"
+               }
+            ],
+            "name" : "setFactory",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "newOwner",
+                  "type" : "address"
+               }
+            ],
+            "name" : "transferOwnership",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         }
+      ],
+      "devdoc" : {
+         "errors" : {
+            "OwnableInvalidOwner(address)" : [
+               {
+                  "details" : "The owner is not a valid owner account. (eg. `address(0)`)"
+               }
+            ],
+            "OwnableUnauthorizedAccount(address)" : [
+               {
+                  "details" : "The caller account is not authorized to perform an operation."
+               }
+            ],
+            "SafeERC20FailedOperation(address)" : [
+               {
+                  "details" : "An operation with an ERC-20 token failed."
+               }
+            ]
+         },
+         "kind" : "dev",
+         "methods" : {
+            "acceptOwnership()" : {
+               "details" : "The new owner accepts the ownership transfer."
+            },
+            "constructor" : {
+               "params" : {
+                  "initialOwner" : "Administrative owner; only used to wire the factory once.",
+                  "positionManager_" : "The canonical Uniswap V4 PositionManager for this chain."
+               }
+            },
+            "lockPosition(address,uint256)" : {
+               "details" : "Called once per launch by the factory, immediately after minting the full-range position directly to this locker's address."
+            },
+            "onERC721Received(address,address,uint256,bytes)" : {
+               "details" : "Not part of the graduation path. Graduation names this locker as the `MINT_POSITION` owner, and the PositionManager mints with a plain `_mint`, which fires no receiver callback. Custody is established by the `ownerOf` check in `lockPosition` instead. This exists so the locker still behaves correctly under an explicit `safeTransferFrom`, and so such a transfer can only ever originate from the canonical PositionManager."
+            },
+            "owner()" : {
+               "details" : "Returns the address of the current owner."
+            },
+            "pendingOwner()" : {
+               "details" : "Returns the address of the pending owner."
+            },
+            "transferOwnership(address)" : {
+               "details" : "Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is one. Can only be called by the current owner. Setting `newOwner` to the zero address is allowed; this can be used to cancel an initiated ownership transfer."
+            }
+         },
+         "title" : "RobinFunFiV2LaunchLocker",
+         "version" : 1
+      },
+      "userdoc" : {
+         "kind" : "user",
+         "methods" : {
+            "isLocked(address)" : {
+               "notice" : "Returns whether a launch's position has been locked here."
+            },
+            "lockPosition(address,uint256)" : {
+               "notice" : "Registers and verifies permanent custody of a graduated position."
+            },
+            "lockTokenSupply(address,uint256)" : {
+               "notice" : "Permanently locks the virtual-reserve token remainder that cannot enter the graduated pool without lowering its opening price."
+            },
+            "onERC721Received(address,address,uint256,bytes)" : {
+               "notice" : "Rejects safe transfers of anything but a canonical position NFT."
+            },
+            "renounceOwnership()" : {
+               "notice" : "Permanently disabled. Ownership here exists only to perform the one-time factory wiring, and renouncing before that wiring would leave the locker unable to ever accept a graduated position."
+            },
+            "setFactory(address)" : {
+               "notice" : "One-time wiring of the v2 factory, set after both are deployed."
+            }
+         },
+         "notice" : "Permanently holds the graduated Uniswap V4 position NFT for every robinfun v2 launch. Unlike v1's locker, there is no `collectFees()` here: fee collection and distribution belong entirely to RobinFunFiV2MemeHook and RobinFunFiV2FeeEscrow, since a V4 position accrues fees inside the singleton PoolManager rather than on the NFT itself. This contract exposes no withdrawal or arbitrary-call function, so locked liquidity can never be removed by an administrator.",
+         "version" : 1
+      }
+   },
+   "settings" : {
+      "compilationTarget" : {
+         "src/v2/RobinFunFiV2LaunchLocker.sol" : "RobinFunFiV2LaunchLocker"
+      },
+      "evmVersion" : "cancun",
+      "libraries" : {},
+      "metadata" : {
+         "bytecodeHash" : "ipfs"
+      },
+      "optimizer" : {
+         "enabled" : true,
+         "runs" : 200
+      },
+      "remappings" : [
+         ":@openzeppelin/=lib/openzeppelin-contracts/",
+         ":@uniswap/v4-core/=lib/v4-core/",
+         ":@uniswap/v4-hooks-public/=lib/v4-hooks-public/",
+         ":@uniswap/v4-periphery/=lib/v4-periphery/",
+         ":erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
+         ":forge-std/=lib/forge-std/src/",
+         ":halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
+         ":openzeppelin-contracts/=lib/openzeppelin-contracts/",
+         ":permit2/=lib/v4-periphery/lib/permit2/",
+         ":v4-core/=lib/v4-core/src/",
+         ":v4-hooks-public/=lib/v4-hooks-public/src/",
+         ":v4-periphery/=lib/v4-periphery/src/"
+      ],
+      "viaIR" : true
+   },
+   "sources" : {
+      "lib/openzeppelin-contracts/contracts/access/Ownable.sol" : {
+         "keccak256" : "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://8ed324d3920bb545059d66ab97d43e43ee85fd3bd52e03e401f020afb0b120f6",
+            "dweb:/ipfs/QmfEckWLmZkDDcoWrkEvMWhms66xwTLff9DDhegYpvHo1a"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/access/Ownable2Step.sol" : {
+         "keccak256" : "0xdcad8898fda432696597752e8ec361b87d85c82cb258115427af006dacf7128c",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://e2c9d517f0c136d54bd00cd57959d25681d4d6273f5bbbc263afe228303772f0",
+            "dweb:/ipfs/QmReNFjXBiufByiAAzfSQ2SM5r3qeUErn46BmN3yVRvrek"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/interfaces/IERC1363.sol" : {
+         "keccak256" : "0xd5ea07362ab630a6a3dee4285a74cf2377044ca2e4be472755ad64d7c5d4b69d",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://da5e832b40fc5c3145d3781e2e5fa60ac2052c9d08af7e300dc8ab80c4343100",
+            "dweb:/ipfs/QmTzf7N5ZUdh5raqtzbM11yexiUoLC9z3Ws632MCuycq1d"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/interfaces/IERC165.sol" : {
+         "keccak256" : "0x0afcb7e740d1537b252cb2676f600465ce6938398569f09ba1b9ca240dde2dfc",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://1c299900ac4ec268d4570ecef0d697a3013cd11a6eb74e295ee3fbc945056037",
+            "dweb:/ipfs/Qmab9owJoxcA7vJT5XNayCMaUR1qxqj1NDzzisduwaJMcZ"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol" : {
+         "keccak256" : "0x1a6221315ce0307746c2c4827c125d821ee796c74a676787762f4778671d4f44",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://1bb2332a7ee26dd0b0de9b7fe266749f54820c99ab6a3bcb6f7e6b751d47ee2d",
+            "dweb:/ipfs/QmcRWpaBeCYkhy68PR3B4AgD7asuQk7PwkWxrvJbZcikLF"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol" : {
+         "keccak256" : "0xd735962e3d6660884153ba8a972b5f100dde4c482f2ff1c525ba7fdefb154cbd",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://5a264d17b093f585844b0d977e9f60555b8c8d6513b304fde863cdf652a0d336",
+            "dweb:/ipfs/QmWXfaJisjVnrjTUjZGryZpMob9wKivvtbodLS3PTc1ttq"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol" : {
+         "keccak256" : "0x74ed01eb66b923d0d0cfe3be84604ac04b76482a55f9dd655e1ef4d367f95bc2",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://5282825a626cfe924e504274b864a652b0023591fa66f06a067b25b51ba9b303",
+            "dweb:/ipfs/QmeCfPykghhMc81VJTrHTC7sF6CRvaA1FXVq2pJhwYp1dV"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol" : {
+         "keccak256" : "0xd6fa4088198f04eef10c5bce8a2f4d60554b7ec4b987f684393c01bf79b94d9f",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://f95ee0bbd4dd3ac730d066ba3e785ded4565e890dbec2fa7d3b9fe3bad9d0d6e",
+            "dweb:/ipfs/QmSLr6bHkPFWT7ntj34jmwfyskpwo97T9jZUrk5sz3sdtR"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol" : {
+         "keccak256" : "0x377051c0c17a28038c32f58d76a42817eb3b24f2b4c6a2e788a9544e856d738d",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://c5365fead4a20b84662284c97c07d707c67f5bc9e07b371980aba8c3c6e83661",
+            "dweb:/ipfs/QmYrYoLPEADtXoCu9ZBnwkXdNB9D9FPHuhS9pWaQW4nYx5"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol" : {
+         "keccak256" : "0xf78f05f3b8c9f75570e85300d7b4600d7f6f6a198449273f31d44c1641adb46f",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://e28b872613b45e0e801d4995aa4380be2531147bfe2d85c1d6275f1de514fba3",
+            "dweb:/ipfs/QmeeFcfShHYaS3BdgVj78nxR28ZaVUwbvr66ud8bT6kzw9"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/utils/Context.sol" : {
+         "keccak256" : "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12",
+            "dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
+         ]
+      },
+      "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol" : {
+         "keccak256" : "0x8891738ffe910f0cf2da09566928589bf5d63f4524dd734fd9cedbac3274dd5c",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://971f954442df5c2ef5b5ebf1eb245d7105d9fbacc7386ee5c796df1d45b21617",
+            "dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
+         ]
+      },
+      "src/v2/RobinFunFiV2LaunchLocker.sol" : {
+         "keccak256" : "0xc3c9e1d54b2f3db6763fbb0346375d22204cdd7b1a4ccfcb5bf9601c808ad362",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://353f3d385b9e1b21d49549133be54be1f0fae25b33e9b8b39b94b9fce87a21e4",
+            "dweb:/ipfs/QmcxyTHfd9S6F1uvHYUtnuPxEhXLBt92KbHg6zK6qXWMKC"
+         ]
+      },
+      "src/v2/interfaces/ILaunchpadV2.sol" : {
+         "keccak256" : "0x634dd0fcdee89702ed8a5e5a3f57e2ef3bc9192e047aff7b417c5eb0387b70c2",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://3a08548eb0032a445f8da2637b297121a62ec398ed7591126b3d37adc19263c8",
+            "dweb:/ipfs/Qmd8bJtPEZPjVjCMq46EyZCteh3yEd7AzD8adKivDkFGWG"
+         ]
+      }
+   },
+   "version" : 1
+}

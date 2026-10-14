@@ -10,3 +10,7 @@ canary.log
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# W02 local artifacts
+.w02-recovery/*-api.json
+broadcast/

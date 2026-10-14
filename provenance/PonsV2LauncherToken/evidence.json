@@ -1,0 +1,7 @@
+{
+   "address" : null,
+   "chainId" : 4663,
+   "classification" : "SOURCE_PROVEN_ONLY",
+   "name" : "PonsV2LauncherToken",
+   "note" : "Per-launch CREATE2 deployment (no fixed address). Source rides in the PonsV2LaunchFactory exact_match compile set; no standalone on-chain instance exists to byte-compare. NOT RUNTIME-PARITY-PROVEN."
+}

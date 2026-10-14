@@ -1,0 +1,173 @@
+name: W02 Protocol Core
+
+# Exact-head CI for the Forge-owned W02 stack. All gates REQUIRED; no
+# continue-on-error, no || true.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: v1.8.5
+
+jobs:
+  build-forge-stack:
+    name: forge build (deployed + forge profiles)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge build --profile deployed
+      - run: forge build --profile forge
+
+  forge-authz-tests:
+    name: M-ELIG adversarial authorization tests (17)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge test --profile forge --match-contract ForgeLaunchAuthTest -vvv
+
+  forge-lifecycle-tests:
+    name: full lifecycle + snipe tax E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge test --profile forge --match-contract "ForgeLifecycleTest|ForgeSnipeTaxTest" -vvv
+
+  w01-regression:
+    name: W01 regression (87 tests, testable profile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge test --profile testable -vvv
+
+  v1-build:
+    name: forge build (V1 generation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge build --profile v1
+
+  gates:
+    name: formatter + lint + classifier + vendor gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - name: forge fmt --check (Forge-authored trees, required)
+        run: forge fmt --check test-forge
+      - name: Lint gate parser regression tests (L1-L9)
+        run: bash scripts/test-lint-gate.sh
+      - name: Lint Forge-authored test code (strict parser, required zero)
+        # PR #1's fail-closed parser (scripts/check-test-lint.pl) - NOT text
+        # grep. Malformed output or a parser failure exits nonzero.
+        run: |
+          set -euo pipefail
+          forge lint --profile forge test-forge --json > w02-lint.json
+          perl scripts/check-test-lint.pl w02-lint.json
+      - name: Security lint gate parser regression tests (S1-S16)
+        run: bash scripts/test-security-lint-gate.sh
+      - name: Lint newly authored security contracts (strict parser; pinned advisories only)
+        # The Forge-authored eligibility stack. The COMPLETE `forge lint`
+        # JSON is parsed by scripts/check-security-lint.pl - no regex/grep
+        # prefilter. It fails on any error-level finding, malformed output,
+        # an unexpected warning, or a stale / count-mismatched pin, and
+        # reports every approved advisory finding pinned (with rationale)
+        # in scripts/security-lint-baseline.tsv. stderr is kept out of the
+        # JSON file; a forge lint invocation failure fails the step.
+        run: |
+          set -euo pipefail
+          forge lint --profile forge contractsV2-forge/src/v2/forge --json \
+            > forge-security-lint.json 2> forge-security-lint.stderr.log
+          perl scripts/check-security-lint.pl forge-security-lint.json \
+            scripts/security-lint-baseline.tsv | tee forge-security-lint.report.txt
+      - name: Lint recovered PONS sources (advisory baseline, reported)
+        # Advisory only (sources are byte-identical to the deploy-time tree;
+        # see docs/W02-SOURCE-RECOVERY.md). Counted by parsing the JSON
+        # diagnostics' primary-span file names, not by text grep; the
+        # Forge-authored forge/ subtree (gated above) is excluded by path.
+        if: always()
+        run: |
+          set -uo pipefail
+          forge lint --profile forge contractsV2-forge/src/v2 --json \
+            > pons-lint-all.json 2> pons-lint.stderr.log || echo "::warning::forge lint exited nonzero on recovered PONS sources (advisory)"
+          perl -MJSON::PP -e '
+            my ($n, $bad) = (0, 0);
+            open my $fh, "<", $ARGV[0] or die "open: $!";
+            open my $out, ">", $ARGV[1] or die "open: $!";
+            while (my $l = <$fh>) {
+              next if $l =~ /^\s*$/;
+              my $d = eval { JSON::PP->new->decode($l) };
+              if (!$d || ref $d ne "HASH") { $bad++; next; }
+              my ($sp) = grep { $_->{is_primary} } @{ $d->{spans} || [] };
+              my $f = $sp ? $sp->{file_name} : "";
+              next if index($f, "contractsV2-forge/src/v2/forge/") == 0;
+              $n++; print $out $l;
+            }
+            print "::notice::inherited upstream lint baseline: $n finding(s), unparseable lines: $bad (advisory; sources byte-identical to deploy-time - see docs/W02-SOURCE-RECOVERY.md)\n";
+          ' pons-lint-all.json pons-lint-baseline.json
+      - name: Upload lint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: w02-lint-evidence
+          path: |
+            w02-lint.json
+            forge-security-lint.json
+            forge-security-lint.stderr.log
+            forge-security-lint.report.txt
+            pons-lint-all.json
+            pons-lint-baseline.json
+            pons-lint.stderr.log
+          if-no-files-found: error
+
+      - name: Canary classifier regression tests (fixtures A–G)
+        run: bash scripts/test-canary-classifier.sh
+      - name: Vendor checker negative tests (V1–V10)
+        run: bash scripts/test-vendor-checker.sh
+      - name: Source parity gate (recompile + byte-parity vs on-chain, fail-closed)
+        # Recompiles every deployed contract from the committed std-json
+        # inputs with the pinned solc 0.8.35 (checksum-verified) and classifies
+        # the result against the recorded on-chain runtime code. Any missing
+        # manifest artifact, source drift, or unexpected bytecode difference
+        # fails the job — there is no silent skip. See docs/W02-SOURCE-RECOVERY.md.
+        run: bash provenance/verify-parity.sh
+      - name: Source parity gate negative tests (N0, S11a-c, S12a-d)
+        # Proves the gate actually fails closed: deleted runtime hex, deleted
+        # evidence dir, deleted source, modified on-chain hex, modified
+        # std-json input, mutated classification, and manifest drift are all
+        # expected to be caught.
+        run: bash scripts/test-parity-gate.sh

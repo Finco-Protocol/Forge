@@ -1,0 +1,14 @@
+{
+   "address" : "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952",
+   "chainId" : 4663,
+   "creationMatch" : "match",
+   "deployer" : "0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36",
+   "deploymentTx" : "0x7b2f3e9dee1d150521161ee9fd071659aec18af8f07e5f63c6c53b28c315f47b",
+   "expectedClassification" : "IMMUTABLE_PATCHED",
+   "matchId" : "46819469",
+   "name" : "PonsV2LaunchLocker",
+   "note" : "Verified Sourcify match tier. std-json-input retained LOCALLY but excluded from the tree-integrity union: the deploy-time package retains pre-rename RobinFunFiV2 naming; the SAME bytecode is verified via the PonsV2LaunchFactory exact/match set which includes src/v2/PonsV2LaunchLocker.sol.",
+   "runtimeMatch" : "match",
+   "sourcifyTier" : "match",
+   "verifiedAt" : "2026-08-25T18:20:24Z"
+}

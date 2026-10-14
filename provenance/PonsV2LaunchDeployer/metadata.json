@@ -1,0 +1,733 @@
+{
+   "compiler" : {
+      "version" : "0.8.35+commit.47b9dedd"
+   },
+   "language" : "Solidity",
+   "output" : {
+      "abi" : [
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "factory_",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "nonpayable",
+            "type" : "constructor"
+         },
+         {
+            "inputs" : [],
+            "name" : "Create2EmptyBytecode",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "FailedDeployment",
+            "type" : "error"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "balance",
+                  "type" : "uint256"
+               },
+               {
+                  "internalType" : "uint256",
+                  "name" : "needed",
+                  "type" : "uint256"
+               }
+            ],
+            "name" : "InsufficientBalance",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "MetadataTooLong",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "NotFactory",
+            "type" : "error"
+         },
+         {
+            "inputs" : [
+               {
+                  "components" : [
+                     {
+                        "internalType" : "address",
+                        "name" : "pairToken",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "address",
+                        "name" : "creatorFeeRecipient",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "address",
+                        "name" : "originalDeployer",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "contract IPonsV2FeePolicy",
+                        "name" : "feePolicy",
+                        "type" : "address"
+                     },
+                     {
+                        "components" : [
+                           {
+                              "internalType" : "address",
+                              "name" : "protocolFeeRecipient",
+                              "type" : "address"
+                           },
+                           {
+                              "internalType" : "uint16",
+                              "name" : "protocolFeeShareBps",
+                              "type" : "uint16"
+                           },
+                           {
+                              "internalType" : "uint16",
+                              "name" : "buybackBurnBps",
+                              "type" : "uint16"
+                           },
+                           {
+                              "internalType" : "uint16",
+                              "name" : "hookFeeBps",
+                              "type" : "uint16"
+                           },
+                           {
+                              "internalType" : "uint16",
+                              "name" : "maxInternalPriceImpactBps",
+                              "type" : "uint16"
+                           }
+                        ],
+                        "internalType" : "struct FeePolicySnapshot",
+                        "name" : "policy",
+                        "type" : "tuple"
+                     },
+                     {
+                        "internalType" : "contract IPonsV2FeeEscrow",
+                        "name" : "feeEscrow",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "contract PonsV2BuybackVault",
+                        "name" : "buybackVault",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "phantomQuote",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "curveFeeBps",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "creatorTaxBps",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "bool",
+                        "name" : "buybackEnabled",
+                        "type" : "bool"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "graduationThreshold",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "supply",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "bytes32",
+                        "name" : "salt",
+                        "type" : "bytes32"
+                     },
+                     {
+                        "internalType" : "string",
+                        "name" : "name",
+                        "type" : "string"
+                     },
+                     {
+                        "internalType" : "string",
+                        "name" : "symbol",
+                        "type" : "string"
+                     },
+                     {
+                        "internalType" : "string",
+                        "name" : "logo",
+                        "type" : "string"
+                     },
+                     {
+                        "internalType" : "string",
+                        "name" : "description",
+                        "type" : "string"
+                     },
+                     {
+                        "components" : [
+                           {
+                              "internalType" : "string",
+                              "name" : "twitter",
+                              "type" : "string"
+                           },
+                           {
+                              "internalType" : "string",
+                              "name" : "telegram",
+                              "type" : "string"
+                           },
+                           {
+                              "internalType" : "string",
+                              "name" : "discord",
+                              "type" : "string"
+                           },
+                           {
+                              "internalType" : "string",
+                              "name" : "website",
+                              "type" : "string"
+                           },
+                           {
+                              "internalType" : "string",
+                              "name" : "farcaster",
+                              "type" : "string"
+                           }
+                        ],
+                        "internalType" : "struct PonsV2LauncherToken.Socials",
+                        "name" : "socials",
+                        "type" : "tuple"
+                     }
+                  ],
+                  "internalType" : "struct LaunchDeployment",
+                  "name" : "params",
+                  "type" : "tuple"
+               }
+            ],
+            "name" : "deployLaunch",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "address",
+                  "name" : "curve",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "factory",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "components" : [
+                     {
+                        "internalType" : "address",
+                        "name" : "pairToken",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "address",
+                        "name" : "creatorFeeRecipient",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "address",
+                        "name" : "originalDeployer",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "contract IPonsV2FeePolicy",
+                        "name" : "feePolicy",
+                        "type" : "address"
+                     },
+                     {
+                        "components" : [
+                           {
+                              "internalType" : "address",
+                              "name" : "protocolFeeRecipient",
+                              "type" : "address"
+                           },
+                           {
+                              "internalType" : "uint16",
+                              "name" : "protocolFeeShareBps",
+                              "type" : "uint16"
+                           },
+                           {
+                              "internalType" : "uint16",
+                              "name" : "buybackBurnBps",
+                              "type" : "uint16"
+                           },
+                           {
+                              "internalType" : "uint16",
+                              "name" : "hookFeeBps",
+                              "type" : "uint16"
+                           },
+                           {
+                              "internalType" : "uint16",
+                              "name" : "maxInternalPriceImpactBps",
+                              "type" : "uint16"
+                           }
+                        ],
+                        "internalType" : "struct FeePolicySnapshot",
+                        "name" : "policy",
+                        "type" : "tuple"
+                     },
+                     {
+                        "internalType" : "contract IPonsV2FeeEscrow",
+                        "name" : "feeEscrow",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "contract PonsV2BuybackVault",
+                        "name" : "buybackVault",
+                        "type" : "address"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "phantomQuote",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "curveFeeBps",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "creatorTaxBps",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "bool",
+                        "name" : "buybackEnabled",
+                        "type" : "bool"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "graduationThreshold",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "uint256",
+                        "name" : "supply",
+                        "type" : "uint256"
+                     },
+                     {
+                        "internalType" : "bytes32",
+                        "name" : "salt",
+                        "type" : "bytes32"
+                     },
+                     {
+                        "internalType" : "string",
+                        "name" : "name",
+                        "type" : "string"
+                     },
+                     {
+                        "internalType" : "string",
+                        "name" : "symbol",
+                        "type" : "string"
+                     },
+                     {
+                        "internalType" : "string",
+                        "name" : "logo",
+                        "type" : "string"
+                     },
+                     {
+                        "internalType" : "string",
+                        "name" : "description",
+                        "type" : "string"
+                     },
+                     {
+                        "components" : [
+                           {
+                              "internalType" : "string",
+                              "name" : "twitter",
+                              "type" : "string"
+                           },
+                           {
+                              "internalType" : "string",
+                              "name" : "telegram",
+                              "type" : "string"
+                           },
+                           {
+                              "internalType" : "string",
+                              "name" : "discord",
+                              "type" : "string"
+                           },
+                           {
+                              "internalType" : "string",
+                              "name" : "website",
+                              "type" : "string"
+                           },
+                           {
+                              "internalType" : "string",
+                              "name" : "farcaster",
+                              "type" : "string"
+                           }
+                        ],
+                        "internalType" : "struct PonsV2LauncherToken.Socials",
+                        "name" : "socials",
+                        "type" : "tuple"
+                     }
+                  ],
+                  "internalType" : "struct LaunchDeployment",
+                  "name" : "params",
+                  "type" : "tuple"
+               }
+            ],
+            "name" : "predictLaunchAddresses",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "address",
+                  "name" : "curve",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         }
+      ],
+      "devdoc" : {
+         "errors" : {
+            "Create2EmptyBytecode()" : [
+               {
+                  "details" : "There's no code to deploy."
+               }
+            ],
+            "FailedDeployment()" : [
+               {
+                  "details" : "The deployment failed."
+               }
+            ],
+            "InsufficientBalance(uint256,uint256)" : [
+               {
+                  "details" : "The ETH balance of the account is not enough to perform the operation."
+               }
+            ]
+         },
+         "kind" : "dev",
+         "methods" : {
+            "deployLaunch((address,address,address,address,(address,uint16,uint16,uint16,uint16),address,address,uint256,uint256,uint256,bool,uint256,uint256,bytes32,string,string,string,string,(string,string,string,string,string)))" : {
+               "details" : "Deployed with CREATE2 rather than CREATE so neither address depends on this deployer's nonce, and therefore on the order launches happen to land in. Under CREATE the Nth launch simply took the Nth address, so an address predicted before its launch confirmed committed to nothing and a different launch could arrive there instead. Under CREATE2 the address is a function of the salt and the creation code, and the creation code carries every constructor argument, so an address can only ever hold the exact launch it was computed from. Reverts through `Create2` with `FailedDeployment` when the pair already exists, which is the same creator reusing a salt on otherwise identical terms. Callers can test for it in advance with `predictLaunchAddresses`."
+            },
+            "predictLaunchAddresses((address,address,address,address,(address,uint16,uint16,uint16,uint16),address,address,uint256,uint256,uint256,bool,uint256,uint256,bytes32,string,string,string,string,(string,string,string,string,string)))" : {
+               "details" : "Lets a caller confirm that a launch it has not seen confirmed yet will land where it expects, and lets the launch path be checked for a salt the creator has already used. The token is derived from the curve because the curve's address is one of the token's constructor arguments, so the pair has to be computed in deployment order."
+            }
+         },
+         "title" : "PonsV2LaunchDeployer",
+         "version" : 1
+      },
+      "userdoc" : {
+         "kind" : "user",
+         "methods" : {
+            "deployLaunch((address,address,address,address,(address,uint16,uint16,uint16,uint16),address,address,uint256,uint256,uint256,bool,uint256,uint256,bytes32,string,string,string,string,(string,string,string,string,string)))" : {
+               "notice" : "Deploys a fresh curve/token pair and returns both addresses. Both contracts are told `factory` (not this deployer) is their privileged caller. Wiring the curve to its token via `initialize()` is left to the factory itself, since that call is `onlyFactory`-gated."
+            },
+            "predictLaunchAddresses((address,address,address,address,(address,uint16,uint16,uint16,uint16),address,address,uint256,uint256,uint256,bool,uint256,uint256,bytes32,string,string,string,string,(string,string,string,string,string)))" : {
+               "notice" : "Returns the addresses `deployLaunch` would produce for `params`, without deploying anything."
+            }
+         },
+         "notice" : "Deploys the bonding curve and launch token pair for one pons v2 launch on PonsV2LaunchFactory's behalf. Split out into its own contract purely so PonsV2LaunchFactory's own bytecode stays under EIP-170's 24576-byte deployed-code limit: embedding two full contracts' creation code via `new` inside the factory itself was the single largest contributor to its size. Both new contracts still record the real factory's address explicitly (never this deployer's), since they gate privileged calls on it.",
+         "version" : 1
+      }
+   },
+   "settings" : {
+      "compilationTarget" : {
+         "contracts/src/v2/PonsV2LaunchDeployer.sol" : "PonsV2LaunchDeployer"
+      },
+      "evmVersion" : "cancun",
+      "libraries" : {},
+      "metadata" : {
+         "bytecodeHash" : "ipfs"
+      },
+      "optimizer" : {
+         "enabled" : true,
+         "runs" : 200
+      },
+      "remappings" : [
+         ":@ensdomains/=contracts/lib/v4-core/node_modules/@ensdomains/",
+         ":@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
+         ":@uniswap/v4-core/=contracts/lib/v4-core/",
+         ":@uniswap/v4-hooks-public/=contracts/lib/v4-hooks-public/",
+         ":@uniswap/v4-periphery/=contracts/lib/v4-periphery/",
+         ":ds-test/=contracts/lib/v4-core/lib/forge-std/lib/ds-test/src/",
+         ":erc4626-tests/=contracts/lib/openzeppelin-contracts/lib/erc4626-tests/",
+         ":forge-gas-snapshot/=contracts/lib/v4-periphery/lib/permit2/lib/forge-gas-snapshot/src/",
+         ":forge-std/=contracts/lib/forge-std/src/",
+         ":halmos-cheatcodes/=contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
+         ":hardhat/=contracts/lib/v4-core/node_modules/hardhat/",
+         ":openzeppelin-contracts/=contracts/lib/openzeppelin-contracts/",
+         ":permit2/=contracts/lib/v4-periphery/lib/permit2/",
+         ":solmate/=contracts/lib/v4-core/lib/solmate/",
+         ":v4-core/=contracts/lib/v4-core/src/",
+         ":v4-hooks-public/=contracts/lib/v4-hooks-public/src/",
+         ":v4-periphery/=contracts/lib/v4-periphery/src/",
+         "contracts/lib/v4-periphery/:@uniswap/v4-core/=contracts/lib/v4-core/"
+      ],
+      "viaIR" : true
+   },
+   "sources" : {
+      "contracts/lib/openzeppelin-contracts/contracts/access/Ownable.sol" : {
+         "keccak256" : "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://8ed324d3920bb545059d66ab97d43e43ee85fd3bd52e03e401f020afb0b120f6",
+            "dweb:/ipfs/QmfEckWLmZkDDcoWrkEvMWhms66xwTLff9DDhegYpvHo1a"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/access/Ownable2Step.sol" : {
+         "keccak256" : "0xdcad8898fda432696597752e8ec361b87d85c82cb258115427af006dacf7128c",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://e2c9d517f0c136d54bd00cd57959d25681d4d6273f5bbbc263afe228303772f0",
+            "dweb:/ipfs/QmReNFjXBiufByiAAzfSQ2SM5r3qeUErn46BmN3yVRvrek"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/IERC1363.sol" : {
+         "keccak256" : "0xd5ea07362ab630a6a3dee4285a74cf2377044ca2e4be472755ad64d7c5d4b69d",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://da5e832b40fc5c3145d3781e2e5fa60ac2052c9d08af7e300dc8ab80c4343100",
+            "dweb:/ipfs/QmTzf7N5ZUdh5raqtzbM11yexiUoLC9z3Ws632MCuycq1d"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/IERC165.sol" : {
+         "keccak256" : "0x0afcb7e740d1537b252cb2676f600465ce6938398569f09ba1b9ca240dde2dfc",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://1c299900ac4ec268d4570ecef0d697a3013cd11a6eb74e295ee3fbc945056037",
+            "dweb:/ipfs/Qmab9owJoxcA7vJT5XNayCMaUR1qxqj1NDzzisduwaJMcZ"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol" : {
+         "keccak256" : "0x1a6221315ce0307746c2c4827c125d821ee796c74a676787762f4778671d4f44",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://1bb2332a7ee26dd0b0de9b7fe266749f54820c99ab6a3bcb6f7e6b751d47ee2d",
+            "dweb:/ipfs/QmcRWpaBeCYkhy68PR3B4AgD7asuQk7PwkWxrvJbZcikLF"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol" : {
+         "keccak256" : "0xd735962e3d6660884153ba8a972b5f100dde4c482f2ff1c525ba7fdefb154cbd",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://5a264d17b093f585844b0d977e9f60555b8c8d6513b304fde863cdf652a0d336",
+            "dweb:/ipfs/QmWXfaJisjVnrjTUjZGryZpMob9wKivvtbodLS3PTc1ttq"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/draft-IERC6093.sol" : {
+         "keccak256" : "0x1b88b3fb3d85ba5496d7d5f396f83ee1fddcdd6762059ff65992655b67920998",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://89393bb3212da1c0889601b9706a07b39419ddc4d2faab9eaf6e7f9152cf6a1c",
+            "dweb:/ipfs/QmcCfzzxv1Bkdz1c1yF4gQCeYb6Us5BJANnzTFqawfd1HL"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol" : {
+         "keccak256" : "0x669464167428061ee0f8618b73b3ee90aff8405683e7ddde8cd77dadaa1afe29",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://0dda78587a7358b4fdf6b9fca0fde5a5e34930f36d5268a16028627fc0170195",
+            "dweb:/ipfs/QmQ1b6cCceDRWNxti9HifsTCzmVP25Haxs1bWugm52vTqH"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol" : {
+         "keccak256" : "0x74ed01eb66b923d0d0cfe3be84604ac04b76482a55f9dd655e1ef4d367f95bc2",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://5282825a626cfe924e504274b864a652b0023591fa66f06a067b25b51ba9b303",
+            "dweb:/ipfs/QmeCfPykghhMc81VJTrHTC7sF6CRvaA1FXVq2pJhwYp1dV"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Burnable.sol" : {
+         "keccak256" : "0x2659248df25e34000ed214b3dc8da2160bc39874c992b477d9e2b1b3283dc073",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://c345af1b0e7ea28d1216d6a04ab28f5534a5229b9edf9ca3cd0e84950ae58d26",
+            "dweb:/ipfs/QmY63jtSrYpLRe8Gj1ep2vMDCKxGNNG3hnNVKBVnrs2nmA"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol" : {
+         "keccak256" : "0xd6fa4088198f04eef10c5bce8a2f4d60554b7ec4b987f684393c01bf79b94d9f",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://f95ee0bbd4dd3ac730d066ba3e785ded4565e890dbec2fa7d3b9fe3bad9d0d6e",
+            "dweb:/ipfs/QmSLr6bHkPFWT7ntj34jmwfyskpwo97T9jZUrk5sz3sdtR"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol" : {
+         "keccak256" : "0x377051c0c17a28038c32f58d76a42817eb3b24f2b4c6a2e788a9544e856d738d",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://c5365fead4a20b84662284c97c07d707c67f5bc9e07b371980aba8c3c6e83661",
+            "dweb:/ipfs/QmYrYoLPEADtXoCu9ZBnwkXdNB9D9FPHuhS9pWaQW4nYx5"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/Context.sol" : {
+         "keccak256" : "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12",
+            "dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/Create2.sol" : {
+         "keccak256" : "0xe06ddfff69f3ba154d92102d9a85db2780e045303a587360cf12195216e851ca",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://ac19cc390a227758c239c06d3a11d0a2c40c8f58eabb034154b661269d4a0851",
+            "dweb:/ipfs/QmdSsfYsPX5RyAXSfHRvR5zdY9MffAgZVa3vdxQUypFBa5"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/Errors.sol" : {
+         "keccak256" : "0x6afa713bfd42cf0f7656efa91201007ac465e42049d7de1d50753a373648c123",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://ba1d02f4847670a1b83dec9f7d37f0b0418d6043447b69f3a29a5f9efc547fcf",
+            "dweb:/ipfs/QmQ7iH2keLNUKgq2xSWcRmuBE5eZ3F5whYAkAGzCNNoEWB"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/LowLevelCall.sol" : {
+         "keccak256" : "0x6ba3db1346fc75a832aa6cd075e12f6f1fa172fa2122a020f324c319fe5be75e",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://ab92e9e1cb08144c43fa3a383a87c48f49a652d51156950b928c2a50bee6b3a5",
+            "dweb:/ipfs/QmWeKkKZBgLDKgRFGKCzsKybYF7C8g9ysg5kU1b1p7QFBi"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/Panic.sol" : {
+         "keccak256" : "0xf7fe324703a64fc51702311dc51562d5cb1497734f074e4f483bfb6717572d7a",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://c6a5ff4f9fd8649b7ee20800b7fa387d3465bd77cf20c2d1068cd5c98e1ed57a",
+            "dweb:/ipfs/QmVSaVJf9FXFhdYEYeCEfjMVHrxDh5qL4CGkxdMWpQCrqG"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol" : {
+         "keccak256" : "0xa516cbf1c7d15d3517c2d668601ce016c54395bf5171918a14e2686977465f53",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://1e1d079e8edfb58efd23a311e315a4807b01b5d1cf153f8fa2d0608b9dec3e99",
+            "dweb:/ipfs/QmTBExeX2SDTkn5xbk5ssbYSx7VqRp9H4Ux1CY4uQM4b9N"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/StorageSlot.sol" : {
+         "keccak256" : "0xcf74f855663ce2ae00ed8352666b7935f6cddea2932fdf2c3ecd30a9b1cd0e97",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://9f660b1f351b757dfe01438e59888f31f33ded3afcf5cb5b0d9bf9aa6f320a8b",
+            "dweb:/ipfs/QmarDJ5hZEgBtCmmrVzEZWjub9769eD686jmzb2XpSU1cM"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol" : {
+         "keccak256" : "0x8891738ffe910f0cf2da09566928589bf5d63f4524dd734fd9cedbac3274dd5c",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://971f954442df5c2ef5b5ebf1eb245d7105d9fbacc7386ee5c796df1d45b21617",
+            "dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/math/Math.sol" : {
+         "keccak256" : "0x59973a93b1f983f94e10529f46ca46544a9fec2b5f56fb1390bbe9e0dc79f857",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://c55ef8f0b9719790c2ae6f81d80a59ffb89f2f0abe6bc065585bd79edce058c5",
+            "dweb:/ipfs/QmNNmCbX9NjPXKqHJN8R1WC2rNeZSQrPZLd6FF6AKLyH5Y"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol" : {
+         "keccak256" : "0xc8cae21c9ae4a46e5162ff9bf5b351d6fa6a6eba72d515f3bc1bdfeda7fdf083",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://ce830ebcf28e31643caba318996db3763c36d52cd0f23798ba83c135355d45e9",
+            "dweb:/ipfs/QmdGPcvptHN7UBCbUYBbRX3hiRVRFLRwno8b4uga6uFNif"
+         ]
+      },
+      "contracts/src/v2/PonsV2BondingCurve.sol" : {
+         "keccak256" : "0xcfea3887b0660242c69cfe069da819ba5e6d897d8abf5a4ec4b75fe91f78cb91",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://33d11af05332164d8eb73ac00066175185d5976031d46ce42bbe8c672223c782",
+            "dweb:/ipfs/QmfS8uYi6JH8yMv7Zoh37dHUgon5nAsAPQ83QHhEiJQDg2"
+         ]
+      },
+      "contracts/src/v2/PonsV2BuybackVault.sol" : {
+         "keccak256" : "0x2d6325520c3b77ae1f4a419c24c2d589f9d1c6ce660faa2117aa25fe953fb473",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://833212d7339ea923a8656b39831882a671442542dc1d1d3c667b5d131703ced9",
+            "dweb:/ipfs/QmUZqvhxsBBUFifxjs8k3RTqpXNWqX383PAvpTo9RNEL75"
+         ]
+      },
+      "contracts/src/v2/PonsV2LaunchDeployer.sol" : {
+         "keccak256" : "0x2608ea07adc3fce43764241fca32f076afcde90db540d0c83213aacd9846c9cd",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://ac53cd455992c9d68355efc48ed6bf7119aeff275266ab5951ebde29963f7a3d",
+            "dweb:/ipfs/QmPVFGdV8JUfy5WTaLxF8MvdDwAiNGUv6D3BKR19A3GrGq"
+         ]
+      },
+      "contracts/src/v2/PonsV2LauncherToken.sol" : {
+         "keccak256" : "0x359186341ce52e257ebb10c015bcd388e7ac6b9b79913bbd4325fe0a3c0b1acc",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://3a71801acbddad923c904b477f4f4350cc78b703baffbc27135e27390cc53a1c",
+            "dweb:/ipfs/QmUgknuqbybeigAhDR7f29BWAwSN1RhS1fQqGC4ZjxzH3r"
+         ]
+      },
+      "contracts/src/v2/interfaces/ILaunchpadV2.sol" : {
+         "keccak256" : "0x7c1ac611cc7fa9757acda93970cb9964dedce8a05df59ef726354cafb93745aa",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://b9a0d01f8db23d99d83e416937f2eab9ee86d771bb92375824d1f02c140ecdaf",
+            "dweb:/ipfs/QmPcNAuhnn27FHotvk6D8FhQkUmQy8yMkAPVSZtrT6Uo6q"
+         ]
+      },
+      "contracts/src/v2/interfaces/ILaunchpadV2Graduation.sol" : {
+         "keccak256" : "0x7cdcb5e6cfedcc36c47eca08b46a1d6b15c72b9ee75f4d0a1c342f008a80200e",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://5a60df9d8c8ff2eb2a715d634feb71820c0c3e550e07601ac9b344b287097d26",
+            "dweb:/ipfs/QmRCj5jBUYVf8R2bbbMrNyvGwT9WtPVHALvuyMpiLoZUTx"
+         ]
+      },
+      "contracts/src/v2/libraries/PonsV2BondingCurveMath.sol" : {
+         "keccak256" : "0x9f95b68b02a0a6c85844088b6745d1f7d0d374316502480077ca87279eb86e26",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://a77e3bee382272ae0a927bb6d8ca464c65e358b6017eade12b29e9e977f90f62",
+            "dweb:/ipfs/QmaoRymb7SnD9S8vNS2VDsGm1L535n2aZJPCbVLdgWwEgX"
+         ]
+      }
+   },
+   "version" : 1
+}

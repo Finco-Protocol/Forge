@@ -1,0 +1,13 @@
+{
+   "address" : "0x42df2a798f82289E177311362e8f5ccC45c1219c",
+   "chainId" : 4663,
+   "creationMatch" : "match",
+   "deployer" : "0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36",
+   "deploymentTx" : "0x4ceb1e809d55f76045dce2ccd2335e9317b291b07b4d5994aa8b7cdd027af142",
+   "expectedClassification" : "IMMUTABLE_PATCHED",
+   "matchId" : "43855070",
+   "name" : "PonsV2BuybackVault",
+   "runtimeMatch" : "match",
+   "sourcifyTier" : "match",
+   "verifiedAt" : "2026-08-20T02:28:57Z"
+}

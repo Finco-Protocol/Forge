@@ -1,0 +1,836 @@
+{
+   "compiler" : {
+      "version" : "0.8.35+commit.47b9dedd"
+   },
+   "language" : "Solidity",
+   "output" : {
+      "abi" : [
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "initialOwner",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "contract IPonsV2FeePolicy",
+                  "name" : "feePolicy_",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "contract IPonsV2FeeEscrow",
+                  "name" : "feeEscrow_",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "nonpayable",
+            "type" : "constructor"
+         },
+         {
+            "inputs" : [],
+            "name" : "AlreadyInitialized",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "InvalidVestingTerms",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "NotAuthorizedLocker",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "NotFactory",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "NotVestBeneficiary",
+            "type" : "error"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "owner",
+                  "type" : "address"
+               }
+            ],
+            "name" : "OwnableInvalidOwner",
+            "type" : "error"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "account",
+                  "type" : "address"
+               }
+            ],
+            "name" : "OwnableUnauthorizedAccount",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "OwnershipCannotBeRenounced",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "ReentrancyGuardReentrantCall",
+            "type" : "error"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "SafeERC20FailedOperation",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "VestingTermsMismatch",
+            "type" : "error"
+         },
+         {
+            "inputs" : [],
+            "name" : "ZeroAddress",
+            "type" : "error"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "previousRecipient",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "newRecipient",
+                  "type" : "address"
+               }
+            ],
+            "name" : "CreatorRecipientUpdated",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : false,
+                  "internalType" : "address",
+                  "name" : "factory",
+                  "type" : "address"
+               }
+            ],
+            "name" : "FactorySet",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "depositor",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : false,
+                  "internalType" : "uint256",
+                  "name" : "amount",
+                  "type" : "uint256"
+               },
+               {
+                  "indexed" : false,
+                  "internalType" : "uint256",
+                  "name" : "newVestingStart",
+                  "type" : "uint256"
+               }
+            ],
+            "name" : "Locked",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "previousOwner",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "newOwner",
+                  "type" : "address"
+               }
+            ],
+            "name" : "OwnershipTransferStarted",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "previousOwner",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "newOwner",
+                  "type" : "address"
+               }
+            ],
+            "name" : "OwnershipTransferred",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : false,
+                  "internalType" : "uint256",
+                  "name" : "creatorAmount",
+                  "type" : "uint256"
+               },
+               {
+                  "indexed" : false,
+                  "internalType" : "uint256",
+                  "name" : "protocolAmount",
+                  "type" : "uint256"
+               }
+            ],
+            "name" : "Released",
+            "type" : "event"
+         },
+         {
+            "anonymous" : false,
+            "inputs" : [
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "creatorRecipient",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : true,
+                  "internalType" : "address",
+                  "name" : "protocolRecipient",
+                  "type" : "address"
+               },
+               {
+                  "indexed" : false,
+                  "internalType" : "uint256",
+                  "name" : "protocolFeeShareBps",
+                  "type" : "uint256"
+               }
+            ],
+            "name" : "VestingTermsSnapshotted",
+            "type" : "event"
+         },
+         {
+            "inputs" : [],
+            "name" : "VESTING_DURATION",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "acceptOwnership",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "factory",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "feeEscrow",
+            "outputs" : [
+               {
+                  "internalType" : "contract IPonsV2FeeEscrow",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "feePolicy",
+            "outputs" : [
+               {
+                  "internalType" : "contract IPonsV2FeePolicy",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "uint256",
+                  "name" : "amount",
+                  "type" : "uint256"
+               },
+               {
+                  "internalType" : "address",
+                  "name" : "creatorRecipient",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "address",
+                  "name" : "protocolRecipient",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "uint16",
+                  "name" : "protocolFeeShareBps",
+                  "type" : "uint16"
+               }
+            ],
+            "name" : "lock",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "owner",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "pendingOwner",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "",
+                  "type" : "address"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "releasable",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "release",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "released",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [],
+            "name" : "renounceOwnership",
+            "outputs" : [],
+            "stateMutability" : "pure",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "factory_",
+                  "type" : "address"
+               }
+            ],
+            "name" : "setFactory",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "totalLocked",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "totalReleased",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "newOwner",
+                  "type" : "address"
+               }
+            ],
+            "name" : "transferOwnership",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "address",
+                  "name" : "newRecipient",
+                  "type" : "address"
+               }
+            ],
+            "name" : "updateCreatorRecipient",
+            "outputs" : [],
+            "stateMutability" : "nonpayable",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "vestedAmount",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "vestingStart",
+            "outputs" : [
+               {
+                  "internalType" : "uint256",
+                  "name" : "",
+                  "type" : "uint256"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         },
+         {
+            "inputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "token",
+                  "type" : "address"
+               }
+            ],
+            "name" : "vestingTerms",
+            "outputs" : [
+               {
+                  "internalType" : "address",
+                  "name" : "creatorRecipient",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "address",
+                  "name" : "protocolRecipient",
+                  "type" : "address"
+               },
+               {
+                  "internalType" : "uint16",
+                  "name" : "protocolFeeShareBps",
+                  "type" : "uint16"
+               }
+            ],
+            "stateMutability" : "view",
+            "type" : "function"
+         }
+      ],
+      "devdoc" : {
+         "errors" : {
+            "OwnableInvalidOwner(address)" : [
+               {
+                  "details" : "The owner is not a valid owner account. (eg. `address(0)`)"
+               }
+            ],
+            "OwnableUnauthorizedAccount(address)" : [
+               {
+                  "details" : "The caller account is not authorized to perform an operation."
+               }
+            ],
+            "ReentrancyGuardReentrantCall()" : [
+               {
+                  "details" : "Unauthorized reentrant call."
+               }
+            ],
+            "SafeERC20FailedOperation(address)" : [
+               {
+                  "details" : "An operation with an ERC-20 token failed."
+               }
+            ]
+         },
+         "kind" : "dev",
+         "methods" : {
+            "acceptOwnership()" : {
+               "details" : "The new owner accepts the ownership transfer."
+            },
+            "constructor" : {
+               "params" : {
+                  "feeEscrow_" : "Shared claimable balance ledger releases are paid through.",
+                  "feePolicy_" : "Shared protocol/creator split policy, the same singleton the curve and hook read.",
+                  "initialOwner" : "Administrative owner; only used to wire the factory once."
+               }
+            },
+            "owner()" : {
+               "details" : "Returns the address of the current owner."
+            },
+            "pendingOwner()" : {
+               "details" : "Returns the address of the pending owner."
+            },
+            "release(address)" : {
+               "details" : "Restricted to the two parties a release pays. Letting anyone choose when value leaves the vest is harmful in two ways. A caller can time a release inside the protocol owner's creator-recipient recovery window, flushing vested tokens to the very address the recovery exists to abandon. A caller can also advance the checkpoint every second, so each step rounds its newly vested amount down to zero and the vest stalls without ever paying out."
+            },
+            "transferOwnership(address)" : {
+               "details" : "Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is one. Can only be called by the current owner. Setting `newOwner` to the zero address is allowed; this can be used to cancel an initiated ownership transfer."
+            },
+            "vestingStart(address)" : {
+               "details" : "Reporting only. Vesting is accounted from `vestedUnreleased`, `unvestedAmount`, `lastUpdate` and `vestingEnd`, which are settled on every lock and release. Interpolating this value against `VESTING_DURATION` will not reproduce `vestedAmount`, because already vested tokens are banked at each deposit rather than recomputed from the shifted clock. Read `vestedAmount` for the authoritative figure."
+            }
+         },
+         "title" : "PonsV2BuybackVault",
+         "version" : 1
+      },
+      "userdoc" : {
+         "kind" : "user",
+         "methods" : {
+            "lock(address,uint256,address,address,uint16)" : {
+               "notice" : "Locks `amount` of `token` into its five-year vest, preserving the supplied beneficiaries and split for the active vesting epoch. Restricted to the two legitimate callers for `token`'s own buyback: the shared meme hook, or `token`'s own bonding curve looked up live from the factory."
+            },
+            "releasable(address)" : {
+               "notice" : "Amount of `token` currently releasable: vested but not yet released."
+            },
+            "release(address)" : {
+               "notice" : "Releases every currently vested, not-yet-released token for `token`, using the beneficiaries and split frozen for its active vesting epoch."
+            },
+            "renounceOwnership()" : {
+               "notice" : "Permanently disabled. Ownership here exists only to perform the one-time factory wiring, and renouncing before that wiring would strand every future buyback lock."
+            },
+            "setFactory(address)" : {
+               "notice" : "One-time wiring of the v2 factory, set after both are deployed, used to authorize each launch's bonding curve as a locker."
+            },
+            "totalLocked(address)" : {
+               "notice" : "Total amount of `token` ever locked into this vault."
+            },
+            "totalReleased(address)" : {
+               "notice" : "Total amount of `token` already released from this vault."
+            },
+            "updateCreatorRecipient(address,address)" : {
+               "notice" : "Redirects a launch's buyback vest to a new creator recipient. Restricted to the factory, which forwards both self-service creator transfers and protocol-owner recovery overrides here, so vested buyback tokens track the same recipient as immediate creator fees rather than remaining stranded on the launch-time address. Vested but not-yet-released tokens follow the new recipient too, matching the intent of wallet recovery. Only the protocol split terms stay bound to the launch snapshot; the creator identity is managed here instead."
+            },
+            "vestedAmount(address)" : {
+               "notice" : "Amount of `token` vested so far, released or not."
+            },
+            "vestingStart(address)" : {
+               "notice" : "The launch's current weighted-average vesting start time."
+            },
+            "vestingTerms(address)" : {
+               "notice" : "Returns the immutable terms for the token's active vesting epoch."
+            }
+         },
+         "notice" : "Holds every launch's bought-back memecoin supply and releases it linearly over five years instead of burning it immediately, splitting every release between the creator and the protocol on the launch's recorded fee shares. One shared deployment serves every launch, the same \"single deployment for every token\" pattern PonsV2FeeEscrow already uses. Note that the split applies to the release, not to the funding. Both the curve and the hook carve the buyback slice out of the creator's share of the fees alone, so the creator funds the entire lock and then receives only their fee share of it back. Enabling a buyback therefore moves value from the creator to the protocol relative to taking the fees directly, by an amount that grows with `buybackBurnBps`. Deposits use a weighted-average vesting clock instead of per-deposit tranches: a launch's fee sweep can add to its lock on every single sweep, and tracking an unbounded array of tranches would make `release()`'s gas cost grow forever. Instead, each new deposit shifts the launch's single `vestingStart` forward by an amount proportional to the deposit's share of the new total, so a large existing lock is barely disturbed by a small top-up, and a small existing lock is pulled close to the new deposit's own clock. `vestedAmount` at any time reflects a fair, size-weighted blend across every deposit made so far.",
+         "version" : 1
+      }
+   },
+   "settings" : {
+      "compilationTarget" : {
+         "contracts/src/v2/PonsV2BuybackVault.sol" : "PonsV2BuybackVault"
+      },
+      "evmVersion" : "cancun",
+      "libraries" : {},
+      "metadata" : {
+         "bytecodeHash" : "ipfs"
+      },
+      "optimizer" : {
+         "enabled" : true,
+         "runs" : 200
+      },
+      "remappings" : [
+         ":@ensdomains/=contracts/lib/v4-core/node_modules/@ensdomains/",
+         ":@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
+         ":@uniswap/v4-core/=contracts/lib/v4-core/",
+         ":@uniswap/v4-hooks-public/=contracts/lib/v4-hooks-public/",
+         ":@uniswap/v4-periphery/=contracts/lib/v4-periphery/",
+         ":ds-test/=contracts/lib/v4-core/lib/forge-std/lib/ds-test/src/",
+         ":erc4626-tests/=contracts/lib/openzeppelin-contracts/lib/erc4626-tests/",
+         ":forge-gas-snapshot/=contracts/lib/v4-periphery/lib/permit2/lib/forge-gas-snapshot/src/",
+         ":forge-std/=contracts/lib/forge-std/src/",
+         ":halmos-cheatcodes/=contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
+         ":hardhat/=contracts/lib/v4-core/node_modules/hardhat/",
+         ":openzeppelin-contracts/=contracts/lib/openzeppelin-contracts/",
+         ":permit2/=contracts/lib/v4-periphery/lib/permit2/",
+         ":solmate/=contracts/lib/v4-core/lib/solmate/",
+         ":v4-core/=contracts/lib/v4-core/src/",
+         ":v4-hooks-public/=contracts/lib/v4-hooks-public/src/",
+         ":v4-periphery/=contracts/lib/v4-periphery/src/",
+         "contracts/lib/v4-periphery/:@uniswap/v4-core/=contracts/lib/v4-core/"
+      ],
+      "viaIR" : true
+   },
+   "sources" : {
+      "contracts/lib/openzeppelin-contracts/contracts/access/Ownable.sol" : {
+         "keccak256" : "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://8ed324d3920bb545059d66ab97d43e43ee85fd3bd52e03e401f020afb0b120f6",
+            "dweb:/ipfs/QmfEckWLmZkDDcoWrkEvMWhms66xwTLff9DDhegYpvHo1a"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/access/Ownable2Step.sol" : {
+         "keccak256" : "0xdcad8898fda432696597752e8ec361b87d85c82cb258115427af006dacf7128c",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://e2c9d517f0c136d54bd00cd57959d25681d4d6273f5bbbc263afe228303772f0",
+            "dweb:/ipfs/QmReNFjXBiufByiAAzfSQ2SM5r3qeUErn46BmN3yVRvrek"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/IERC1363.sol" : {
+         "keccak256" : "0xd5ea07362ab630a6a3dee4285a74cf2377044ca2e4be472755ad64d7c5d4b69d",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://da5e832b40fc5c3145d3781e2e5fa60ac2052c9d08af7e300dc8ab80c4343100",
+            "dweb:/ipfs/QmTzf7N5ZUdh5raqtzbM11yexiUoLC9z3Ws632MCuycq1d"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/IERC165.sol" : {
+         "keccak256" : "0x0afcb7e740d1537b252cb2676f600465ce6938398569f09ba1b9ca240dde2dfc",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://1c299900ac4ec268d4570ecef0d697a3013cd11a6eb74e295ee3fbc945056037",
+            "dweb:/ipfs/Qmab9owJoxcA7vJT5XNayCMaUR1qxqj1NDzzisduwaJMcZ"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol" : {
+         "keccak256" : "0x1a6221315ce0307746c2c4827c125d821ee796c74a676787762f4778671d4f44",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://1bb2332a7ee26dd0b0de9b7fe266749f54820c99ab6a3bcb6f7e6b751d47ee2d",
+            "dweb:/ipfs/QmcRWpaBeCYkhy68PR3B4AgD7asuQk7PwkWxrvJbZcikLF"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol" : {
+         "keccak256" : "0xd735962e3d6660884153ba8a972b5f100dde4c482f2ff1c525ba7fdefb154cbd",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://5a264d17b093f585844b0d977e9f60555b8c8d6513b304fde863cdf652a0d336",
+            "dweb:/ipfs/QmWXfaJisjVnrjTUjZGryZpMob9wKivvtbodLS3PTc1ttq"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol" : {
+         "keccak256" : "0x74ed01eb66b923d0d0cfe3be84604ac04b76482a55f9dd655e1ef4d367f95bc2",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://5282825a626cfe924e504274b864a652b0023591fa66f06a067b25b51ba9b303",
+            "dweb:/ipfs/QmeCfPykghhMc81VJTrHTC7sF6CRvaA1FXVq2pJhwYp1dV"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol" : {
+         "keccak256" : "0xd6fa4088198f04eef10c5bce8a2f4d60554b7ec4b987f684393c01bf79b94d9f",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://f95ee0bbd4dd3ac730d066ba3e785ded4565e890dbec2fa7d3b9fe3bad9d0d6e",
+            "dweb:/ipfs/QmSLr6bHkPFWT7ntj34jmwfyskpwo97T9jZUrk5sz3sdtR"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol" : {
+         "keccak256" : "0x377051c0c17a28038c32f58d76a42817eb3b24f2b4c6a2e788a9544e856d738d",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://c5365fead4a20b84662284c97c07d707c67f5bc9e07b371980aba8c3c6e83661",
+            "dweb:/ipfs/QmYrYoLPEADtXoCu9ZBnwkXdNB9D9FPHuhS9pWaQW4nYx5"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/Context.sol" : {
+         "keccak256" : "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12",
+            "dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol" : {
+         "keccak256" : "0xa516cbf1c7d15d3517c2d668601ce016c54395bf5171918a14e2686977465f53",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://1e1d079e8edfb58efd23a311e315a4807b01b5d1cf153f8fa2d0608b9dec3e99",
+            "dweb:/ipfs/QmTBExeX2SDTkn5xbk5ssbYSx7VqRp9H4Ux1CY4uQM4b9N"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/StorageSlot.sol" : {
+         "keccak256" : "0xcf74f855663ce2ae00ed8352666b7935f6cddea2932fdf2c3ecd30a9b1cd0e97",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://9f660b1f351b757dfe01438e59888f31f33ded3afcf5cb5b0d9bf9aa6f320a8b",
+            "dweb:/ipfs/QmarDJ5hZEgBtCmmrVzEZWjub9769eD686jmzb2XpSU1cM"
+         ]
+      },
+      "contracts/lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol" : {
+         "keccak256" : "0x8891738ffe910f0cf2da09566928589bf5d63f4524dd734fd9cedbac3274dd5c",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://971f954442df5c2ef5b5ebf1eb245d7105d9fbacc7386ee5c796df1d45b21617",
+            "dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
+         ]
+      },
+      "contracts/src/v2/PonsV2BuybackVault.sol" : {
+         "keccak256" : "0x2d6325520c3b77ae1f4a419c24c2d589f9d1c6ce660faa2117aa25fe953fb473",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://833212d7339ea923a8656b39831882a671442542dc1d1d3c667b5d131703ced9",
+            "dweb:/ipfs/QmUZqvhxsBBUFifxjs8k3RTqpXNWqX383PAvpTo9RNEL75"
+         ]
+      },
+      "contracts/src/v2/interfaces/ILaunchpadV2.sol" : {
+         "keccak256" : "0x0041322063acd71d7c6b9558a383546492ef991ea3fa365cbd6fa7774e883c2e",
+         "license" : "MIT",
+         "urls" : [
+            "bzz-raw://bf264813ec2d2a74ea513635f581b87faa2091bdc86b84da3279ac85805ef75c",
+            "dweb:/ipfs/Qmdb44VyBuB9F46viV83NVLbYpp1jrBRfuevjKozQ3G3ey"
+         ]
+      }
+   },
+   "version" : 1
+}

@@ -1,0 +1,3 @@
+# Pinned compiler binaries are downloaded at gate runtime
+# (checksum-verified); never commit them.
+.solc-*

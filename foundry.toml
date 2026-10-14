@@ -7,6 +7,7 @@
 # This file establishes the reproducible harness added by FINCO Forge.
 src = "contractsV2/src"
 test = "test"
+script = "script-w01"
 out = "out/v2"
 libs = ["contractsV2/lib"]
 solc = "0.8.30"
@@ -39,6 +40,7 @@ skip = []
 [profile.testable]
 src = "contractsV2/src"
 test = "test"
+script = "script-w01"
 out = "out/v2-testable"
 libs = ["contractsV2/lib"]
 solc = "0.8.30"
@@ -62,6 +64,7 @@ skip = ["contractsV2/src/v2/PonsV2LaunchFactory.sol"]
 [profile.v1]
 src = "contractsV1/src"
 test = "test-v1"
+script = "script-v1"
 out = "out/v1"
 libs = ["contractsV1/lib"]
 solc = "0.8.30"
@@ -88,3 +91,63 @@ runs = 256
 [invariant]
 runs = 64
 depth = 32
+
+# ── Deploy-time tree recovered via Sourcify (Workflow 02, Phase 1) ──────────
+# The verified deploy-time sources of the live PONS V2 stack (chain 4663),
+# recovered from Sourcify exact/match verification records with full
+# compilation settings. See docs/W02-SOURCE-RECOVERY.md.
+#
+# This profile compiles the recovered tree with the EXACT settings of the
+# original deployment (solc 0.8.35, cancun, via_ir, optimizer 200 runs,
+# ipfs metadata hash) and is the foundation for the Forge-owned stack.
+[profile.deployed]
+src = "contractsV2-deployed"
+test = "test-deployed"
+script = "script-deployed"
+out = "out/deployed"
+libs = ["contractsV2-deployed/lib"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "cancun"
+bytecode_hash = "ipfs"
+cbor_metadata = true
+remappings = [
+    "@openzeppelin/contracts/=contractsV2-deployed/lib/openzeppelin-contracts/contracts/",
+    "@uniswap/v4-core/=contractsV2-deployed/lib/v4-core/",
+    "@uniswap/v4-periphery/=contractsV2-deployed/lib/v4-periphery/",
+    "@uniswap/v4-hooks-public/=contractsV2-deployed/lib/v4-hooks-public/",
+    "v4-core/=contractsV2-deployed/lib/v4-core/src/",
+    "v4-periphery/=contractsV2-deployed/lib/v4-periphery/src/",
+    "permit2/=contractsV2-deployed/lib/v4-periphery/lib/permit2/",
+    "forge-std/=contractsV2/lib/forge-std/src/",
+]
+skip = []
+
+# ── Forge-owned W02 stack (Phase 2) ─────────────────────────────────────────
+# The Forge-owned factory is the recovered deploy-time tree with the M-ELIG
+# eligibility enforcement applied (docs/MODIFICATION-REGISTER.md); vendored
+# libs are shared with the deployed tree.
+[profile.forge]
+src = "contractsV2-forge/src"
+test = "test-forge"
+out = "out/forge"
+libs = ["contractsV2-deployed/lib"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "cancun"
+bytecode_hash = "ipfs"
+cbor_metadata = true
+remappings = [
+    "@openzeppelin/contracts/=contractsV2-deployed/lib/openzeppelin-contracts/contracts/",
+    "@uniswap/v4-core/=contractsV2-deployed/lib/v4-core/",
+    "@uniswap/v4-periphery/=contractsV2-deployed/lib/v4-periphery/",
+    "@uniswap/v4-hooks-public/=contractsV2-deployed/lib/v4-hooks-public/",
+    "v4-core/=contractsV2-deployed/lib/v4-core/src/",
+    "v4-periphery/=contractsV2-deployed/lib/v4-periphery/src/",
+    "permit2/=contractsV2-deployed/lib/v4-periphery/lib/permit2/",
+    "forge-std/=contractsV2/lib/forge-std/src/",
+]
