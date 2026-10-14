@@ -28,6 +28,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      # W05 unit tests (authority-matrix drift gate, release flags) read the compiled forge-profile ABIs.
+      - run: forge build --profile forge
+        working-directory: .
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
