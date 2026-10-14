@@ -55,6 +55,7 @@ const input = (over: Partial<PlanInput> = {}): PlanInput => ({
   ...over,
 });
 // Mine once (deterministic) and reuse the salt; every build still re-verifies it.
+// eslint-disable-next-line prefer-const -- assigned after input() (which reads it) is defined
 let MINED_SALT: Hex | undefined;
 MINED_SALT = buildDeployManifest(input(), fixtureBuild()).hook.salt;
 const clone = (m: DeployManifest) => JSON.parse(JSON.stringify(m)) as DeployManifest;
