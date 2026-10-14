@@ -1,0 +1,37 @@
+{
+  "$comment": "Robinhood Chain network manifest for FINCO Forge. Evidence classes: ONCHAIN_VERIFIED (read live via RPC, see docs/ROBINHOOD-CHAIN-VALIDATION.md, 2026-10-08), SOURCE_PROVEN, UNVERIFIED, BLOCKED. Forge contracts are NOT deployed: PRODUCTION_BLOCKED.",
+  "chainId": 4663,
+  "name": "Robinhood Chain",
+  "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 },
+  "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+  "explorerUrl": "https://robin.etherscan.io",
+  "productionStatus": "PRODUCTION_BLOCKED",
+  "uniswapV4": {
+    "poolManager": { "address": "0x8366a39cc670b4001a1121b8f6a443a643e40951", "evidence": "ONCHAIN_VERIFIED", "codeSize": 24009 },
+    "positionManager": { "address": "0x58daec3116aae6d93017baaea7749052e8a04fa7", "evidence": "ONCHAIN_VERIFIED", "codeSize": 23877 },
+    "permit2": { "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3", "evidence": "ONCHAIN_VERIFIED", "codeSize": 9152 },
+    "universalRouter": { "address": "0x8876789976decbfcbbbe364623c63652db8c0904", "evidence": "UNVERIFIED" }
+  },
+  "hookRequirements": {
+    "permissionMask": "0x2044",
+    "flags": ["beforeInitialize", "afterSwap", "afterSwapReturnDelta"],
+    "evidence": "SOURCE_PROVEN",
+    "note": "PonsV2MemeHook must be CREATE2-deployed at an address whose low 14 bits equal 0x2044 (BaseHook.validateHookPermissions)."
+  },
+  "quoteAssets": [
+    { "symbol": "ETH", "address": "0x0000000000000000000000000000000000000000", "decimals": 18, "evidence": "SOURCE_PROVEN", "note": "Native quote; factory LaunchConfig economics in wei." }
+  ],
+  "quoteAssetsNote": "Approved ERC-20 quote assets on any Forge factory are read live via approvedPairTokens/pairTokenEconomics; none are approved because no Forge factory is deployed on 4663 (UNVERIFIED).",
+  "forge": {
+    "factory": null,
+    "registry": null,
+    "authorizer": null,
+    "launchDeployer": null,
+    "locker": null,
+    "status": "NOT_DEPLOYED — PRODUCTION_BLOCKED (W04 independent security review + governance + key custody required)"
+  },
+  "originalPonsFactory": {
+    "address": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+    "note": "Original PONS V2 factory. NEVER indexed by Forge: it is not Forge-owned and launches through it carry no Forge authorization."
+  }
+}

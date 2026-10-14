@@ -89,9 +89,6 @@ contract PonsV2LaunchFactory is Ownable2Step, ReentrancyGuard, IPonsV2LaunchFact
     // above this would deploy a curve and token but then revert forever at
     // pool creation, stranding the swept reserves.
     int24 private constant MAX_TICK_SPACING = 32767;
-    // Canonical hash of an EMPTY snipe-tax exemption list (Correction A:
-    // entry points without exemptions bind the canonical empty list).
-    bytes32 private constant _EMPTY_EXEMPTION_HASH = keccak256(abi.encode(new address[](0)));
     // Largest amount either side of a seed may carry. V4 settles pool balance
     // changes through a BalanceDelta of two int128 halves, so the signed
     // maximum binds even though the PositionManager's ABI accepts a uint128.
@@ -226,7 +223,6 @@ contract PonsV2LaunchFactory is Ownable2Step, ReentrancyGuard, IPonsV2LaunchFact
     error LaunchConfigDisabled();
     error InvalidBasisPoints();
     error ExemptionListTooLong();
-    error InvalidExemptionAddress();
     error InvalidSnipeTaxWindow();
     error CurveFeeTooHigh();
     error CreatorTaxTooHigh();
@@ -728,7 +724,7 @@ contract PonsV2LaunchFactory is Ownable2Step, ReentrancyGuard, IPonsV2LaunchFact
         nonReentrant
         returns (address token, address curve)
     {
-        return _launchToken(params, launchConfigId, pairToken, msg.sender, _EMPTY_EXEMPTION_HASH);
+        return _launchToken(params, launchConfigId, pairToken, msg.sender);
     }
 
     /**
@@ -745,9 +741,10 @@ contract PonsV2LaunchFactory is Ownable2Step, ReentrancyGuard, IPonsV2LaunchFact
         address pairToken,
         address[] calldata snipeTaxExemptions
     ) external payable nonReentrant returns (address token, address curve) {
-        // The canonical exemption hash is computed and bound BEFORE any
-        // deployment; the application itself still follows it.
-        (token, curve) = _launchToken(params, launchConfigId, pairToken, msg.sender, _canonicalExemptionHash(snipeTaxExemptions));
+        // The exemption list is part of the calldata the authorizer verifies
+        // (canonical hash bound by the creator's signature) BEFORE any
+        // deployment; the application below applies the very same list.
+        (token, curve) = _launchToken(params, launchConfigId, pairToken, msg.sender);
         _exemptFromSnipeTax(curve, snipeTaxExemptions);
     }
 
@@ -767,37 +764,10 @@ contract PonsV2LaunchFactory is Ownable2Step, ReentrancyGuard, IPonsV2LaunchFact
     ) external payable nonReentrant returns (address token, address curve) {
         if (msg.sender != launchForwarder) revert NotLaunchForwarder();
         // The owner-configured forwarder cannot alter the signed exemption
-        // list: the canonical hash is bound before deployment.
-        (token, curve) = _launchToken(params, launchConfigId, pairToken, originalDeployer, _canonicalExemptionHash(snipeTaxExemptions));
+        // list or the deployer: both are verified from this calldata before
+        // deployment.
+        (token, curve) = _launchToken(params, launchConfigId, pairToken, originalDeployer);
         _exemptFromSnipeTax(curve, snipeTaxExemptions);
-    }
-
-    /// @notice Canonical hash of a snipe-tax exemption list: the list sorted
-    /// ascending, then hashed. Sorting is the explicitly reviewed canonical
-    /// ordering rule (on-chain application order is semantically irrelevant:
-    /// exemption is a per-address mapping), so a reordered submission is
-    /// accepted, while ANY addition, removal, substitution or duplication
-    /// produces a different canonical hash and is rejected against the
-    /// creator-signed digest. The zero address is refused fail-closed.
-    /// MUST run before deployment; see docs/MODIFICATION-REGISTER.md §2.
-    function _canonicalExemptionHash(address[] calldata exemptions) private pure returns (bytes32) {
-        if (exemptions.length > MAX_SNIPE_TAX_EXEMPTIONS) revert ExemptionListTooLong();
-        address[] memory sorted = new address[](exemptions.length);
-        for (uint256 i = 0; i < exemptions.length; ++i) {
-            if (exemptions[i] == address(0)) revert InvalidExemptionAddress();
-            sorted[i] = exemptions[i];
-        }
-        // Insertion sort (bounded by MAX_SNIPE_TAX_EXEMPTIONS = 32).
-        for (uint256 i = 1; i < sorted.length; ++i) {
-            address v = sorted[i];
-            uint256 j = i;
-            while (j > 0 && sorted[j - 1] > v) {
-                sorted[j] = sorted[j - 1];
-                --j;
-            }
-            sorted[j] = v;
-        }
-        return keccak256(abi.encode(sorted));
     }
 
     /**
@@ -820,8 +790,7 @@ contract PonsV2LaunchFactory is Ownable2Step, ReentrancyGuard, IPonsV2LaunchFact
         TokenParams calldata params,
         uint256 launchConfigId,
         address pairToken,
-        address originalDeployer,
-        bytes32 exemptionListHash
+        address originalDeployer
     ) private returns (address token, address curve) {
         if (address(launchDeployer) == address(0)) revert LaunchDeployerNotSet();
         _requireLaunchDependenciesWired();
@@ -882,27 +851,14 @@ contract PonsV2LaunchFactory is Ownable2Step, ReentrancyGuard, IPonsV2LaunchFact
         // to an active repository binding. Factory-owner privileges cannot
         // remove this (the authority address is immutable); see
         // docs/MODIFICATION-REGISTER.md and docs/THREAT-MODEL-W02.md.
-        launchAuthorizer.requireAuthorizedLaunch(
-            IForgeLaunchAuthorizer.LaunchIntent({
-                factory: address(this),
-                creator: originalDeployer,
-                githubRepoId: params.githubRepoId,
-                launchConfigId: launchConfigId,
-                pairToken: pairToken,
-                tokenMetadataHash:
-                    keccak256(abi.encode(params.name, params.symbol, params.logo, params.description, params.socials)),
-                economicsDigest: economics,
-                salt: params.salt,
-                expiresAt: params.authorizationExpiresAt,
-                nonce: params.authorizationNonce,
-                creatorTaxBps: params.creatorTaxBps,
-                exemptionListHash: exemptionListHash
-            }),
-            creatorFeeRecipient,
-            params.buybackEnabled,
-            params.creatorSignature,
-            params.attestationPayload
-        );
+        //
+        // W03 Correction A (W02-SIZE-01): the factory forwards its own entry
+        // calldata; the authorizer decodes the identical TokenParams and
+        // rebuilds the LaunchIntent (raw metadata hash, canonical exemption
+        // hash, effective fee recipient) instead of this contract assembling
+        // it. Enforcement location, ordering and checks are unchanged — see
+        // docs/MODIFICATION-REGISTER.md §7.
+        launchAuthorizer.requireAuthorizedLaunchCall(msg.data, originalDeployer, economics);
 
         (token, curve) = launchDeployer.deployLaunch(
             LaunchDeployment({
