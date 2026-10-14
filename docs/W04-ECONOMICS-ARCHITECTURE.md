@@ -127,5 +127,5 @@ The original PONS buyback vault, which vests project tokens over five years, is 
 | Third-party escrow credits | Closed for allocation by Correction A (§2a): such credits are never attested, so they stay in the escrow under the splitter key and are reported as `UNATTRIBUTED`. The residual is the **trusted attestor**: provenance is attested off chain, not proven on chain. Proving it on chain would require an escrow change, and the escrow is the canonical, unchanged contract. |
 | Graduation residual | The executor's residual transfer arrives as a direct transfer. It is classified off chain by sender. Under the W02 mini mocks it is large; in production it is rounding dust. |
 | Hook tax conversion | A hook sweep that converts memecoin-denominated creator tax cannot be split exactly between base and tax; it is reported unsplit. |
-| Ledger cost | The ledger is recomputed per request from `chain_events`, which is O(events). Production should materialise it (W05). |
+| Ledger cost | W05: materialized fold snapshots (see docs/W05-DATABASE-LEDGER.md); per-request cost still O(events) in decode, measured 2.2x faster at 100k events. |
 | Mock pool manager | The W02 mini pool manager does not hold seeded native ETH. Tests top up its balance to match its own reserve accounting before a native take. This is a test-harness limitation only. |

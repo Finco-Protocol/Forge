@@ -60,7 +60,7 @@ describePg("W05 job queue: concurrent workers on PostgreSQL", () => {
           idle = 0;
           for (const j of jobs) {
             await w.p.query("INSERT INTO w05_processed(job_id, worker) VALUES ($1, $2)", [j.id, w.name]);
-            await sleep(Math.random() * 3); // processing time: the claim has committed, the row lock is gone
+            await sleep(1 + (Number(j.id) % 3)); // processing time: the claim has committed, the row lock is gone
             await w.p.query("UPDATE jobs SET status = 'done', completed_at = now() WHERE id = $1", [j.id]);
           }
         }
