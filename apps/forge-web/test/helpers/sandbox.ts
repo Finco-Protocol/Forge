@@ -6,11 +6,12 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createAppContext, type AppContext } from "@/server/context";
 import { PgliteDb } from "@/server/db";
 import { dispatch } from "@/server/api/handlers";
-import { deploySandbox, SANDBOX_ROLES, ANVIL_KEYS, type SandboxDeployment } from "../../scripts/sandbox-lib";
+import { deploySandbox, ANVIL_KEYS, type SandboxDeployment } from "../../scripts/sandbox-lib";
 import { startAnvil, type Anvil } from "./anvil";
 import { FakeGithub } from "./fake-github";
+import { sandboxEnv, ORIGIN } from "./env";
+export { sandboxEnv, ORIGIN };
 
-export const ORIGIN = "http://localhost:3000";
 
 export interface Sandbox {
   anvil: Anvil;
@@ -19,30 +20,6 @@ export interface Sandbox {
   ctx: AppContext;
   env: Record<string, string>;
   stop(): Promise<void>;
-}
-
-export function sandboxEnv(d: SandboxDeployment, gh: FakeGithub, rpcUrl: string, deploymentFile: string, extra: Record<string, string> = {}): Record<string, string> {
-  return {
-    FORGE_NETWORK: "sandbox",
-    FORGE_PUBLIC_ORIGIN: ORIGIN,
-    FORGE_RPC_URL: rpcUrl,
-    FORGE_CHAIN_ID: String(d.chainId),
-    FORGE_DEPLOYMENT_FILE: deploymentFile,
-    FORGE_CONFIRMATIONS: "0",
-    SESSION_SECRET: "test-session-secret-0123456789abcdef0123456789",
-    GITHUB_APP_ID: gh.appId,
-    GITHUB_APP_SLUG: gh.appSlug,
-    GITHUB_APP_PRIVATE_KEY: gh.privateKeyPem,
-    GITHUB_CLIENT_ID: gh.clientId,
-    GITHUB_CLIENT_SECRET: gh.clientSecret,
-    GITHUB_WEBHOOK_SECRET: "test-webhook-secret-0123456789",
-    GITHUB_API_URL: gh.url,
-    GITHUB_WEB_URL: gh.url,
-    FORGE_AUTHORITY_PRIVATE_KEY: SANDBOX_ROLES.authority,
-    FORGE_EVIDENCE_PRIVATE_KEY: SANDBOX_ROLES.evidence,
-    FORGE_RELAYER_PRIVATE_KEY: SANDBOX_ROLES.relayer,
-    ...extra,
-  };
 }
 
 export async function startSandbox(extraEnv: Record<string, string> = {}): Promise<Sandbox> {

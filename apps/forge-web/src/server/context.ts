@@ -40,12 +40,16 @@ export async function createAppContext(env: Record<string, string | undefined> =
   return { cfg, db, github, client, relayer, authority, evidenceSigner };
 }
 
-let singleton: Promise<AppContext> | null = null;
-/** Process-wide context for route handlers. */
+/**
+ * Process-wide context. Kept on globalThis: Next.js loads route handlers and
+ * instrumentation (embedded worker) in separate module graphs, and both must
+ * share ONE database handle (PGlite is single-process).
+ */
+const g = globalThis as unknown as { __forgeAppContext?: Promise<AppContext> | null };
 export function getAppContext(): Promise<AppContext> {
-  singleton ??= createAppContext().catch((e) => {
-    singleton = null;
+  g.__forgeAppContext ??= createAppContext().catch((e) => {
+    g.__forgeAppContext = null;
     throw e;
   });
-  return singleton;
+  return g.__forgeAppContext;
 }

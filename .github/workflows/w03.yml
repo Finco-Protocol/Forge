@@ -1,0 +1,175 @@
+name: W03 Verified Builder Platform
+
+# Exact-head CI for the W03 TypeScript platform (apps/forge-web).
+# W01/W02 Foundry gates live in ci.yml / w02.yml and are untouched.
+# No continue-on-error, no `|| true`: every job here is required.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: v1.8.5
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.28.0"
+
+defaults:
+  run:
+    working-directory: apps/forge-web
+
+jobs:
+  static:
+    name: "w03: typecheck + lint + unit + dependency audit"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - name: dependency audit (production deps, fail on high/critical)
+        run: pnpm audit --prod --audit-level high
+
+  secrets:
+    name: "w03: secret scan (gitleaks, W03 commit range)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: install gitleaks 8.28.0 (pinned)
+        run: |
+          curl -sSL -o /tmp/gl.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
+          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  /tmp/gl.tgz" | sha256sum -c -
+          tar -xzf /tmp/gl.tgz -C /tmp gitleaks
+      - name: scan commits introduced on top of the W02 base
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          BASE="${PR_BASE:-$(git merge-base HEAD origin/main)}"
+          echo "scanning ${BASE}..HEAD"
+          /tmp/gitleaks git --no-banner --redact --log-opts="${BASE}..HEAD" .
+
+  contracts:
+    name: "w03: build W02 forge profile + ABI drift check"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge build --profile forge
+        working-directory: .
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: committed ABIs match the W02 build output
+        run: pnpm abi:check
+      - name: EIP-170 size report (W02-SIZE-01 is a known, reported blocker)
+        run: pnpm exec tsx -e "import('./scripts/sandbox-lib.ts').then(m => console.table(m.eip170Report()))"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forge-out
+          path: out/forge
+          retention-days: 3
+
+  integration:
+    name: "w03: API/security integration + acceptance (Anvil, real W02 contracts)"
+    needs: contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: forge-out
+          path: out/forge
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration
+
+  e2e:
+    name: "w03: browser E2E (Playwright, production build)"
+    needs: contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: forge-out
+          path: out/forge
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-evidence
+          path: |
+            apps/forge-web/test-results
+            apps/forge-web/playwright-report
+          retention-days: 14
+
+  robinhood-readonly:
+    name: "w03: Robinhood Chain 4663 V4 wiring (read-only RPC)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: read-only checks against genuine deployed contracts (no writes, no keys)
+        env:
+          FORGE_FORK_RPC_URL: https://rpc.mainnet.chain.robinhood.com
+        run: pnpm test:fork

@@ -294,4 +294,10 @@ describe("configuration guards", () => {
     expect(() => buildConfig({ ...base, FORGE_CHAIN_ID: "4663" })).toThrow(/4663/);
     expect(() => buildConfig({ ...base, FORGE_NETWORK: "robinhood", FORGE_CHAIN_ID: "4663" })).toThrow(/PRODUCTION_BLOCKED/);
   });
+  it("the local test signer refuses any chain but a local dev chain", async () => {
+    const { LocalTestDigestSigner } = await import("@/server/signer/local");
+    expect(() => new LocalTestDigestSigner("authority", `0x${"11".repeat(32)}`, { chainId: 4663 })).toThrow(/PRODUCTION_BLOCKED/);
+    expect(() => new LocalTestDigestSigner("authority", `0x${"11".repeat(32)}`, { chainId: 11155111 })).toThrow(/local dev chains only/);
+    await expect(createAppContext({ ...sb.env, FORGE_CHAIN_ID: "11155111" }, { db: sb.ctx.db })).rejects.toThrow(/PRODUCTION_BLOCKED/);
+  });
 });
