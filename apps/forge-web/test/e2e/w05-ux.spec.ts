@@ -13,8 +13,15 @@ mkdirSync(SHOTS, { recursive: true });
 
 const MOBILE = { width: 375, height: 812 };
 const noHorizontalOverflow = async (page: Page) => {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow, "page must not scroll horizontally").toBeLessThanOrEqual(1);
+  const { overflow, offenders } = await page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    const bad = Array.from(document.querySelectorAll("body *"))
+      .filter((el) => el.getBoundingClientRect().right > vw + 1 && !el.closest(".table-wrap"))
+      .slice(0, 5)
+      .map((el) => `${el.tagName.toLowerCase()}.${(el as HTMLElement).className}`);
+    return { overflow: document.documentElement.scrollWidth - vw, offenders: bad };
+  });
+  expect(overflow, `page must not scroll horizontally (offenders: ${offenders.join(", ")})`).toBeLessThanOrEqual(1);
 };
 
 test("keyboard users get a skip link, labelled landmarks and aria-current navigation", async ({ page }) => {
