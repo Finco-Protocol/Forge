@@ -22,7 +22,16 @@ import {
 import type { AppContext } from "../context";
 import { refuse } from "../errors";
 import { checkpointName } from "../indexer/indexer";
-import { buildLedger, derivedTreasuryReserve, verifiedEligibleRevenue, NATIVE, type Ledger, type LedgerEvent } from "./ledger";
+import { derivedTreasuryReserve, verifiedEligibleRevenue, NATIVE, type Ledger } from "./ledger";
+import {
+  ledgerContextFor,
+  ledgerIntegrity,
+  loadMaterializedLedger,
+  loadReferenceLedger,
+  runLedgerSelfCheck,
+  type LoadedLedger,
+  type SelfCheckResult,
+} from "./materialized";
 import { syncRevenueAttestations, type AttestationOutcome } from "./attestor";
 import { verifyClaimContents, type ClaimKind } from "./claims";
 import { PRODUCTION_BLOCKED, FORGE_FEE_POLICY_AUTHORITY_UNPROVEN, REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED } from "../config";
@@ -71,38 +80,58 @@ export async function indexerState(ctx: AppContext) {
   };
 }
 
-export async function loadLedger(ctx: AppContext): Promise<{ ledger: Ledger; checkpoint: bigint | null }> {
-  const a = ctx.cfg.addresses;
-  const { rows } = await ctx.db.query<{
-    block_number: string;
-    block_hash: string;
-    tx_hash: string;
-    log_index: number;
-    address: string;
-    event_name: string;
-    args: Record<string, string>;
-    block_timestamp: string;
-  }>("SELECT block_number::text, block_hash, tx_hash, log_index, address, event_name, args, block_timestamp::text FROM chain_events WHERE chain_id = $1", [ctx.cfg.chainId]);
-  const events: LedgerEvent[] = rows.map((r) => ({
-    blockNumber: BigInt(r.block_number),
-    blockHash: r.block_hash,
-    txHash: r.tx_hash,
-    logIndex: r.log_index,
-    address: getAddress(r.address),
-    eventName: r.event_name,
-    args: r.args,
-    blockTimestamp: BigInt(r.block_timestamp),
-  }));
-  const ledger = buildLedger(events, {
-    factory: a.factory,
-    hook: a.memeHook,
-    escrow: a.feeEscrow ?? NATIVE,
-    vault: a.buybackVault ?? NATIVE,
-    splitter: a.revenueSplitter,
-    graduationExecutor: a.graduationExecutor,
-  });
-  const cp = await ctx.db.query<{ last_block: string }>("SELECT last_block::text FROM indexer_checkpoints WHERE name = $1", [checkpointName(ctx)]);
-  return { ledger, checkpoint: cp.rows[0] ? BigInt(cp.rows[0].last_block) : null };
+/**
+ * The W04 ledger at the indexer checkpoint. W05: served from the materialized
+ * fold (newest canonical snapshot + newer events) unless FORGE_LEDGER_MODE=full
+ * or the ledger integrity flag is HALTED, in which case the reference
+ * buildLedger over every indexed event is used (the W04 behaviour).
+ */
+export async function loadLedger(ctx: AppContext): Promise<LoadedLedger> {
+  const c = ledgerContextFor(ctx.cfg.addresses);
+  const halted = (await ledgerIntegrity(ctx.db, ctx.cfg.chainId))?.halted ?? false;
+  if (ctx.cfg.ledger.mode === "full" || halted) return loadReferenceLedger(ctx.db, ctx.cfg.chainId, c, checkpointName(ctx));
+  return loadMaterializedLedger(ctx.db, ctx.cfg.chainId, c, checkpointName(ctx));
+}
+
+/** Splitter reconcile() deficit per asset at `block` (on-chain, canonical splitter only). */
+async function splitterDeficits(ctx: AppContext, assets: Address[], block: bigint): Promise<Map<Address, bigint>> {
+  const splitter = ctx.cfg.addresses.revenueSplitter;
+  const out = new Map<Address, bigint>();
+  if (!splitter) return out;
+  for (const asset of assets) {
+    const rec = await ctx.client.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi, functionName: "reconcile", args: [asset], blockNumber: block });
+    out.set(asset, rec[3]);
+  }
+  return out;
+}
+
+/** Materialized-vs-reference self-check (halts on divergence or splitter deficit). */
+export function ledgerSelfCheck(ctx: AppContext): Promise<SelfCheckResult> {
+  return runLedgerSelfCheck(selfCheckDeps(ctx));
+}
+
+export function selfCheckDeps(ctx: AppContext) {
+  return {
+    db: ctx.db,
+    chainId: ctx.cfg.chainId,
+    ledger: ledgerContextFor(ctx.cfg.addresses),
+    checkpointName: checkpointName(ctx),
+    readDeficits: (assets: Address[], block: bigint) => splitterDeficits(ctx, assets, block),
+  };
+}
+
+/** Runs the self-check when none passed within FORGE_LEDGER_SELF_CHECK_INTERVAL_MS (never while halted). */
+export async function maybeRunLedgerSelfCheck(ctx: AppContext, opts: { atCheckpoint?: bigint } = {}): Promise<SelfCheckResult | null> {
+  const i = await ledgerIntegrity(ctx.db, ctx.cfg.chainId);
+  if (i?.halted) return null;
+  const lastCheckpoint = (i?.lastCheckDetail as { checkpoint?: string | null } | null)?.checkpoint ?? null;
+  const fresh =
+    i?.lastCheckOk === true &&
+    i.lastCheckAt !== null &&
+    Date.now() - new Date(i.lastCheckAt).getTime() < ctx.cfg.ledger.selfCheckIntervalMs &&
+    (opts.atCheckpoint === undefined || lastCheckpoint === opts.atCheckpoint.toString());
+  if (fresh) return null;
+  return ledgerSelfCheck(ctx);
 }
 
 /** V4 PoolId of a graduated Forge launch, recomputed from its key (no trust in stored ids). */
@@ -192,7 +221,19 @@ export async function eligibleLaunchTokens(ctx: AppContext, ledger: Ledger, bloc
 
 /** Worker step: relay attested eligible-revenue ceilings (sandbox only; see attestor.ts). */
 export async function runRevenueAttestation(ctx: AppContext): Promise<AttestationOutcome[]> {
-  return syncRevenueAttestations(ctx, () => loadLedger(ctx), (ledger, block) => eligibleLaunchTokens(ctx, ledger, block));
+  // One attestor per chain at a time (a second worker would only race the nonce and revert).
+  const r = await ctx.db.withSessionLock(`revenue-attestor:${ctx.cfg.chainId}`, () =>
+    syncRevenueAttestations(
+      ctx,
+      () => loadLedger(ctx),
+      (ledger, block) => eligibleLaunchTokens(ctx, ledger, block),
+      // W05: nothing is signed from a materialized ledger that was not verified against the reference at the evidence block.
+      async (checkpoint) => {
+        await maybeRunLedgerSelfCheck(ctx, { atCheckpoint: checkpoint });
+      },
+    ),
+  { wait: false });
+  return r.acquired ? r.value : [];
 }
 
 async function liveAccrued(ctx: AppContext, l: LaunchState) {

@@ -1,0 +1,209 @@
+{
+  "env": {
+    "os": "Linux 6.18.44-fc-v114 x64",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz x4",
+    "memGB": 16,
+    "node": "v22.22.0",
+    "postgres": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "date": "2026-10-14T20:24:44.350Z",
+    "migrationEmptyDb_ms": {
+      "median": 221.69650299998466,
+      "min": 160.11290100001497,
+      "max": 330.9806549999921
+    }
+  },
+  "params": {
+    "sizes": [
+      1000,
+      10000,
+      100000
+    ],
+    "reps": 5,
+    "tail": 100
+  },
+  "rows": [
+    {
+      "events": 1002,
+      "blocks": 288,
+      "tailEvents": 102,
+      "snapshotBytes": 245426,
+      "reps": 5,
+      "buildLedger_ms": {
+        "median": 8.84994400000005,
+        "min": 5.396580999999969,
+        "max": 21.55423799999994
+      },
+      "foldFromGenesis_ms": {
+        "median": 7.008213999999953,
+        "min": 4.752222999999958,
+        "max": 9.365839999999935
+      },
+      "snapshotDecode_ms": {
+        "median": 11.378633000000036,
+        "min": 6.5468459999999595,
+        "max": 21.23917000000006
+      },
+      "applyTail_ms": {
+        "median": 1.06579499999998,
+        "min": 0.6544790000000376,
+        "max": 4.784147999999959
+      },
+      "snapshotEncode_ms": {
+        "median": 3.193176999999878,
+        "min": 2.2440500000000156,
+        "max": 3.977538999999979
+      },
+      "incrementalTotal_ms": {
+        "median": 12.229759000000058,
+        "min": 7.59050400000001,
+        "max": 22.62269500000002
+      },
+      "digest": "624553eacd317287",
+      "generate_ms": 25,
+      "pg_migrateAll_ms": 288,
+      "pg_seed_ms": 325,
+      "pg_ranges": 6,
+      "pg_snapshotsWritten": 6,
+      "pg_rangeCommitWithSnapshot_ms": {
+        "median": 61.55787599999985,
+        "min": 24.534279000000197,
+        "max": 70.58017199999995
+      },
+      "pg_loadReference_ms": {
+        "median": 22.092815999999857,
+        "min": 15.898848000000271,
+        "max": 48.896729999999934
+      },
+      "pg_loadMaterialized_ms": {
+        "median": 24.09848299999976,
+        "min": 19.600627999999688,
+        "max": 43.12066000000004
+      },
+      "pg_materializedSource": "snapshot@288 +0 events",
+      "pg_snapshotTableBytes": 303104,
+      "pg_snapshotRows": 3
+    },
+    {
+      "events": 10000,
+      "blocks": 3774,
+      "tailEvents": 103,
+      "snapshotBytes": 1784981,
+      "reps": 5,
+      "buildLedger_ms": {
+        "median": 51.617927999999665,
+        "min": 45.09882999999991,
+        "max": 135.026523
+      },
+      "foldFromGenesis_ms": {
+        "median": 65.25498599999992,
+        "min": 50.2973979999997,
+        "max": 103.59374200000002
+      },
+      "snapshotDecode_ms": {
+        "median": 57.01173199999994,
+        "min": 55.74386299999969,
+        "max": 114.95151499999974
+      },
+      "applyTail_ms": {
+        "median": 0.7116130000003977,
+        "min": 0.5976399999999558,
+        "max": 9.255989999999656
+      },
+      "snapshotEncode_ms": {
+        "median": 11.59166600000026,
+        "min": 10.208245000000716,
+        "max": 46.140194999999494
+      },
+      "incrementalTotal_ms": {
+        "median": 57.86700599999949,
+        "min": 56.36026599999968,
+        "max": 124.2075049999994
+      },
+      "digest": "4e6be4ce61090740",
+      "generate_ms": 428,
+      "pg_migrateAll_ms": 424,
+      "pg_seed_ms": 5858,
+      "pg_ranges": 76,
+      "pg_snapshotsWritten": 38,
+      "pg_rangeCommitWithSnapshot_ms": {
+        "median": 40.018307999999706,
+        "min": 10.258090999999695,
+        "max": 290.9297349999997
+      },
+      "pg_loadReference_ms": {
+        "median": 131.29211099999884,
+        "min": 103.00180200000068,
+        "max": 176.53617499999928
+      },
+      "pg_loadMaterialized_ms": {
+        "median": 75.64598599999954,
+        "min": 69.50736699999834,
+        "max": 109.37010199999895
+      },
+      "pg_materializedSource": "snapshot@3750 +71 events",
+      "pg_snapshotTableBytes": 10887168,
+      "pg_snapshotRows": 2
+    },
+    {
+      "events": 100005,
+      "blocks": 40060,
+      "tailEvents": 100,
+      "snapshotBytes": 15529527,
+      "reps": 5,
+      "buildLedger_ms": {
+        "median": 679.0267050000002,
+        "min": 646.7044649999989,
+        "max": 802.2825450000018
+      },
+      "foldFromGenesis_ms": {
+        "median": 750.7987680000006,
+        "min": 675.6318109999993,
+        "max": 1138.6424149999984
+      },
+      "snapshotDecode_ms": {
+        "median": 707.9835979999989,
+        "min": 525.7930180000003,
+        "max": 780.3171920000023
+      },
+      "applyTail_ms": {
+        "median": 0.9250659999997879,
+        "min": 0.7941800000007788,
+        "max": 1.2454480000014883
+      },
+      "snapshotEncode_ms": {
+        "median": 107.78073500000028,
+        "min": 85.53928799999994,
+        "max": 192.9627419999997
+      },
+      "incrementalTotal_ms": {
+        "median": 708.9426319999984,
+        "min": 526.6903649999986,
+        "max": 781.242258000002
+      },
+      "digest": "1186bc23102089c2",
+      "generate_ms": 1162,
+      "pg_migrateAll_ms": 239,
+      "pg_seed_ms": 95341,
+      "pg_ranges": 802,
+      "pg_snapshotsWritten": 39,
+      "pg_rangeCommitWithSnapshot_ms": {
+        "median": 65.1931110000005,
+        "min": 7.127559000000474,
+        "max": 2774.1933579999895
+      },
+      "pg_loadReference_ms": {
+        "median": 1929.546994999997,
+        "min": 1574.871197000015,
+        "max": 2129.2618389999843
+      },
+      "pg_loadMaterialized_ms": {
+        "median": 894.0829180000001,
+        "min": 853.4083950000058,
+        "max": 1235.2989670000097
+      },
+      "pg_materializedSource": "snapshot@39950 +267 events",
+      "pg_snapshotTableBytes": 56279040,
+      "pg_snapshotRows": 2
+    }
+  ]
+}

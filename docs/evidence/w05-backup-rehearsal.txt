@@ -1,0 +1,38 @@
+[rehearsal] server 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1); pg_dump pg_dump (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+[rehearsal] seeded 20001 events, 313 ranges, 156 snapshots (44816 ms)
+[rehearsal] pg_dump -Fc -> 3230645 bytes (46037 ms)
+[rehearsal] pg_restore into fresh database complete (46858 ms)
+[rehearsal] PASS rows attestations 0 == 0
+[rehearsal] PASS rows audit_events 1 == 1
+[rehearsal] PASS rows chain_events 20001 == 20001
+[rehearsal] PASS rows evidence_receipts 0 == 0
+[rehearsal] PASS rows fin_claim_submissions 0 == 0
+[rehearsal] PASS rows github_users 0 == 0
+[rehearsal] PASS rows indexed_blocks 6628 == 6628
+[rehearsal] PASS rows indexer_checkpoints 1 == 1
+[rehearsal] PASS rows installations 0 == 0
+[rehearsal] PASS rows jobs 50 == 50
+[rehearsal] PASS rows launch_drafts 0 == 0
+[rehearsal] PASS rows launch_intents 0 == 0
+[rehearsal] PASS rows ledger_integrity 0 == 0
+[rehearsal] PASS rows ledger_snapshots 3 == 3
+[rehearsal] PASS rows oauth_states 0 == 0
+[rehearsal] PASS rows rate_limits 0 == 0
+[rehearsal] PASS rows registry_ops 0 == 0
+[rehearsal] PASS rows repositories 0 == 0
+[rehearsal] PASS rows repository_names 0 == 0
+[rehearsal] PASS rows schema_migrations 4 == 4
+[rehearsal] PASS rows sessions 0 == 0
+[rehearsal] PASS rows signing_requests 0 == 0
+[rehearsal] PASS rows tokens 0 == 0
+[rehearsal] PASS rows verifications 0 == 0
+[rehearsal] PASS rows wallet_bindings 0 == 0
+[rehearsal] PASS rows wallet_challenges 0 == 0
+[rehearsal] PASS rows webhook_deliveries 0 == 0
+[rehearsal] PASS rows worker_heartbeats 0 == 0
+[rehearsal] PASS migration versions + checksums 4 migrations, version 005_ledger_materialization.sql
+[rehearsal] PASS reference ledger digest 9746e455e25d1b075f644a62d553db723450646bc9e3d105d67b100cde016911
+[rehearsal] PASS materialized ledger digest (restored snapshots) snapshot@7775
+[rehearsal] PASS startup checks on restored DB PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), TimeZone UTC
+[rehearsal] total 47665 ms; 28 tables, 20001 chain_events
+[rehearsal] RESULT: OK

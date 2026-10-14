@@ -200,9 +200,9 @@ export interface Ledger {
   lastBlock: bigint | null;
 }
 
-const NON_REVENUE_CLASS = ["LaunchFee", "UnattributedNative", "UnattributedToken"] as const;
+export const NON_REVENUE_CLASS = ["LaunchFee", "UnattributedNative", "UnattributedToken"] as const;
 
-const GOVERNANCE_EVENTS: Record<string, Set<string>> = {
+export const GOVERNANCE_EVENTS: Record<string, Set<string>> = {
   factory: new Set([
     "LaunchFeeUpdated",
     "MaxCreatorTaxUpdated",
@@ -249,11 +249,11 @@ const GOVERNANCE_EVENTS: Record<string, Set<string>> = {
   vault: new Set(["CreatorRecipientUpdated"]),
 };
 
-const big = (v: string | undefined) => BigInt(v ?? "0");
-const addr = (v: string | undefined) => getAddress(v ?? NATIVE);
-const key = (recipient: Address, asset: Address) => `${recipient}:${asset}`;
+export const big = (v: string | undefined) => BigInt(v ?? "0");
+export const addr = (v: string | undefined) => getAddress(v ?? NATIVE);
+export const key = (recipient: Address, asset: Address) => `${recipient}:${asset}`;
 
-function emptyTokenFees(token: Address, curve: Address, creator: Address, pairToken: Address): TokenFees {
+export function emptyTokenFees(token: Address, curve: Address, creator: Address, pairToken: Address): TokenFees {
   return {
     token,
     curve,
@@ -287,7 +287,7 @@ function emptyTokenFees(token: Address, curve: Address, creator: Address, pairTo
   };
 }
 
-function emptySplitter(asset: Address): SplitterAssetTotals {
+export function emptySplitter(asset: Address): SplitterAssetTotals {
   return {
     asset,
     eligibleCeiling: 0n,
@@ -584,7 +584,7 @@ export function buildLedger(input: LedgerEvent[], c: LedgerContext): Ledger {
  * assets credit less than nominal, so legs are matched by ORDER, and the
  * credited (actual) amounts are what the ledger records.
  */
-function assignLegs(
+export function assignLegs(
   ledger: Ledger,
   pending: Map<string, CreditRow[]>,
   sweep: LedgerEvent,

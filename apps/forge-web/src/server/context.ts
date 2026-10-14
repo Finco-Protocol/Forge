@@ -1,6 +1,6 @@
 import { buildConfig, type ForgeConfig } from "./config";
 import { openDb, type Db } from "./db";
-import { migrate } from "./db/migrate";
+import { assertDatabaseReady, migrate } from "./db/migrate";
 import { GithubApp } from "./github/client";
 import { makePublicClient, makeRelayer, type ForgePublicClient, type ForgeWalletClient } from "./chain/clients";
 import { AuthoritySigner } from "./signer/policy";
@@ -33,7 +33,16 @@ export async function createAppContext(
 ): Promise<AppContext> {
   const cfg = buildConfig(env);
   const db = opts.db ?? (await openDb(cfg.db));
-  await migrate(db);
+  // W05: migrations run under a cluster-wide advisory lock and refuse drift /
+  // downgrade; then the schema, server version and session TimeZone are
+  // verified (fail closed) before anything else touches the database.
+  try {
+    if (cfg.db.migrate === "apply") await migrate(db, undefined, { lockTimeoutMs: cfg.db.migrationLockTimeoutMs });
+    await assertDatabaseReady(db);
+  } catch (e) {
+    if (!opts.db) await db.close().catch(() => undefined);
+    throw e;
+  }
   const client = makePublicClient(cfg);
   const relayer = makeRelayer(cfg, requireKey("FORGE_RELAYER_PRIVATE_KEY", cfg.signer.relayerKey));
   // Custody: local-test (default, dev chains only) or KMS (injected backend; also dev chains only

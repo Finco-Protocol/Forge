@@ -2,6 +2,7 @@ import { z } from "zod";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { getAddress, type Address } from "viem";
+import { DEFAULT_POOL, type DbPoolConfig } from "./db";
 import robinhoodManifest from "../../config/networks/robinhood-4663.json";
 
 /** Hard production gates carried forward from W02 (see docs/W03-SECURITY-RUNBOOK.md). */
@@ -31,6 +32,43 @@ const address = z
   .transform((v) => getAddress(v));
 
 const hexKey = z.string().regex(/^0x[0-9a-fA-F]{64}$/, "expected a 32-byte hex private key");
+
+/** Process roles: each gets its own application_name (pg_stat_activity). */
+export const PROCESS_ROLES = ["web", "worker", "cli"] as const;
+
+const DbEnvShape = {
+  DATABASE_URL: z.string().optional(),
+  FORGE_PGLITE_DIR: z.string().optional(),
+  FORGE_PROCESS_ROLE: z.enum(PROCESS_ROLES).default("web"),
+  FORGE_DB_POOL_MAX: z.coerce.number().int().min(1).max(200).default(DEFAULT_POOL.max),
+  FORGE_DB_IDLE_TIMEOUT_MS: z.coerce.number().int().min(0).default(DEFAULT_POOL.idleTimeoutMs),
+  FORGE_DB_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(0).default(DEFAULT_POOL.connectionTimeoutMs),
+  FORGE_DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(DEFAULT_POOL.statementTimeoutMs),
+  FORGE_DB_IDLE_IN_TX_TIMEOUT_MS: z.coerce.number().int().min(0).default(DEFAULT_POOL.idleInTransactionTimeoutMs),
+  FORGE_DB_MIGRATION_LOCK_TIMEOUT_MS: z.coerce.number().int().min(0).default(120_000),
+  /** apply: migrate at startup (under the advisory lock); verify: only check the schema version. */
+  FORGE_DB_MIGRATE: z.enum(["apply", "verify"]).default("apply"),
+};
+
+/** Database settings only (scripts that need no chain/GitHub config use this directly). */
+export function dbConfigFromEnv(env: Record<string, string | undefined>) {
+  const e = z.object(DbEnvShape).parse(env);
+  return {
+    url: e.DATABASE_URL,
+    pgliteDir: e.FORGE_PGLITE_DIR,
+    role: e.FORGE_PROCESS_ROLE,
+    migrate: e.FORGE_DB_MIGRATE,
+    migrationLockTimeoutMs: e.FORGE_DB_MIGRATION_LOCK_TIMEOUT_MS,
+    pool: {
+      max: e.FORGE_DB_POOL_MAX,
+      idleTimeoutMs: e.FORGE_DB_IDLE_TIMEOUT_MS,
+      connectionTimeoutMs: e.FORGE_DB_CONNECT_TIMEOUT_MS,
+      statementTimeoutMs: e.FORGE_DB_STATEMENT_TIMEOUT_MS,
+      idleInTransactionTimeoutMs: e.FORGE_DB_IDLE_IN_TX_TIMEOUT_MS,
+      applicationName: `forge-${e.FORGE_PROCESS_ROLE}`,
+    } satisfies DbPoolConfig,
+  };
+}
 
 const EnvSchema = z.object({
   NODE_ENV: z.string().optional(),
@@ -87,14 +125,19 @@ const EnvSchema = z.object({
       return new Set(roles);
     }),
   FORGE_SIGNER_ROLE_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(1_000),
-  DATABASE_URL: z.string().optional(),
-  FORGE_PGLITE_DIR: z.string().optional(),
   FORGE_EMBEDDED_WORKER: bool(false),
   FORGE_REVOCATION_SLO_SECONDS: z.coerce.number().int().positive().default(300),
   FORGE_TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   FINCO_BURN_ENABLED: bool(false),
   // W05: bearer token for the read-only operator endpoints (/api/ops/*); unset = endpoints disabled.
   FORGE_OPS_TOKEN: z.string().min(32, "FORGE_OPS_TOKEN must be at least 32 characters").optional(),
+  // W05 production DB mode / worker / materialized ledger (see docs/W05-DATABASE-LEDGER.md).
+  ...DbEnvShape,
+  FORGE_JOB_LEASE_SECONDS: z.coerce.number().int().min(10).max(3600).default(120),
+  FORGE_LEDGER_MODE: z.enum(["materialized", "full"]).default("materialized"),
+  FORGE_LEDGER_SNAPSHOT_MIN_BLOCKS: z.coerce.number().int().min(1).max(1_000_000).default(16),
+  FORGE_LEDGER_SELF_CHECK_INTERVAL_MS: z.coerce.number().int().min(0).default(10 * 60_000),
+  FORGE_WORKER_HEARTBEAT_STALE_SECONDS: z.coerce.number().int().min(5).default(120),
 });
 
 export interface ForgeAddresses {
@@ -222,7 +265,9 @@ export function buildConfig(env: Record<string, string | undefined>) {
       killSwitch: e.FORGE_SIGNER_KILL_SWITCH,
       roleRateLimitPerHour: e.FORGE_SIGNER_ROLE_RATE_LIMIT_PER_HOUR,
     },
-    db: { url: e.DATABASE_URL, pgliteDir: e.FORGE_PGLITE_DIR },
+    db: dbConfigFromEnv(env),
+    worker: { jobLeaseSeconds: e.FORGE_JOB_LEASE_SECONDS, heartbeatStaleSeconds: e.FORGE_WORKER_HEARTBEAT_STALE_SECONDS },
+    ledger: { mode: e.FORGE_LEDGER_MODE, snapshotMinBlocks: e.FORGE_LEDGER_SNAPSHOT_MIN_BLOCKS, selfCheckIntervalMs: e.FORGE_LEDGER_SELF_CHECK_INTERVAL_MS },
     embeddedWorker: e.FORGE_EMBEDDED_WORKER,
     revocationSloSeconds: e.FORGE_REVOCATION_SLO_SECONDS,
     trustedProxyHops: e.FORGE_TRUSTED_PROXY_HOPS,
