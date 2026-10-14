@@ -200,6 +200,12 @@ contract ForgeProtocolRevenueSplitter is EIP712, Ownable2Step, ReentrancyGuard {
     uint256 public constant RECIPIENT_EXECUTION_WINDOW = 3 days;
     /// @notice Evidence must be one of the last 256 blocks (on-chain blockhash).
     uint256 public constant MAX_EVIDENCE_AGE_BLOCKS = 256;
+    /// @dev Arbitrum ArbSys precompile. On Arbitrum-family chains (incl. Robinhood
+    /// Chain 4663, measured W05) `block.number` is the parent-chain block number and
+    /// `blockhash` does not return L2 hashes, so the evidence block (an L2 RPC block)
+    /// must be read through ArbSys. Everywhere else the address has no code and the
+    /// native opcodes are used.
+    address private constant ARB_SYS = address(0x64);
 
     bytes32 public constant ELIGIBLE_REVENUE_TYPEHASH = keccak256(
         "EligibleRevenue(address escrow,address factory,address asset,uint256 cumulativeEligible,uint64 nonce,uint64 deadline,uint64 evidenceBlock,bytes32 evidenceBlockHash)"
@@ -266,6 +272,25 @@ contract ForgeProtocolRevenueSplitter is EIP712, Ownable2Step, ReentrancyGuard {
         emit NonRevenueReceived(NATIVE, msg.sender, msg.value, cls);
     }
 
+    /// @dev (head, hash-of-`n`) on the chain's own L2 numbering: ArbSys when it
+    /// answers, the EVM opcodes otherwise. `arbBlockHash` reverts outside the
+    /// 256-block window, so it is only queried for an in-window block.
+    function _evidenceView(uint64 n) private view returns (uint256 head, bytes32 h) {
+        (bool ok, bytes memory ret) =
+            ARB_SYS.staticcall(abi.encodeWithSignature("arbBlockNumber()"));
+        if (ok && ret.length == 32) {
+            head = abi.decode(ret, (uint256));
+            if (n < head && head - n <= MAX_EVIDENCE_AGE_BLOCKS) {
+                (bool ok2, bytes memory ret2) =
+                    ARB_SYS.staticcall(abi.encodeWithSignature("arbBlockHash(uint256)", uint256(n)));
+                if (ok2 && ret2.length == 32) h = abi.decode(ret2, (bytes32));
+            }
+        } else {
+            head = block.number;
+            h = blockhash(n);
+        }
+    }
+
     /**
      * @notice Raises `asset`'s cumulative eligible-revenue ceiling with an
      * attestor-signed authorization. Permissionless relay: the signature is
@@ -283,11 +308,10 @@ contract ForgeProtocolRevenueSplitter is EIP712, Ownable2Step, ReentrancyGuard {
         if (auth.factory != forgeFactory) revert WrongFactory();
         if (!approvedAsset[auth.asset]) revert AssetNotApproved(auth.asset);
         if (auth.deadline < block.timestamp) revert AttestationExpired();
+        (uint256 head, bytes32 onchainHash) = _evidenceView(auth.evidenceBlock);
         if (
-            auth.evidenceBlock >= block.number
-                || block.number - auth.evidenceBlock > MAX_EVIDENCE_AGE_BLOCKS
-                || auth.evidenceBlockHash == bytes32(0)
-                || blockhash(auth.evidenceBlock) != auth.evidenceBlockHash
+            auth.evidenceBlock >= head || head - auth.evidenceBlock > MAX_EVIDENCE_AGE_BLOCKS
+                || auth.evidenceBlockHash == bytes32(0) || onchainHash != auth.evidenceBlockHash
         ) {
             revert StaleEvidence();
         }
