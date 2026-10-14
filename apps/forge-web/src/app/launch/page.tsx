@@ -9,7 +9,7 @@ import { ponsV2LaunchFactoryAbi } from "@/shared/abis.generated";
 import { reviveLaunchArgs, reviveTypedData, type LaunchTxJson } from "@/shared/launch-tx";
 import { api, ApiError, bps, formatUnits18, short } from "@/components/api";
 import { useForge } from "@/components/providers";
-import { TxLink } from "@/components/shell";
+import { TxLink, VerificationDisclosure } from "@/components/shell";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const STEPS = ["Connect", "Configure", "Economics", "Authorize", "Launch"];
@@ -223,6 +223,7 @@ function Wizard() {
   return (
     <>
       <h1>Launch a verified builder token</h1>
+      <VerificationDisclosure />
       <p className="sub">Your GitHub administration and your wallet are proven separately; both are required. Nothing is signed or sent without your explicit action.</p>
       <div className="stepper" data-testid="stepper">
         {STEPS.map((s, i) => (
