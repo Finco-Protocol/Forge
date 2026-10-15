@@ -26,8 +26,9 @@ export interface AnvilProc {
 
 const LOG_CAP = 64 * 1024;
 
-export async function rpcCall<T = unknown>(url: string, method: string, params: unknown[] = []): Promise<T> {
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+/** Every request is bounded (default 120 s, or the caller's signal): a node that accepts the connection but never answers cannot hang the harness. */
+export async function rpcCall<T = unknown>(url: string, method: string, params: unknown[] = [], signal?: AbortSignal): Promise<T> {
+  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: signal ?? AbortSignal.timeout(120_000) });
   const j = (await r.json()) as { result: T; error?: { message: string } };
   if (j.error) throw new Error(`${method}: ${j.error.message}`);
   return j.result;
@@ -62,11 +63,13 @@ export async function spawnAnvil(extra: string[] = [], opts: { timeoutMs?: numbe
   const deadline = Date.now() + (opts.timeoutMs ?? 60_000);
   for (;;) {
     if (proc.exitCode !== null) throw new Error(`anvil exited (${proc.exitCode}): ${stderr.slice(0, 2000)}`);
+    // the readiness probe is bounded by the remaining startup budget (min 1 s) so an unresponsive node cannot outlive timeoutMs
+    const probe = AbortSignal.timeout(Math.max(1_000, deadline - Date.now()));
     try {
-      await rpcCall(url, "eth_chainId");
+      await rpcCall(url, "eth_chainId", [], probe);
       break;
     } catch {
-      if (Date.now() > deadline) {
+      if (Date.now() >= deadline) {
         proc.kill("SIGKILL");
         throw new Error(`anvil did not come up within ${opts.timeoutMs ?? 60_000} ms: ${stderr.slice(0, 2000)}`);
       }

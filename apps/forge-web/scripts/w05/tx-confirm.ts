@@ -220,6 +220,13 @@ export interface StepInfo {
 
 export const DEFAULT_CONFIRM_TIMEOUT_MS = 60_000;
 
+/** ctx override first; else FORGE_TX_CONFIRM_TIMEOUT_MS only when finite and positive; else the default (a typo must not fail every step instantly). */
+export function confirmBudgetMs(override?: number, env: string | undefined = process.env.FORGE_TX_CONFIRM_TIMEOUT_MS): number {
+  if (override !== undefined) return override;
+  const n = Number(env);
+  return env !== undefined && env.trim() !== "" && Number.isFinite(n) && n > 0 ? n : DEFAULT_CONFIRM_TIMEOUT_MS;
+}
+
 /**
  * `submit` performs the eth_sendTransaction (viem wallet) and returns the hash. The function then records the step,
  * waits for THAT hash's receipt by polling the node, and validates it. On any failure it throws TxConfirmError
@@ -278,7 +285,7 @@ export async function sendAndConfirm(ctx: SendCtx, info: StepInfo, expect: TxExp
     if (seen.from.toLowerCase() !== from.toLowerCase()) return fail("RECEIPT_MISMATCH", `tx sender ${seen.from} != ${from}`);
   }
 
-  const deadline = performance.now() + (ctx.timeoutMs ?? Number(process.env.FORGE_TX_CONFIRM_TIMEOUT_MS ?? DEFAULT_CONFIRM_TIMEOUT_MS));
+  const deadline = performance.now() + confirmBudgetMs(ctx.timeoutMs);
   let receipt: ReceiptView | null = null;
   while (performance.now() < deadline) {
     if (ctx.proc && ctx.proc.exitCode !== null) return fail("ANVIL_EXITED", `anvil exited (${ctx.proc.exitCode}) while waiting for the receipt`);

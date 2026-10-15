@@ -1,6 +1,6 @@
 /** Deterministic classification of a transaction-confirmation failure from node evidence (pure; no node needed). */
 import { describe, expect, it } from "vitest";
-import { assertLoopbackRpc, classifyTxFailure, type TxSnapshot, type TxView } from "../../scripts/w05/tx-confirm";
+import { assertLoopbackRpc, classifyTxFailure, confirmBudgetMs, DEFAULT_CONFIRM_TIMEOUT_MS, type TxSnapshot, type TxView } from "../../scripts/w05/tx-confirm";
 
 const H = `0x${"ab".repeat(32)}` as const;
 const tx = (o: Partial<TxView> = {}): TxView => ({ hash: H, from: "0x1", to: "0x2", nonce: 5, blockNumber: null, gas: 100n, gasPrice: null, maxFeePerGas: 2_000_000_000n, maxPriorityFeePerGas: 1n, ...o });
@@ -33,5 +33,13 @@ describe("no genuine broadcast is possible", () => {
   });
   it.each(["http://127.0.0.1:8545", "http://localhost:1234"])("allows loopback %s", (u) => {
     expect(() => assertLoopbackRpc(u)).not.toThrow();
+  });
+});
+
+describe("confirmation budget", () => {
+  it("uses the override, else a valid positive env value, else the default", () => {
+    expect(confirmBudgetMs(1500, "999")).toBe(1500);
+    expect(confirmBudgetMs(undefined, "45000")).toBe(45000);
+    for (const bad of ["", "  ", "abc", "NaN", "0", "-5", "Infinity", undefined]) expect(confirmBudgetMs(undefined, bad)).toBe(DEFAULT_CONFIRM_TIMEOUT_MS);
   });
 });
