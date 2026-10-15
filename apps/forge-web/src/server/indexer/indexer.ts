@@ -13,6 +13,15 @@
  *   orphaned events and rebuilds affected projections from events alone.
  * - Atomicity: events, block hashes, checkpoint and projections for a
  *   range commit in one transaction; a crash re-processes the same range.
+ * - W05 concurrency: one leader per checkpoint (session advisory lock,
+ *   pg_try_advisory_lock); a non-leader tick is a no-op. Independently, the
+ *   commit re-reads the checkpoint row FOR UPDATE and aborts unless it is
+ *   still the one the range was computed from (compare-and-swap), so even
+ *   without the lock no range is ever committed twice and the checkpoint
+ *   never moves backwards.
+ * - W05 materialized ledger: the ledger fold state at the new checkpoint is
+ *   written in the same transaction (finance/materialized.ts); the reorg
+ *   rollback deletes snapshots above the common ancestor.
  */
 import { decodeEventLog, getAddress, type Abi, type Address, type Hex, type Log } from "viem";
 import {
@@ -31,6 +40,7 @@ import type { AppContext } from "../context";
 import type { Queryable } from "../db";
 import { readLaunchedToken, readLockState } from "../chain/forge";
 import { rebuildTokenProjection, projectionPhaseMatchesOnchain } from "./projection";
+import { ledgerContextFor, materializeInTx, rollbackSnapshots } from "../finance/materialized";
 
 export const checkpointName = (ctx: AppContext) => `forge:${ctx.cfg.chainId}:${ctx.cfg.addresses.factory.toLowerCase()}`;
 
@@ -40,6 +50,20 @@ export interface TickResult {
   events: number;
   reorgedTo: bigint | null;
   tokensTouched: string[];
+  /** W05: why nothing was done (another runner leads, or the checkpoint moved under this one). */
+  skipped?: "not_leader" | "checkpoint_moved";
+}
+
+class CheckpointMoved extends Error {}
+
+/** Fails the enclosing transaction unless the checkpoint row is still (block, hash). Locks the row. */
+async function lockCheckpoint(q: Queryable, name: string, expect: { lastBlock: bigint; lastHash: Hex | null }) {
+  const { rows } = await q.query<{ last_block: string; last_block_hash: string | null }>(
+    "SELECT last_block::text, last_block_hash FROM indexer_checkpoints WHERE name = $1 FOR UPDATE",
+    [name],
+  );
+  const r = rows[0];
+  if (!r || BigInt(r.last_block) !== expect.lastBlock || (r.last_block_hash ?? null) !== (expect.lastHash ?? null)) throw new CheckpointMoved();
 }
 
 interface DecodedLog {
@@ -55,7 +79,10 @@ interface DecodedLog {
 const jsonArgs = (args: Record<string, unknown>) => JSON.stringify(args, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
 
 export class ForgeIndexer {
-  constructor(private readonly ctx: AppContext) {}
+  constructor(
+    private readonly ctx: AppContext,
+    private readonly opts: { leaderLock?: boolean } = {},
+  ) {}
 
   private sources(): Array<{ address: Address; abi: Abi }> {
     const a = this.ctx.cfg.addresses;
@@ -118,9 +145,11 @@ export class ForgeIndexer {
     return deploy > 0n ? deploy - 1n : 0n;
   }
 
-  async rollbackTo(ancestor: bigint): Promise<string[]> {
+  async rollbackTo(ancestor: bigint, expect?: { lastBlock: bigint; lastHash: Hex | null }): Promise<string[]> {
     const { cfg } = this.ctx;
     return this.ctx.db.tx(async (q) => {
+      if (expect) await lockCheckpoint(q, checkpointName(this.ctx), expect);
+      await rollbackSnapshots(q, cfg.chainId, ancestor);
       const touched = await tokensForEvents(q, cfg.chainId, cfg.addresses, `block_number > ${ancestor.toString()}`);
       await q.query("DELETE FROM chain_events WHERE chain_id = $1 AND block_number > $2", [cfg.chainId, ancestor.toString()]);
       await q.query("DELETE FROM indexed_blocks WHERE chain_id = $1 AND block_number > $2", [cfg.chainId, ancestor.toString()]);
@@ -155,11 +184,23 @@ export class ForgeIndexer {
   }
 
   async tick(): Promise<TickResult> {
+    const idle: TickResult = { from: null, to: null, events: 0, reorgedTo: null, tokensTouched: [] };
+    try {
+      if (this.opts.leaderLock === false) return await this.tickOnce();
+      const r = await this.ctx.db.withSessionLock(`indexer:${checkpointName(this.ctx)}`, () => this.tickOnce(), { wait: false });
+      return r.acquired ? r.value : { ...idle, skipped: "not_leader" };
+    } catch (e) {
+      if (e instanceof CheckpointMoved) return { ...idle, skipped: "checkpoint_moved" };
+      throw e;
+    }
+  }
+
+  private async tickOnce(): Promise<TickResult> {
     const { cfg, client, db } = this.ctx;
     const cp = await this.checkpoint();
     const ancestor = await this.detectReorg(cp.lastBlock, cp.lastHash);
     if (ancestor !== null) {
-      const touched = await this.rollbackTo(ancestor);
+      const touched = await this.rollbackTo(ancestor, cp);
       return { from: null, to: null, events: 0, reorgedTo: ancestor, tokensTouched: touched };
     }
     // Never a cached head: viem caches getBlockNumber for one polling interval.
@@ -206,6 +247,7 @@ export class ForgeIndexer {
 
     const toHash = blocks.get(to)!.hash;
     const touched = await db.tx(async (q) => {
+      await lockCheckpoint(q, checkpointName(this.ctx), cp);
       for (const [n, b] of blocks) {
         await q.query(
           "INSERT INTO indexed_blocks(chain_id, block_number, block_hash, block_timestamp) VALUES ($1,$2,$3,$4) ON CONFLICT (chain_id, block_number) DO UPDATE SET block_hash = EXCLUDED.block_hash, block_timestamp = EXCLUDED.block_timestamp",
@@ -226,9 +268,23 @@ export class ForgeIndexer {
         to.toString(),
         toHash,
       ]);
-      // Prune block hashes older than the reorg window (event blocks are kept).
+      // W05: the ledger fold state at this checkpoint, in this transaction (savepoint-isolated).
+      if (decoded.length > 0) {
+        const m = await materializeInTx(q, {
+          chainId: cfg.chainId,
+          ledger: ledgerContextFor(cfg.addresses),
+          block: to,
+          hash: toHash,
+          reorgWindow: cfg.reorgWindow,
+          minBlocks: cfg.ledger.snapshotMinBlocks,
+        });
+        if (m.error) console.error("[forge-indexer] ledger snapshot skipped:", m.error);
+      }
+      // Prune block hashes older than the reorg window (event blocks and ledger-snapshot blocks are kept).
       await q.query(
-        "DELETE FROM indexed_blocks WHERE chain_id = $1 AND block_number < $2 AND NOT EXISTS (SELECT 1 FROM chain_events e WHERE e.chain_id = indexed_blocks.chain_id AND e.block_number = indexed_blocks.block_number)",
+        `DELETE FROM indexed_blocks WHERE chain_id = $1 AND block_number < $2
+           AND NOT EXISTS (SELECT 1 FROM chain_events e WHERE e.chain_id = indexed_blocks.chain_id AND e.block_number = indexed_blocks.block_number)
+           AND NOT EXISTS (SELECT 1 FROM ledger_snapshots s WHERE s.chain_id = indexed_blocks.chain_id AND s.block_number = indexed_blocks.block_number)`,
         [cfg.chainId, (to - BigInt(cfg.reorgWindow)).toString()],
       );
       return touched;

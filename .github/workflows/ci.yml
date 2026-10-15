@@ -16,6 +16,9 @@ concurrency:
 env:
   FOUNDRY_VERSION: v1.8.5
 
+permissions:
+  contents: read
+
 jobs:
   # ── REQUIRED: formatting of Forge-authored files ─────────────────────────
   # Scope is test/ only — 100% Forge-authored. Upstream PONS sources are
@@ -24,10 +27,11 @@ jobs:
     name: forge fmt --check (test/, required)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
       - run: forge fmt --check test
@@ -37,10 +41,11 @@ jobs:
     name: forge build + test (testable profile)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
       - run: forge build --profile testable
@@ -51,10 +56,11 @@ jobs:
     name: forge build (V1 generation)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
       - run: forge build --profile v1
@@ -64,8 +70,9 @@ jobs:
     name: vendored dependency integrity (pinned evidence)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           submodules: recursive
       - name: Checker negative-test suite (V1–V10)
         run: bash scripts/test-vendor-checker.sh
@@ -88,10 +95,11 @@ jobs:
     name: "canary: full V2 build — UPSTREAM_V2_FACTORY_BLOCKED (F-01, expected; not a passing build)"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
       - name: Classifier regression tests (fixtures A–G)
@@ -114,7 +122,7 @@ jobs:
             || { echo "::error::canary verdict was not UPSTREAM_V2_FACTORY_BLOCKED — see log above"; exit 1; }
       - name: Upload canary evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: full-build-canary-evidence
           path: |
@@ -128,10 +136,11 @@ jobs:
     name: forge lint (test/ required-zero; upstream advisory)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
       - name: Parser regression tests (L1–L9)
@@ -158,7 +167,7 @@ jobs:
           tail -40 upstream-lint.log || true
       - name: Upload lint evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: lint-evidence
           path: |

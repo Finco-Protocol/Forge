@@ -22,8 +22,13 @@
  * trustless proof. A faulty attestor can at worst let the splitter pull
  * third-party credits already sitting under its own escrow key; it cannot
  * mint, cannot reach creator funds and cannot withdraw. Production signing is
- * disabled (REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED=false): the only
- * custody is the local-test signer, which refuses every chain but 31337/1337.
+ * disabled (REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED=false and, since
+ * W05, PRODUCTION_SIGNING_ENABLED=false): custody is the local-test signer or
+ * a KMS signer, both refusing every chain but 31337/1337, and both reached
+ * only through the W05 signing-policy guard (docs/W05-SIGNER-CUSTODY.md).
+ * Incident note: revokeRevenueAttestor() does not erase headroom that is already
+ * authorized, but it atomically pauses pulls and discards any pending rotation
+ * (PR #5 Correction A); resuming needs an explicit owner setPullsPaused(false).
  */
 import { hashTypedData, type Address, type Hex } from "viem";
 import { forgeProtocolRevenueSplitterAbi, ponsV2FeeEscrowAbi } from "@/shared/abis.generated";
@@ -31,6 +36,7 @@ import type { AppContext } from "../context";
 import { audit } from "../audit";
 import { REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED, ROBINHOOD_CHAIN_ID } from "../config";
 import { verifiedEligibleRevenue, NATIVE, type Ledger } from "./ledger";
+import { ledgerIntegrity, signingBlockedReason } from "./materialized";
 
 export const SPLITTER_EIP712_DOMAIN = { name: "FINCO Forge Revenue Splitter", version: "1" } as const;
 export const ELIGIBLE_REVENUE_TYPES = {
@@ -71,7 +77,7 @@ export function eligibleRevenueDigest(chainId: number, splitter: Address, auth: 
 }
 
 export type AttestationOutcome =
-  | { asset: Address | null; status: "DISABLED" | "ATTESTOR_MISMATCH" | "BINDING_MISMATCH" | "NO_CHECKPOINT"; reason: string }
+  | { asset: Address | null; status: "DISABLED" | "ATTESTOR_MISMATCH" | "BINDING_MISMATCH" | "NO_CHECKPOINT" | "LEDGER_HALTED"; reason: string }
   | { asset: Address; status: "UP_TO_DATE" | "ASSET_NOT_APPROVED" | "STALE_EVIDENCE"; cumulative: string }
   | { asset: Address; status: "RECONCILIATION_MISMATCH"; cumulative: string; reason: string }
   | { asset: Address; status: "AUTHORIZED"; cumulative: string; nonce: string; evidenceBlock: string; txHash: Hex };
@@ -89,15 +95,24 @@ export async function syncRevenueAttestations(
   ctx: AppContext,
   load: () => Promise<{ ledger: Ledger; checkpoint: bigint | null }>,
   eligibleLaunches: EligibleLaunchResolver,
+  /** W05: refreshes the ledger self-check for the evidence block before the first signature. */
+  refreshIntegrity?: (checkpoint: bigint) => Promise<void>,
 ): Promise<AttestationOutcome[]> {
   const splitter = ctx.cfg.addresses.revenueSplitter;
   const escrow = ctx.cfg.addresses.feeEscrow;
   if (!splitter || !escrow) return [];
   const signer = ctx.revenueAttestor;
   if (!signer) return [{ asset: null, status: "DISABLED", reason: "No revenue attestor key configured: no ceilings are signed and pulls fail closed." }];
+  const role = ctx.signers?.status("revenue");
+  if (role && !role.enabled) return [{ asset: null, status: "DISABLED", reason: `Revenue attestor signing is disabled: ${role.reason}` }];
   if (ctx.cfg.chainId === ROBINHOOD_CHAIN_ID && !REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED) {
     return [{ asset: null, status: "DISABLED", reason: "PRODUCTION_BLOCKED: production revenue attestation is disabled pending W05 custody approval." }];
   }
+  // W05 fail-closed: a halted ledger (materialized/reference divergence or an
+  // unexplained splitter deficit) blocks every signature until an operator
+  // clears it after a passing self-check.
+  const integrity = await ledgerIntegrity(ctx.db, ctx.cfg.chainId);
+  if (integrity?.halted) return [{ asset: null, status: "LEDGER_HALTED", reason: `LEDGER_HALTED: ${integrity.haltReason ?? "integrity failure"}` }];
   const sp = { address: splitter, abi: forgeProtocolRevenueSplitterAbi } as const;
   const [onchainAttestor, onchainEscrow, onchainFactory] = await Promise.all([
     ctx.client.readContract({ ...sp, functionName: "revenueAttestor" }),
@@ -150,6 +165,12 @@ export async function syncRevenueAttestations(
       out.push({ asset, status: "RECONCILIATION_MISMATCH", cumulative: cumulative.toString(), reason: `Recomputed eligible revenue ${cumulative} exceeds escrow claimed + held (${atLedger.escrowClaimed + escrowed}) at block ${checkpoint}.` });
       continue;
     }
+    if (refreshIntegrity) await refreshIntegrity(checkpoint);
+    const blocked = await signingBlockedReason(ctx.db, ctx.cfg.chainId);
+    if (blocked) {
+      out.push({ asset, status: "LEDGER_HALTED", reason: blocked });
+      break;
+    }
     const evidence = await ctx.client.getBlock({ blockNumber: checkpoint });
     const auth: EligibleRevenueAuth = {
       escrow,
@@ -164,7 +185,13 @@ export async function syncRevenueAttestations(
     const digest = eligibleRevenueDigest(ctx.cfg.chainId, splitter, auth);
     const onchainDigest = await ctx.client.readContract({ ...sp, functionName: "eligibleRevenueDigest", args: [auth] });
     if (onchainDigest !== digest) throw new Error("EIP-712 parity failure: local and on-chain EligibleRevenue digests differ.");
-    const signature = await signer.signDigest(digest);
+    // W05: custody signs only through the signing-policy guard, which re-derives the digest from
+    // the typed data against the revenue role's allowlist (this splitter, this chain, EligibleRevenue).
+    const { signature, digest: guarded } = await signer.signTypedData(
+      { domain: { ...SPLITTER_EIP712_DOMAIN, chainId: ctx.cfg.chainId, verifyingContract: splitter }, types: ELIGIBLE_REVENUE_TYPES, primaryType: "EligibleRevenue", message: { ...auth } },
+      { requestedBy: "forge:revenue-attestor" },
+    );
+    if (guarded !== digest) throw new Error("EIP-712 parity failure: custody guard digest differs.");
     const txHash = await ctx.relayer.writeContract({ ...sp, functionName: "authorizeEligibleRevenue", args: [auth, signature] });
     const receipt = await ctx.client.waitForTransactionReceipt({ hash: txHash });
     if (receipt.status !== "success") throw new Error(`authorizeEligibleRevenue reverted (${txHash}).`);

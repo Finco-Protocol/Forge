@@ -3,6 +3,7 @@
  * integration tests alike, so acceptance runs the exact production path:
  * cookies, CSRF, sessions, validation, services.
  */
+import { systemHealth } from "../ops/health";
 import { getAddress, isAddress, isHex, type Hex } from "viem";
 import type { AppContext } from "../context";
 import { ForgeError, refuse } from "../errors";
@@ -30,6 +31,9 @@ import { revocationHealth } from "../worker";
 import { PRODUCTION_BLOCKED, FORGE_FEE_POLICY_AUTHORITY_UNPROVEN } from "../config";
 import robinhood from "../../../config/networks/robinhood-4663.json";
 import { creatorEarnings, governanceReport, prepareClaim, recordClaimSubmission, treasuryReport } from "../finance/service";
+import { opsAlerts, opsHealth, opsMetrics } from "./ops";
+import { requireNotLockedDown } from "../ops/controls";
+import { correlationIdFor, logEvent } from "../ops/log";
 
 type Handler = (ctx: AppContext, req: Request, params: Record<string, string>) => Promise<Response>;
 
@@ -192,6 +196,7 @@ const who = (s: { githubUserId: number; githubLogin: string }) => ({ githubUserI
 
 const draftCreate: Handler = async (ctx, req) => {
   const s = await requireGithubSession(ctx, req);
+  await requireNotLockedDown(ctx.db, "launch draft creation");
   await rateLimit(ctx.db, `draft:${s.githubUserId}`, 60, 3600);
   return json(await createDraft(ctx, who(s), await readJson(req)), { status: 201 });
 };
@@ -199,10 +204,12 @@ const draftGet: Handler = async (ctx, req, p) => json(await getDraft(ctx, who(aw
 const draftRefresh: Handler = async (ctx, req, p) => json(await refreshDraftEconomics(ctx, who(await requireGithubSession(ctx, req)), p.id!));
 const draftAuthorize: Handler = async (ctx, req, p) => {
   const s = await requireGithubSession(ctx, req);
+  await requireNotLockedDown(ctx.db, "launch authorization");
   return json(await authorizeDraft(ctx, { ...who(s), userToken: githubTokenOf(ctx, s) }, p.id!));
 };
 const intentSignature: Handler = async (ctx, req, p) => {
   const s = await requireGithubSession(ctx, req);
+  await requireNotLockedDown(ctx.db, "launch signature submission");
   const body = await readJson<{ signature?: string }>(req);
   return json(await submitCreatorSignature(ctx, who(s), p.id!, String(body.signature ?? "")));
 };
@@ -310,8 +317,21 @@ const publicConfig: Handler = async (ctx) =>
 const health: Handler = async (ctx) => {
   const block = await ctx.client.getBlockNumber({ cacheTime: 0 }).catch(() => null);
   const revocations = await revocationHealth(ctx);
-  // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO).
-  return json({ ok: block !== null, block, revocations });
+  // W05: db latency/pool/migration version, indexer lag, worker heartbeats, ledger integrity.
+  const system = await systemHealth(ctx);
+  // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO),
+  // `ledger.halted`, `db.ok=false` and `worker.ok=false` (no live heartbeat; expected with no worker running).
+  // PUBLIC: booleans and the revocation lag only. Worker identities, database errors, migration state and ledger
+  // halt reasons are operator data: GET /api/ops/health (bearer FORGE_OPS_TOKEN).
+  return json({
+    ok: block !== null && system.db.ok && system.ledger.ok,
+    block,
+    revocations,
+    db: { ok: system.db.ok },
+    indexer: { ok: system.indexer.ok },
+    worker: { ok: system.worker.ok },
+    ledger: { ok: system.ledger.ok, halted: "halted" in system.ledger ? system.ledger.halted : false },
+  });
 };
 
 // ── W04 economics & treasury ─────────────────────────────────────────────
@@ -375,19 +395,35 @@ route("GET", "/api/finance/treasury", financeTreasury);
 route("GET", "/api/finance/governance", financeGovernance);
 route("POST", "/api/finance/claims/prepare", claimPrepare);
 route("POST", "/api/finance/claims/submitted", claimSubmitted);
+route("GET", "/api/ops/alerts", opsAlerts);
+route("GET", "/api/ops/metrics", opsMetrics);
+route("GET", "/api/ops/health", opsHealth);
 
 export async function dispatch(ctx: AppContext, req: Request): Promise<Response> {
+  // W05: every response carries a correlation id (echoed when the caller supplied a well-formed one).
+  const correlationId = correlationIdFor(req);
+  const started = Date.now();
+  const path = new URL(req.url).pathname;
+  let res: Response;
   try {
-    const path = new URL(req.url).pathname;
-    for (const [method, re, keys, h] of ROUTES) {
-      if (method !== req.method) continue;
-      const m = re.exec(path);
-      if (!m) continue;
-      const params = Object.fromEntries(keys.map((k, i) => [k, decodeURIComponent(m[i + 1]!)]));
-      return await h(ctx, req, params);
-    }
-    throw new ForgeError("NOT_FOUND", "No such endpoint.", 404);
+    res = await route_(ctx, req, path);
   } catch (e) {
-    return errorResponse(e);
+    res = errorResponse(e);
   }
+  res.headers.set("x-correlation-id", correlationId);
+  if (res.status >= 400 || path.startsWith("/api/ops/")) {
+    logEvent(res.status >= 500 ? "error" : "info", "http_request", { correlationId, method: req.method, path, status: res.status, ms: Date.now() - started });
+  }
+  return res;
+}
+
+async function route_(ctx: AppContext, req: Request, path: string): Promise<Response> {
+  for (const [method, re, keys, h] of ROUTES) {
+    if (method !== req.method) continue;
+    const m = re.exec(path);
+    if (!m) continue;
+    const params = Object.fromEntries(keys.map((k, i) => [k, decodeURIComponent(m[i + 1]!)]));
+    return await h(ctx, req, params);
+  }
+  throw new ForgeError("NOT_FOUND", "No such endpoint.", 404);
 }

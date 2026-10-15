@@ -59,7 +59,7 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
  * an ELIGIBLE Forge curve (30% snapshot naming the splitter) or the Forge
  * hook sweeping an eligible launch's pool, and signs the ceiling.
  */
-contract ForgeRevenueLifecycleTest is AttestationHelpers, IUnlockCallback {
+abstract contract ForgeStackFixture is AttestationHelpers, IUnlockCallback {
     MiniPoolManagerW02 internal poolManager;
     MiniPositionManager internal positionManager;
     MockPermit2 internal permit2;
@@ -325,6 +325,38 @@ contract ForgeRevenueLifecycleTest is AttestationHelpers, IUnlockCallback {
         return c.buy{value: amount}(amount, 0, buyer);
     }
 
+    // ── mini-manager swap driver ─────────────────────────────────────────
+
+    function unlockCallback(bytes calldata) external returns (bytes memory) {
+        require(msg.sender == address(poolManager), "only manager");
+        SwapParams memory p = SwapParams({
+            zeroForOne: swapZeroForOne, amountSpecified: -int256(swapAmountIn), sqrtPriceLimitX96: 0
+        });
+        BalanceDelta delta = poolManager.swap(swapKey, p, "");
+        int128 a0 = delta.amount0();
+        int128 a1 = delta.amount1();
+        if (a0 < 0) {
+            poolManager.sync(Currency.wrap(address(0)));
+            poolManager.settle{value: uint256(uint128(-a0))}();
+        } else if (a0 > 0) {
+            poolManager.take(swapKey.currency0, swapBeneficiary, uint256(uint128(a0)));
+        }
+        if (a1 < 0) {
+            address c1 = Currency.unwrap(swapKey.currency1);
+            poolManager.sync(swapKey.currency1);
+            IERC20(c1).transfer(address(poolManager), uint256(uint128(-a1)));
+            poolManager.settle();
+        } else if (a1 > 0) {
+            poolManager.take(swapKey.currency1, swapBeneficiary, uint256(uint128(a1)));
+        }
+        return "";
+    }
+
+    receive() external payable {}
+}
+
+/// @notice W04 lifecycle tests over the shared real-stack fixture.
+contract ForgeRevenueLifecycleTest is ForgeStackFixture {
     // ── 1/2/3/20: curve phase, eligible 70/20/10, creator tax excluded ───
 
     function test_curve_fees_70_20_10_creator_tax_excluded() public {
@@ -580,33 +612,4 @@ contract ForgeRevenueLifecycleTest is AttestationHelpers, IUnlockCallback {
         assertEq(surplus, 0);
         assertEq(deficit, 0);
     }
-
-    // ── mini-manager swap driver ─────────────────────────────────────────
-
-    function unlockCallback(bytes calldata) external returns (bytes memory) {
-        require(msg.sender == address(poolManager), "only manager");
-        SwapParams memory p = SwapParams({
-            zeroForOne: swapZeroForOne, amountSpecified: -int256(swapAmountIn), sqrtPriceLimitX96: 0
-        });
-        BalanceDelta delta = poolManager.swap(swapKey, p, "");
-        int128 a0 = delta.amount0();
-        int128 a1 = delta.amount1();
-        if (a0 < 0) {
-            poolManager.sync(Currency.wrap(address(0)));
-            poolManager.settle{value: uint256(uint128(-a0))}();
-        } else if (a0 > 0) {
-            poolManager.take(swapKey.currency0, swapBeneficiary, uint256(uint128(a0)));
-        }
-        if (a1 < 0) {
-            address c1 = Currency.unwrap(swapKey.currency1);
-            poolManager.sync(swapKey.currency1);
-            IERC20(c1).transfer(address(poolManager), uint256(uint128(-a1)));
-            poolManager.settle();
-        } else if (a1 > 0) {
-            poolManager.take(swapKey.currency1, swapBeneficiary, uint256(uint128(a1)));
-        }
-        return "";
-    }
-
-    receive() external payable {}
 }

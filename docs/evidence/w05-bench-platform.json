@@ -1,0 +1,100 @@
+{
+  "environment": {
+    "os": "Linux 6.18.44-fc-v114 x64",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz × 4",
+    "memGB": 15.7,
+    "node": "v22.22.0",
+    "db": "PGlite (in-process Postgres/WASM)",
+    "chain": "local Anvil (automine)",
+    "github": "in-process fake GitHub (loopback)",
+    "signer": "local-test (in-process); no KMS",
+    "concurrency": "1 unless stated",
+    "launches": 10,
+    "repetitions": 10
+  },
+  "results": {
+    "repositoryVerification": {
+      "ms": {
+        "n": 10,
+        "min": 14.8,
+        "median": 18.3,
+        "p95": 55.8,
+        "max": 55.8
+      },
+      "note": "POST /api/github/verify against the fake GitHub service (network = loopback), includes DB writes"
+    },
+    "launchDraftCreate": {
+      "ms": {
+        "n": 10,
+        "min": 17.5,
+        "median": 24.8,
+        "p95": 42.4,
+        "max": 42.4
+      }
+    },
+    "launchAuthorize": {
+      "ms": {
+        "n": 10,
+        "min": 114.5,
+        "median": 275.1,
+        "p95": 322.5,
+        "max": 322.5
+      },
+      "note": "includes signing-policy evaluation (live chain reads) + attestation signing with the LOCAL test signer; NOT KMS latency"
+    },
+    "fullLaunchSimulation": {
+      "ms": {
+        "n": 10,
+        "min": 394.5,
+        "median": 488.9,
+        "p95": 554.8,
+        "max": 554.8
+      },
+      "note": "fresh user → bind → verify → draft → authorize → creator EIP-712 signature → launch tx mined on Anvil → submitted"
+    },
+    "transactionStatusPolling": {
+      "ms": {
+        "n": 30,
+        "min": 3.9,
+        "median": 5.5,
+        "p95": 6.7,
+        "max": 7
+      },
+      "note": "GET /api/launch/intents/:id (authenticated)"
+    },
+    "tokenDiscovery": {
+      "tokens": 10,
+      "sequentialMs": {
+        "n": 30,
+        "min": 2.1,
+        "median": 2.4,
+        "p95": 4.9,
+        "max": 8.4
+      },
+      "concurrent10TotalMs": 24
+    },
+    "treasuryDashboard": {
+      "ms": {
+        "n": 10,
+        "min": 49.3,
+        "median": 63.7,
+        "p95": 72.6,
+        "max": 72.6
+      },
+      "chainEvents": 101,
+      "launches": 10,
+      "note": "treasuryReport(): materialized ledger + live contract reads at the checkpoint"
+    },
+    "indexerRestart": {
+      "ms": 400.4,
+      "blocks": 56,
+      "chainEventsAfter": 101
+    },
+    "workerBacklogRecovery": {
+      "backlogBlocks": 2000,
+      "ms": 116.3,
+      "note": "one runWorkerOnce pass after 2000 empty blocks accumulated (batch size = FORGE_INDEXER_BATCH_BLOCKS)"
+    }
+  },
+  "caveat": "Sandbox measurements only. They say nothing about production throughput (real GitHub latency, KMS signing latency, Postgres network round-trips, RPC latency)."
+}

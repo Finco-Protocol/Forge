@@ -10635,6 +10635,25 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "event",
+    "name": "EmergencyRevocation",
+    "inputs": [
+      {
+        "name": "revokedAttestor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "discardedPending",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ForgeFactorySet",
     "inputs": [
       {
@@ -11000,6 +11019,22 @@ export const forgeProtocolRevenueSplitterAbi = [
     "type": "error",
     "name": "CeilingDecrease",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CeilingExceedsEscrow",
+    "inputs": [
+      {
+        "name": "cumulativeEligible",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "escrowClaimedPlusHeld",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

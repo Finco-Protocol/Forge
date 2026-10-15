@@ -27,6 +27,23 @@ contract FeeSource {
     }
 }
 
+/// @notice Test double for the Arbitrum ArbSys precompile (0x64) with an L2
+/// numbering deliberately unrelated to `block.number`, as measured on Robinhood
+/// Chain 4663 (EVM block.number = parent-chain number, RPC block = L2 number).
+contract MockArbSys {
+    uint256 public constant L2_OFFSET = 1_000_000;
+
+    function arbBlockNumber() external view returns (uint256) {
+        return block.number + L2_OFFSET;
+    }
+
+    function arbBlockHash(uint256 n) external view returns (bytes32) {
+        uint256 head = block.number + L2_OFFSET;
+        require(n < head && head - n <= 256, "invalid block number");
+        return keccak256(abi.encode("l2", n));
+    }
+}
+
 /// @notice Shared attestation helpers (EIP-712 `EligibleRevenue`).
 abstract contract AttestationHelpers is Test {
     /// Mines one block and pins a deterministic hash for the evidence block
@@ -92,7 +109,6 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
     address internal constant NATIVE = address(0);
 
     mapping(address asset => uint256) internal eligible;
-    mapping(address asset => uint64) internal nonces;
     uint256 internal homeChainId;
 
     function setUp() public {
@@ -117,7 +133,10 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
         internal
         returns (ForgeProtocolRevenueSplitter.EligibleRevenue memory)
     {
-        return _authFor(splitter, address(factory), asset, cumulative, ++nonces[asset]);
+        // W05: nonces are strictly sequential on chain; always use the next one.
+        return _authFor(
+            splitter, address(factory), asset, cumulative, splitter.ledger(asset).authNonce + 1
+        );
     }
 
     /// Attests `added` more VERIFIED protocol-leg credits for `asset`.
@@ -375,6 +394,54 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
         assertEq(splitter.verifiedHeadroom(NATIVE), 0);
     }
 
+    // ── H2: Arbitrum-family chains read L2 block numbers/hashes via ArbSys ─
+
+    function _etchArbSys() internal {
+        vm.etch(address(0x64), address(new MockArbSys()).code);
+    }
+
+    function test_H2_arbsys_chain_accepts_l2_numbered_evidence() public {
+        _thirdPartyNative(1 ether);
+        _etchArbSys();
+        ForgeProtocolRevenueSplitter.EligibleRevenue memory a = _auth(NATIVE, 1 ether);
+        a.evidenceBlock = uint64(vm.getBlockNumber() + 1_000_000 - 1);
+        a.evidenceBlockHash = keccak256(abi.encode("l2", uint256(a.evidenceBlock)));
+        splitter.authorizeEligibleRevenue(a, _sign(splitter, attestorKey, a));
+        assertEq(splitter.verifiedHeadroom(NATIVE), 1 ether);
+    }
+
+    function test_H2_arbsys_chain_refuses_l1_numbered_evidence_and_bad_windows() public {
+        _thirdPartyNative(1 ether);
+        // Evidence prepared with Ethereum semantics (the pre-fix behaviour) is refused on an ArbSys chain.
+        ForgeProtocolRevenueSplitter.EligibleRevenue memory l1 = _auth(NATIVE, 1 ether);
+        _etchArbSys();
+        bytes memory sig = _sign(splitter, attestorKey, l1);
+        vm.expectRevert(ForgeProtocolRevenueSplitter.StaleEvidence.selector);
+        splitter.authorizeEligibleRevenue(l1, sig);
+
+        ForgeProtocolRevenueSplitter.EligibleRevenue memory a = _auth(NATIVE, 1 ether);
+        uint64 head = uint64(vm.getBlockNumber() + 1_000_000);
+        // current / future block
+        a.evidenceBlock = head;
+        a.evidenceBlockHash = keccak256(abi.encode("l2", uint256(head)));
+        sig = _sign(splitter, attestorKey, a);
+        vm.expectRevert(ForgeProtocolRevenueSplitter.StaleEvidence.selector);
+        splitter.authorizeEligibleRevenue(a, sig);
+        // older than the 256-block window
+        a.evidenceBlock = head - 300;
+        a.evidenceBlockHash = keccak256(abi.encode("l2", uint256(head - 300)));
+        sig = _sign(splitter, attestorKey, a);
+        vm.expectRevert(ForgeProtocolRevenueSplitter.StaleEvidence.selector);
+        splitter.authorizeEligibleRevenue(a, sig);
+        // wrong hash for an in-window block
+        a.evidenceBlock = head - 1;
+        a.evidenceBlockHash = keccak256("not the l2 hash");
+        sig = _sign(splitter, attestorKey, a);
+        vm.expectRevert(ForgeProtocolRevenueSplitter.StaleEvidence.selector);
+        splitter.authorizeEligibleRevenue(a, sig);
+        assertEq(splitter.verifiedHeadroom(NATIVE), 0);
+    }
+
     // ── I: expired, replayed and decreasing authorizations refused ──────
 
     function test_I_expired_replayed_decreasing_refused() public {
@@ -399,7 +466,7 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
         // A valid signature over different fields is not reusable.
         a = _auth(NATIVE, 0.3 ether);
         sig = _sign(splitter, attestorKey, a);
-        a.cumulativeEligible = 100 ether;
+        a.deadline += 1; // any field change invalidates the signature
         vm.expectRevert(ForgeProtocolRevenueSplitter.InvalidAttestation.selector);
         splitter.authorizeEligibleRevenue(a, sig);
     }
@@ -527,23 +594,36 @@ contract ForgeRevenueSplitterTest is AttestationHelpers {
     // ── L: a failed escrow claim leaves no state behind ─────────────────
 
     function test_L_failed_escrow_claim_no_mutation() public {
-        // Over-attested ceiling (above the escrow balance): the pull of an
-        // explicit amount fails inside the escrow and the whole call reverts.
+        // W05: an over-attested ceiling (above escrow claimed + held) is
+        // refused at authorization time.
         vm.deal(address(this), 1 ether);
         source.creditNative{value: 1 ether}(escrow, address(splitter));
-        _attest(NATIVE, 3 ether);
-        ForgeProtocolRevenueSplitter.AssetLedger memory before = splitter.ledger(NATIVE);
+        ForgeProtocolRevenueSplitter.EligibleRevenue memory a = _auth(NATIVE, 3 ether);
+        bytes memory sig = _sign(splitter, attestorKey, a);
         vm.expectRevert(
-            abi.encodeWithSelector(PonsV2FeeEscrow.InsufficientBalance.selector, 2 ether, 1 ether)
+            abi.encodeWithSelector(
+                ForgeProtocolRevenueSplitter.CeilingExceedsEscrow.selector, 3 ether, 1 ether
+            )
         );
-        splitter.pullRevenue(NATIVE, 2 ether);
+        splitter.authorizeEligibleRevenue(a, sig);
+
+        // A failing escrow claim reverts the whole pull: no state is kept.
+        _attest(NATIVE, 1 ether);
+        ForgeProtocolRevenueSplitter.AssetLedger memory before = splitter.ledger(NATIVE);
+        vm.mockCallRevert(
+            address(escrow),
+            abi.encodeWithSignature("claim(uint256)", 0.5 ether),
+            abi.encodeWithSelector(PonsV2FeeEscrow.TransferFailed.selector)
+        );
+        vm.expectRevert(PonsV2FeeEscrow.TransferFailed.selector);
+        splitter.pullRevenue(NATIVE, 0.5 ether);
+        vm.clearMockedCalls();
         ForgeProtocolRevenueSplitter.AssetLedger memory afterL = splitter.ledger(NATIVE);
         assertEq(afterL.escrowClaimed, before.escrowClaimed);
         assertEq(afterL.revenueReceived, before.revenueReceived);
         assertEq(splitter.allocationCount(), 0);
-        // amount = 0 clamps to the escrow balance.
         assertEq(splitter.pullRevenue(NATIVE, 0), 1 ether);
-        assertEq(splitter.verifiedHeadroom(NATIVE), 2 ether);
+        assertEq(splitter.verifiedHeadroom(NATIVE), 0);
         _assertConserved(NATIVE);
     }
 

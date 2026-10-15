@@ -1,0 +1,144 @@
+# FINCO Forge project-specific Semgrep rules (Semgrep Community Edition, no cloud token).
+# Each rule has an annotated fixture in semgrep/forge-rules.ts (run: semgrep --test semgrep/).
+# Scan scope (app code, scripts, workflows) is chosen by the invocation in security-toolchain.yml.
+rules:
+  - id: forge-sql-string-interpolation
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      SQL text built with a template-literal interpolation or string concatenation. Use bind parameters ($1..$n).
+      If the interpolated part is provably a constant/identifier chosen from a fixed set, document it in
+      security/baseline.json (this rule has no blanket suppression).
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      impact: HIGH
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: $DB.query(`...${$X}...`, ...)
+      - pattern: $DB.query($A + $B, ...)
+      - pattern: $DB.query(`...${$X}...`)
+      - pattern: $DB.query($A + $B)
+
+  - id: forge-signdigest-outside-custody
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      DigestSigner.signDigest() signs an opaque 32-byte digest. It may only be called from the custody layer
+      (src/server/signer/**); everything else must go through GuardedSigner (allowlist + audit + replay protection).
+    metadata:
+      category: security
+      cwe: "CWE-284: Improper Access Control"
+      impact: HIGH
+      confidence: HIGH
+    pattern: $S.signDigest(...)
+    paths:
+      exclude: ["apps/forge-web/src/server/signer/**", "apps/forge-web/scripts/w05/bench-*.ts"]
+
+  - id: forge-secret-in-log
+    languages: [typescript]
+    severity: ERROR
+    message: A value named like a private key / secret / token is passed to a console logger.
+    metadata:
+      category: security
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+      impact: HIGH
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: console.$LOG(..., $X, ...)
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i)^(.*(privatekey|private_key|secret|mnemonic|seed|password|apitoken|webhook_?secret|client_?secret)[a-z_]*)$
+
+  - id: forge-safety-flag-enabled
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      A W05 hard safety flag is being set to true. FINCO_BURN_ENABLED, DEPLOY_WRITE_ENABLED, PRODUCTION_SIGNING_ENABLED
+      and REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED must stay false until a separately approved release
+      workflow changes them.
+    metadata:
+      category: security
+      cwe: "CWE-1188: Insecure Default Initialization of Resource"
+      impact: HIGH
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: export const $F = true
+          - pattern: "export const $F: boolean = true"
+          - pattern: const $F = true
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(FINCO_BURN_ENABLED|DEPLOY_WRITE_ENABLED|PRODUCTION_SIGNING_ENABLED|REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED)$
+
+  - id: forge-production-blocked-cleared
+    languages: [typescript]
+    severity: ERROR
+    message: PRODUCTION_BLOCKED (or the fee-policy-authority-unproven flag) is being set to false. Only a separately approved release workflow may do that.
+    metadata:
+      category: security
+      cwe: "CWE-1188: Insecure Default Initialization of Resource"
+      impact: HIGH
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: export const $F = false
+          - pattern: "export const $F: boolean = false"
+          - pattern: const $F = false
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(PRODUCTION_BLOCKED|FORGE_FEE_POLICY_AUTHORITY_UNPROVEN)$
+
+  - id: forge-unsafe-html
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: dangerouslySetInnerHTML / innerHTML assignment (XSS sink). Forge renders only escaped React text.
+    metadata:
+      category: security
+      cwe: "CWE-79: Cross-site Scripting"
+      impact: HIGH
+      confidence: HIGH
+    pattern-either:
+      - pattern: <$EL dangerouslySetInnerHTML={...} />
+      - pattern: $X.innerHTML = $Y
+
+  - id: forge-dynamic-code-execution
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: eval / new Function / vm string execution.
+    metadata:
+      category: security
+      cwe: "CWE-95: Eval Injection"
+      impact: HIGH
+      confidence: HIGH
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: forge-secret-compare-not-constant-time
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      A signature / HMAC / token / secret is compared with ===, !==, == or !=. Use crypto.timingSafeEqual on
+      equal-length buffers (see src/server/crypto.ts safeEqual).
+    metadata:
+      category: security
+      cwe: "CWE-208: Observable Timing Discrepancy"
+      impact: MEDIUM
+      confidence: LOW
+    patterns:
+      - pattern-either:
+          - pattern: $A === $B
+          - pattern: $A !== $B
+          - pattern: $A == $B
+          - pattern: $A != $B
+      - metavariable-regex:
+          metavariable: $A
+          regex: (?i)^(.*(hmac|signature|sig256|webhooksecret|apitoken|bearer|secrettoken)[a-z0-9_]*)$
+      - pattern-not: $A === undefined
+      - pattern-not: $A !== undefined
+      - pattern-not: $A === null
+      - pattern-not: $A !== null
+      - pattern-not: $A == null
+      - pattern-not: $A != null

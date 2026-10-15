@@ -5,7 +5,10 @@ import type { Address, Hex } from "viem";
  * returns a 65-byte r||s||v signature — exactly the operation AWS KMS
  * (ECC_SECG_P256K1, MessageType=DIGEST), GCP KMS or an HSM exposes. It never
  * sees structured data and enforces no policy: the AuthoritySigner policy
- * layer decides WHAT may be signed before any digest reaches custody.
+ * layer decides WHAT may be signed, and (W05) the GuardedSigner (guard.ts)
+ * re-checks the typed data against the role allowlist and computes the
+ * digest itself before any digest reaches custody. Never call signDigest
+ * directly outside guard.ts.
  */
 export interface DigestSigner {
   readonly role: "authority" | "evidence" | "revenue";

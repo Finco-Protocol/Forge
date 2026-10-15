@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { api, ago, bps, formatUnits18, short } from "@/components/api";
-import { PhaseBadge, TxLink } from "@/components/shell";
+import { PhaseBadge, TxLink, VerificationDisclosure } from "@/components/shell";
 import { useForge } from "@/components/providers";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -63,6 +63,10 @@ export default function ProjectPage({ params }: { params: Promise<{ token: strin
           )}
           {d.repository?.ineligible_reason && <span className="chip bad">Eligibility since revoked: {d.repository.ineligible_reason}</span>}
         </div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <VerificationDisclosure />
       </div>
 
       {retracted && <div className="alert error">This launch was removed by a chain reorganization; its evidence receipt has been retracted.</div>}

@@ -1,0 +1,63 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SignDigestsWithThisOneKeyOnly",
+      "Effect": "Allow",
+      "Action": "kms:Sign",
+      "Resource": "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_REVENUE_ATTESTOR_KEY_ID>",
+      "Condition": {
+        "StringEquals": {
+          "kms:SigningAlgorithm": "ECDSA_SHA_256",
+          "kms:MessageType": "DIGEST"
+        }
+      }
+    },
+    {
+      "Sid": "ReadThisKeysPublicKey",
+      "Effect": "Allow",
+      "Action": [
+        "kms:GetPublicKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_REVENUE_ATTESTOR_KEY_ID>"
+    },
+    {
+      "Sid": "DenyAnyOtherKey",
+      "Effect": "Deny",
+      "Action": "kms:*",
+      "NotResource": "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_REVENUE_ATTESTOR_KEY_ID>"
+    },
+    {
+      "Sid": "DenyKeyManagementAndNonSigningCrypto",
+      "Effect": "Deny",
+      "Action": [
+        "kms:Decrypt",
+        "kms:Encrypt",
+        "kms:ReEncryptFrom",
+        "kms:ReEncryptTo",
+        "kms:GenerateDataKey",
+        "kms:GenerateDataKeyPair",
+        "kms:GenerateDataKeyPairWithoutPlaintext",
+        "kms:GenerateDataKeyWithoutPlaintext",
+        "kms:GenerateMac",
+        "kms:CreateGrant",
+        "kms:ImportKeyMaterial",
+        "kms:DeleteImportedKeyMaterial",
+        "kms:ScheduleKeyDeletion",
+        "kms:ReplicateKey",
+        "kms:UpdatePrimaryRegion",
+        "kms:CreateKey",
+        "kms:CreateAlias",
+        "kms:DeleteAlias",
+        "kms:UpdateAlias",
+        "kms:PutKeyPolicy",
+        "kms:DisableKey",
+        "kms:EnableKey",
+        "kms:RetireGrant",
+        "kms:RevokeGrant"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

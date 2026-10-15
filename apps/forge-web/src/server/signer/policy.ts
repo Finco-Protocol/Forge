@@ -24,13 +24,15 @@ import type { ForgePublicClient } from "../chain/clients";
 import { readRegistryState, bindingActiveFor } from "../chain/forge";
 import { ForgeError } from "../errors";
 import { rateLimit } from "../ratelimit";
-import type { DigestSigner } from "./types";
+import type { GuardedSigner, TypedDataRequest } from "./guard";
+import { readControl } from "../ops/controls";
 
 export interface SignerDeps {
   cfg: ForgeConfig;
   db: Db;
   client: ForgePublicClient;
-  authority: DigestSigner;
+  /** W05: custody sits behind the signing-policy guard, which re-checks the typed data against its allowlist. */
+  authority: GuardedSigner;
 }
 
 interface VerificationRow {
@@ -93,6 +95,18 @@ export class AuthoritySigner {
     if (fullName !== undefined && v.full_name !== fullName) return this.deny(kind, "repository name does not match evidence", requestedBy);
   }
 
+  /** Hands the exact typed data to the custody guard; a guard refusal is recorded here too. */
+  private async custodySign(kind: string, typed: TypedDataRequest, digest: Hex, requestedBy: string): Promise<Hex> {
+    try {
+      const r = await this.d.authority.signTypedData(typed, { requestedBy });
+      if (r.digest !== digest) throw new Error("custody guard digest differs from the policy digest");
+      return r.signature;
+    } catch (e) {
+      await this.record(kind, digest, "denied", `custody guard: ${(e as Error).message.split("\n")[0]}`, requestedBy);
+      throw e;
+    }
+  }
+
   private async limits(kind: string, repoId: bigint) {
     await rateLimit(this.d.db, `sign:global:${kind}`, this.d.cfg.policy.signingRateLimitPerHour * 20, 3600);
     await rateLimit(this.d.db, `sign:repo:${repoId}:${kind}`, this.d.cfg.policy.signingRateLimitPerHour, 3600);
@@ -101,6 +115,8 @@ export class AuthoritySigner {
   async signBindingOp(op: BindingOp, req: { verificationId?: string; reason: string; requestedBy: string }): Promise<{ digest: Hex; signature: Hex }> {
     const kind = op.revoke ? "binding_revoke" : "binding_bind";
     const { cfg, client } = this.d;
+    // W05: the emergency lockdown blocks NEW bindings; revocations always proceed.
+    if (!op.revoke && (await readControl(this.d.db, "emergency_lockdown")).active) return this.deny(kind, "emergency lockdown engaged", req.requestedBy);
     await this.limits(kind, op.githubRepoId);
     const state = await readRegistryState(client, cfg.addresses, op.githubRepoId);
     if (getAddress(state.authority) !== getAddress(this.address)) return this.deny(kind, "registry authority is not this signer", req.requestedBy);
@@ -120,10 +136,11 @@ export class AuthoritySigner {
       }
       await this.requireVerification(kind, req.verificationId, op.githubRepoId, op.creator, req.requestedBy, op.repoFullName);
     }
-    const digest = hashTypedData({ domain: registryDomain(cfg.chainId, cfg.addresses.registry), types: bindingOpTypes, primaryType: "BindingOp", message: op });
+    const typed = { domain: registryDomain(cfg.chainId, cfg.addresses.registry), types: bindingOpTypes, primaryType: "BindingOp", message: op } as const;
+    const digest = hashTypedData(typed);
     const onchain = await client.readContract({ address: cfg.addresses.registry, abi: forgeBindingRegistryAbi, functionName: "attestationDigestForBindingOp", args: [op] });
     if (onchain !== digest) return this.deny(kind, "EIP-712 digest parity failure", req.requestedBy);
-    const signature = await this.d.authority.signDigest(digest);
+    const signature = await this.custodySign(kind, { ...typed, message: { ...op } }, digest, req.requestedBy);
     await this.record(kind, digest, "allowed", req.reason, req.requestedBy);
     return { digest, signature };
   }
@@ -134,6 +151,7 @@ export class AuthoritySigner {
   ): Promise<{ digest: Hex; signature: Hex }> {
     const kind = "eligibility_attestation";
     const { cfg, client } = this.d;
+    if ((await readControl(this.d.db, "emergency_lockdown")).active) return this.deny(kind, "emergency lockdown engaged", req.requestedBy);
     await this.limits(kind, att.githubRepoId);
     await this.requireVerification(kind, req.verificationId, att.githubRepoId, att.creator, req.requestedBy);
     const state = await readRegistryState(client, cfg.addresses, att.githubRepoId);
@@ -147,12 +165,13 @@ export class AuthoritySigner {
     const ttl = BigInt(Math.min(cfg.policy.attestationTtlSeconds, MAX_ATTESTATION_AGE_SECONDS));
     if (att.expiresAt - att.issuedAt > ttl) return this.deny(kind, "attestation lifetime out of policy", req.requestedBy);
     if (att.expiresAt > state.binding.expiresAt) return this.deny(kind, "attestation outlives the binding evidence", req.requestedBy);
-    const digest = hashTypedData({
+    const typed = {
       domain: launchDomain(cfg.chainId, cfg.addresses.authorizer),
       types: eligibilityAttestationTypes,
       primaryType: "EligibilityAttestation",
       message: att,
-    });
+    } as const;
+    const digest = hashTypedData(typed);
     const onchain = await client.readContract({
       address: cfg.addresses.authorizer,
       abi: forgeLaunchAuthorizerAbi,
@@ -160,7 +179,7 @@ export class AuthoritySigner {
       args: [att.githubRepoId, att.creator, att.bindingEpoch, att.issuedAt, att.expiresAt],
     });
     if (onchain !== digest) return this.deny(kind, "EIP-712 digest parity failure", req.requestedBy);
-    const signature = await this.d.authority.signDigest(digest);
+    const signature = await this.custodySign(kind, { ...typed, message: { ...att } }, digest, req.requestedBy);
     await this.record(kind, digest, "allowed", null, req.requestedBy);
     return { digest, signature };
   }
