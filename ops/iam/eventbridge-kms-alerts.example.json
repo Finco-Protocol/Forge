@@ -1,5 +1,5 @@
 {
-  "_comment": "Page on any key-management change to a Forge signing key, and on Sign calls that were denied. CloudTrail records the key in different fields per operation: requestParameters.keyId (policy/enable/disable/deletion/grant; the caller may pass a key id OR an ARN, so both are listed), requestParameters.targetKeyId (CreateAlias/UpdateAlias), and only requestParameters.aliasName for DeleteAlias (no key field) - hence three rules. Replace the <...> placeholders; resources.ARN is deliberately not used.",
+  "_comment": "Page on any key-management change to a Forge signing key, and on Sign calls that were denied. CloudTrail records the key in different fields per operation: requestParameters.keyId (policy/enable/disable/deletion/grant; the caller may pass a key id OR an ARN, so both are listed), requestParameters.targetKeyId (CreateAlias/UpdateAlias), and only requestParameters.aliasName for DeleteAlias (no key field) - UpdateAlias is also matched by aliasName (a Forge alias retargeted to an UNLISTED key must still page) - hence four rules. Replace the <...> placeholders; resources.ARN is deliberately not used.",
   "Rules": [
     {
       "Name": "forge-kms-key-management-change",
@@ -54,6 +54,29 @@
               "<FORGE_AUTHORITY_KEY_ID>",
               "<FORGE_EVIDENCE_KEY_ID>",
               "<FORGE_REVENUE_ATTESTOR_KEY_ID>"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "Name": "forge-kms-alias-update",
+      "EventPattern": {
+        "source": [
+          "aws.kms"
+        ],
+        "detail-type": [
+          "AWS API Call via CloudTrail"
+        ],
+        "detail": {
+          "eventName": [
+            "UpdateAlias"
+          ],
+          "requestParameters": {
+            "aliasName": [
+              "alias/<FORGE_AUTHORITY_ALIAS>",
+              "alias/<FORGE_EVIDENCE_ALIAS>",
+              "alias/<FORGE_REVENUE_ATTESTOR_ALIAS>"
             ]
           }
         }

@@ -60,6 +60,7 @@ describe("S10 acceptance", () => {
     ["wrapped error from a DIFFERENT contract", revert(wrapped(OTHER, BEFORE, NOT_FACTORY))],
     ["wrapped, correct hook, unrelated hook error (UnknownPool)", revert(wrapped(HOOK, BEFORE, toFunctionSelector("function UnknownPool()")))],
     ["wrapped, correct hook and error, wrong callback", revert(wrapped(HOOK, "0xdeadbeef", NOT_FACTORY))],
+    ["wrapped, correct hook and selector, plus trailing bytes in the reason", revert(wrapped(HOOK, BEFORE, concat([NOT_FACTORY, "0xdeadbeef"])))],
     ["WrappedError with a truncated payload", revert(concat([WRAPPED_ERROR, "0x1234"]))],
     ["unrelated PoolManager error (PoolAlreadyInitialized)", revert(toFunctionSelector("function PoolAlreadyInitialized()"))],
     ["insufficient gas", { error: { code: -32000, message: "gas required exceeds allowance (30000000)" } }],

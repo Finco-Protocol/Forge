@@ -80,7 +80,8 @@ export function acceptS10(sent: RpcCall, intended: RpcCall, resp: RpcResponse | 
   }
   if (getAddress(target) !== getAddress(x.hook)) return { ok: false, detail: `refusal came from ${target}, not the Forge hook ${x.hook}` };
   if (callback.toLowerCase() !== x.hookCallbackSelector.toLowerCase()) return { ok: false, detail: `refusing callback ${callback} is not the expected ${x.hookCallbackSelector}` };
-  if (reason.slice(0, 10).toLowerCase() !== x.hookErrorSelector.toLowerCase()) return { ok: false, detail: `hook error ${reason.slice(0, 10)} is not the expected ${x.hookErrorSelector}` };
+  // the COMPLETE reason must be exactly the 4-byte selector: a prefix match would accept `NotFactory()` plus extra bytes
+  if (reason.toLowerCase() !== x.hookErrorSelector.toLowerCase()) return { ok: false, detail: `hook error ${reason.slice(0, 10)} (length ${(reason.length - 2) / 2}) is not exactly the expected ${x.hookErrorSelector}` };
   return { ok: true, detail: `refused by the Forge hook ${target}: ${callback} -> ${reason.slice(0, 10)}` };
 }
 
