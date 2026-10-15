@@ -6,11 +6,7 @@
    "match": {
     "scanner": "semgrep",
     "rule": "forge-sql-string-interpolation",
-    "file": "apps/forge-web/src/server/db/index.ts",
-    "fingerprints": [
-     "50cad7acccf453a7",
-     "f372f99e6766abae"
-    ]
+    "file": "apps/forge-web/src/server/db/index.ts"
    },
    "classification": "by-design",
    "disposition": "accepted",
@@ -37,16 +33,7 @@
    "match": {
     "scanner": "semgrep",
     "rule": "forge-sql-string-interpolation",
-    "scope": "app-scripts",
-    "fingerprints": [
-     "00cf45eea0a34604",
-     "3014c6a2161faa8d",
-     "678be937ff7ce02f",
-     "7bab42532949cb5b",
-     "c67cfd532dc5198f",
-     "ee302157ec9e5b8a",
-     "f2fabaa8d425b5a8"
-    ]
+    "scope": "app-scripts"
    },
    "classification": "by-design",
    "disposition": "accepted",

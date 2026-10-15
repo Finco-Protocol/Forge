@@ -12,6 +12,7 @@
  * AND reference ledger digests, startup checks) -> drop both DBs.
  * Exit code 1 on any mismatch.
  */
+import { createDatabaseSql, dropDatabaseSql } from "./sql-ident";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -43,7 +44,7 @@ log(`server ${ver}; pg_dump ${execFileSync(path.join(bin, "pg_dump"), ["--versio
 let failed = false;
 const dumpFile = path.join(mkdtempSync(path.join(tmpdir(), "forge-rehearsal-")), "forge.dump");
 try {
-  await ac.query(`CREATE DATABASE ${src}`);
+  await ac.query(createDatabaseSql(src));
   const sdb = new PgDb(withDb(src), { max: 4, applicationName: "forge-cli" });
   await migrate(sdb);
   const h = generateHistory({ seed: 20261014, targetEvents: nEvents });
@@ -62,7 +63,7 @@ try {
 
   execFileSync(path.join(bin, "pg_dump"), ["--format=custom", "--no-owner", `--file=${dumpFile}`, withDb(src)]);
   log(`pg_dump -Fc -> ${statSync(dumpFile).size} bytes (${lap()})`);
-  await ac.query(`CREATE DATABASE ${dst}`);
+  await ac.query(createDatabaseSql(dst));
   execFileSync(path.join(bin, "pg_restore"), ["--no-owner", "--exit-on-error", `--dbname=${withDb(dst)}`, dumpFile]);
   log(`pg_restore into fresh database complete (${lap()})`);
 
@@ -86,7 +87,7 @@ try {
   failed = true;
   console.error("[rehearsal] ERROR", (e as Error).message);
 } finally {
-  for (const d of [src, dst]) await ac.query(`DROP DATABASE IF EXISTS ${d} WITH (FORCE)`).catch(() => undefined);
+  for (const d of [src, dst]) await ac.query(dropDatabaseSql(d, true)).catch(() => undefined);
   await ac.end();
 }
 log(failed ? "RESULT: FAILED" : "RESULT: OK");

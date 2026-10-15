@@ -130,6 +130,21 @@ describePg("W05 indexer + workers on PostgreSQL (real contracts)", () => {
     await rpc(sb.anvil.url, "anvil_mine", ["0x20"]);
   }
 
+  /**
+   * The concurrent phase ends when each indexer's loop ends - a non-leader can burn its whole tick budget on
+   * `not_leader` while the leader is still working, so the checkpoint may legitimately trail the head. Drain with one
+   * more indexer (its ticks are part of the same no-double-indexing proof) so the assertion is about correctness,
+   * not about scheduling luck.
+   */
+  async function drain(results: TickResult[]) {
+    const last = new ForgeIndexer(await sb.context("worker"), { leaderLock: false });
+    for (let i = 0; i < 100; i++) {
+      const r = await last.tick();
+      results.push(r);
+      if (r.to === null && r.skipped === undefined && r.reorgedTo === null) break;
+    }
+  }
+
   async function assertNoDoubleIndexing(results: TickResult[]) {
     const ranges = results.filter((r) => r.from !== null && r.to !== null).map((r) => [r.from!, r.to!] as const).sort((a, b) => (a[0] < b[0] ? -1 : 1));
     expect(results.filter((r) => r.reorgedTo !== null)).toEqual([]);
@@ -159,6 +174,7 @@ describePg("W05 indexer + workers on PostgreSQL (real contracts)", () => {
         }
       }),
     );
+    await drain(results);
     const ranges = await assertNoDoubleIndexing(results);
     expect(ranges.length).toBeGreaterThan(5);
     expect(results.some((r) => r.skipped === "not_leader")).toBe(true);
@@ -186,6 +202,7 @@ describePg("W05 indexer + workers on PostgreSQL (real contracts)", () => {
         }
       }),
     );
+    await drain(results);
     await assertNoDoubleIndexing(results.filter((r) => r.from !== null && r.from > 0n));
     expect(results.some((r) => r.skipped === "checkpoint_moved")).toBe(true);
     const dup = await adminQuery<{ n: string }>(sb.db.url, "SELECT count(*)::text AS n FROM (SELECT tx_hash, log_index FROM chain_events GROUP BY 1, 2 HAVING count(*) > 1) x");

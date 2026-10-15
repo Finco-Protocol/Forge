@@ -52,8 +52,8 @@ jobs:
           if [ "$EVENT" = "pull_request" ]; then
             files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
             sol=false; app=false
-            echo "$files" | grep -Eq '^(contractsV2-forge/|foundry\.toml|foundry\.lock|contractsV2-deployed/|security/|\.github/workflows/security-toolchain\.yml)' && sol=true || true
-            echo "$files" | grep -Eq '^(apps/forge-web/(src|scripts|package\.json|pnpm-lock\.yaml)|scripts/|\.github/|semgrep/|security/)' && app=true || true
+            if echo "$files" | grep -Eq '^(contractsV2-forge/|foundry\.toml|foundry\.lock|contractsV2-deployed/|security/|\.github/workflows/security-toolchain\.yml)'; then sol=true; fi
+            if echo "$files" | grep -Eq '^(apps/forge-web/(src|scripts|package\.json|pnpm-lock\.yaml)|scripts/|\.github/|semgrep/|security/)'; then app=true; fi
           else
             sol=true; app=true   # push to main, weekly schedule, manual run: scan everything
           fi

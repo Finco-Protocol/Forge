@@ -16,6 +16,7 @@ import { applyEvents, decodeFoldState, encodeFoldState, finalizeFold, foldAll, l
 import { PgDb } from "../../src/server/db";
 import { migrate } from "../../src/server/db/migrate";
 import { loadMaterializedLedger, loadReferenceLedger } from "../../src/server/finance/materialized";
+import { createDatabaseSql, dropDatabaseSql } from "./sql-ident";
 import { generateHistory, SYN_CONTEXT } from "./synthetic-history";
 import { HARNESS_CHECKPOINT, seedHistory } from "./ledger-db-harness";
 
@@ -84,7 +85,7 @@ for (const n of sizes) {
   };
   if (admin && pgUrl) {
     const name = `forge_bench_${n}_${process.pid}`;
-    await admin.query(`CREATE DATABASE ${name}`);
+    await admin.query(createDatabaseSql(name));
     const u = new URL(pgUrl); u.pathname = `/${name}`;
     const db = new PgDb(u.toString(), { max: 4, applicationName: "forge-bench", statementTimeoutMs: 0 });
     try {
@@ -108,7 +109,7 @@ for (const n of sizes) {
       });
     } finally {
       await db.close();
-      await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+      await admin.query(dropDatabaseSql(name));
     }
   }
   rows.push(row);
@@ -119,12 +120,12 @@ if (admin) {
   const ms: number[] = [];
   for (let r = 0; r < reps; r++) {
     const name = `forge_bench_mig_${process.pid}_${r}`;
-    await admin.query(`CREATE DATABASE ${name}`);
+    await admin.query(createDatabaseSql(name));
     const u = new URL(pgUrl!); u.pathname = `/${name}`;
     const db = new PgDb(u.toString(), { max: 2, applicationName: "forge-bench", statementTimeoutMs: 0 });
     ms.push((await time(() => migrate(db)))[1]);
     await db.close();
-    await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+    await admin.query(dropDatabaseSql(name));
   }
   (env as Record<string, unknown>).migrationEmptyDb_ms = stats(ms);
   await admin.end();

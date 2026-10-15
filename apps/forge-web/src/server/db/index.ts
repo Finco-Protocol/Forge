@@ -120,9 +120,9 @@ export class PgDb implements Db {
     let broken = false;
     try {
       if (opts.wait) {
-        await client.query(`SET statement_timeout = ${Math.max(0, Math.floor(opts.timeoutMs ?? 120_000))}`);
+        await client.query("SELECT set_config('statement_timeout', $1, false)", [String(Math.max(0, Math.floor(opts.timeoutMs ?? 120_000)))]);
         await client.query("SELECT pg_advisory_lock($1::bigint)", [k]);
-        await client.query(`SET statement_timeout = ${this.poolCfg.statementTimeoutMs}`);
+        await client.query("SELECT set_config('statement_timeout', $1, false)", [String(this.poolCfg.statementTimeoutMs)]);
         held = true;
       } else {
         held = (await client.query<{ ok: boolean }>("SELECT pg_try_advisory_lock($1::bigint) AS ok", [k])).rows[0]!.ok;

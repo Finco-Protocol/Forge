@@ -159,7 +159,7 @@ jobs:
       - run: git checkout -q foundry.lock
         working-directory: .
       - run: pnpm install --frozen-lockfile
-      - run: sudo apt-get update && sudo apt-get install -y postgresql-client-16 || true
+      - run: '{ sudo apt-get update && sudo apt-get install -y postgresql-client-16; } || true'
         working-directory: .
       - name: concurrency, migrations, materialized-ledger equivalence on real PostgreSQL
         run: pnpm test:pg
