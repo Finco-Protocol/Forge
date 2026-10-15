@@ -1,0 +1,10 @@
+# Default gitleaks rules plus ONE narrow allowlist: the staging env template carries the ten public Anvil/Hardhat
+# development keys (hold no value; the staging guard refuses any other key and any non-dev chain).
+title = "forge gitleaks"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "public Anvil dev keys in the staging env template"
+paths = ['''^ops/staging/\.env\.staging\.example$''']

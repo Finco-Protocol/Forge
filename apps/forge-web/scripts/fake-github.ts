@@ -19,7 +19,8 @@ gh.setPermission(5002, 1001, "admin");
 gh.setPermission(5001, 1002, "write");
 gh.install(7001, org, [5001, 5002]);
 gh.nextLoginUser = Number(process.env.FAKE_GITHUB_LOGIN_AS ?? 1001);
-await gh.start(port);
+// FAKE_GITHUB_HOST=0.0.0.0 only inside the staging compose network (internal: true); FAKE_GITHUB_PUBLIC_URL is the URL services use to reach it.
+await gh.start(port, process.env.FAKE_GITHUB_HOST ?? "127.0.0.1", process.env.FAKE_GITHUB_PUBLIC_URL);
 const dir = path.resolve(process.cwd(), ".sandbox");
 mkdirSync(dir, { recursive: true });
 const env = {

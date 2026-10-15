@@ -1,0 +1,46 @@
+name: W06 Staging Compose Smoke (manual)
+
+# MANUAL ONLY. Builds and starts ops/staging/docker-compose.staging.yml on a GitHub runner (which has Docker) and
+# waits for readiness. It is deliberately NOT part of the required exact-head checks: the compose file could not be
+# executed where it was written (no Docker daemon), and a manual smoke must never silently gate a merge. Run it
+# once from the Actions tab and attach the result to the readiness evidence.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-smoke:
+    name: "w06: staging compose smoke"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: env file (test-only values; fresh random secrets)
+        run: |
+          cp ops/staging/.env.staging.example ops/staging/.env.staging
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "SESSION_SECRET=$(openssl rand -hex 32)"
+            echo "FORGE_OPS_TOKEN=$(openssl rand -hex 24)"
+            echo "GITHUB_WEBHOOK_SECRET=$(openssl rand -hex 24)"
+          } > /tmp/secrets.env
+          grep -v -E '^(POSTGRES_PASSWORD|SESSION_SECRET|FORGE_OPS_TOKEN|GITHUB_WEBHOOK_SECRET)=' ops/staging/.env.staging > /tmp/keys.env
+          cat /tmp/secrets.env /tmp/keys.env > ops/staging/.env.staging
+      - name: up
+        run: docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging up --build -d
+      - name: wait for readiness (web + worker + indexer + ledger)
+        run: |
+          for _ in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3000/api/ready; then echo; exit 0; fi
+            sleep 5
+          done
+          docker compose -f ops/staging/docker-compose.staging.yml logs --no-color | tail -200
+          exit 1
+      - name: down
+        if: always()
+        run: docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging down -v

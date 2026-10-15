@@ -1,0 +1,123 @@
+{
+  "kind": "w06-journey-observed",
+  "simulated": [
+    "chain: local Anvil + W02 sandbox contracts + sandbox (mock) V4 pool",
+    "GitHub: in-process FakeGithub",
+    "wallet: EIP-1193 provider forwarding to Anvil unlocked accounts"
+  ],
+  "steps": [
+    {
+      "step": "J02 GitHub auth",
+      "expected": "signed in as carol-admin",
+      "observed": "account-status shows @carol-admin",
+      "simulated": "FakeGithub OAuth"
+    },
+    {
+      "step": "J01/J05 wallet connect + bind",
+      "expected": "SIWE-bound creator wallet",
+      "observed": "wallet-bound shows 0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"
+    },
+    {
+      "step": "J03/J04/J06 repository selection, admin proof, eligibility",
+      "expected": "Eligible. administration confirmed by token and installation",
+      "observed": "Eligible. finco-labs/journey-main — administration confirmed by your GitHub token and by the App installation.",
+      "simulated": "FakeGithub"
+    },
+    {
+      "step": "J07/J08 configure + transparent economics",
+      "expected": "creator and protocol economics shown before signing",
+      "observed": "Economics preview — read from the factory Token supply 1000000 (all on the curve; nothing pre-minted) Phantom quote reserve 30 ETH Graduation threshold 30 ETH real reserve Curve trade fee 1.00% Your creator tax 1.00% (max 10.00%) Combined c"
+    },
+    {
+      "step": "J09 authorized launch",
+      "expected": "intent confirmed, token indexed",
+      "observed": "launch-state=confirmed, token 0xB13a62d4E0109F9e7c3B8C9C63aCDE42fC4a5Cbe",
+      "simulated": "local chain"
+    },
+    {
+      "step": "J10 trade + indexer lag",
+      "expected": "UI/API reflect a buy only after it is mined and indexed",
+      "observed": "pending tx 0xe247afb0… not indexed after 3s; indexed 923 ms after mining",
+      "simulated": "local chain, embedded worker interval 1.5s"
+    },
+    {
+      "step": "J11 graduation",
+      "expected": "phase graduated, liquidity position locked",
+      "observed": "project page shows 'V4 position … held by the launch locker'",
+      "simulated": "SANDBOX (mock) V4 pool; genuine Uniswap V4 graduation is evidenced by the test/v4 suite, not by this browser run"
+    },
+    {
+      "step": "J12/J13 discovery + detail",
+      "expected": "token listed with its repository and Proof of Build",
+      "observed": "Explore row and detail page show Journey Token, finco-labs/journey-main, verified @carol-admin"
+    },
+    {
+      "step": "J16 incomplete claim",
+      "expected": "a prepared-but-unsent claim claims nothing",
+      "observed": "claimable stays 0.520408 ETH after refresh"
+    },
+    {
+      "step": "J16/J17 claim",
+      "expected": "claim counted only after the canonical escrow claim event is indexed",
+      "observed": "claim-status CONFIRMED_INDEXED; claimable 0.520408 ETH -> 0 ETH",
+      "simulated": "local chain"
+    },
+    {
+      "step": "J15 treasury/reserve",
+      "expected": "treasury and FINCO reserve allocations visible; burn disabled; reconciled",
+      "observed": "reserve-status=DISABLED — no FINCO token address, no conversion route, no governance executor; "
+    },
+    {
+      "step": "N01 wrong network",
+      "expected": "wrong-network chip, switch refused by wallet, error shown, nothing signed",
+      "observed": "error: WALLET_REQUEST_DECLINED — The request was declined in your wallet. Nothing was signed or sent."
+    },
+    {
+      "step": "N02 wrong wallet",
+      "expected": "connected account differs from bound wallet => warning, signing blocked",
+      "observed": "alert 'The connected account differs from your bound wallet …'"
+    },
+    {
+      "step": "N03 invalid signature",
+      "expected": "server rejects the signature; launch never offered",
+      "observed": "error: BAD_SIGNATURE — Signature could not be recovered."
+    },
+    {
+      "step": "N05 failed transaction",
+      "expected": "wallet/chain failure surfaces as an error; no token created",
+      "observed": "error: Error — Execution reverted with reason: simulated failure."
+    },
+    {
+      "step": "N07 refresh/reconnect",
+      "expected": "session and wallet binding survive a reload; wizard restartable",
+      "observed": "account-status and wallet-bound visible again after a new page"
+    },
+    {
+      "step": "N06 double submission",
+      "expected": "double click => exactly one token",
+      "observed": "creator has exactly 2 tokens (J09 + this one)"
+    },
+    {
+      "step": "N08 stale proof",
+      "expected": "authorization refused after administration is removed",
+      "observed": "error: NOT_ADMIN — You must be an administrator of the repository.",
+      "simulated": "FakeGithub permission change + signed webhook"
+    },
+    {
+      "step": "J18 revoke authority",
+      "expected": "repository transfer revokes the on-chain binding via the worker",
+      "observed": "registry.isActive(5003, creator) became false",
+      "simulated": "FakeGithub transfer + signed webhook; local chain"
+    },
+    {
+      "step": "J19 refuse revoked authorization",
+      "expected": "a launch draft for the revoked repository is refused",
+      "observed": "HTTP 403: {\"error\":{\"code\":\"NOT_VERIFIED\",\"message\":\"Verify repository administration first.\",\"detail\":null}}"
+    },
+    {
+      "step": "U01-U03 mobile + keyboard",
+      "expected": "390px viewport has no horizontal overflow on 5 routes; the sign-in action is reachable and operable by keyboard alone",
+      "observed": "verified"
+    }
+  ]
+}
