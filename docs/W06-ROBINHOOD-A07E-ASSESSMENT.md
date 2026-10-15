@@ -89,4 +89,8 @@ N=$(( $(cast block-number --rpc-url http://127.0.0.1:18603) - 1 ))
 CODE="0x7f2b407a8200000000000000000000000000000000000000000000000000000000600052""7f$(printf '%064x' $N)""600452602060406024600060645afa60005260606000f3"
 curl -s localhost:18603 -H 'content-type: application/json' --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_call\",\"params\":[{\"data\":\"$CODE\"},\"latest\"]}"
 # today: first 32-byte word is 0 (ok=false).  Required: 1, followed by the RPC block hash.
+# (The calldata above is correct: 0x2b407a82 is the arbBlockHash(uint256) selector, stored as the high bytes of a PUSH32 word at offset 0, with N stored at offset 4.)
+# Independent re-check with ordinary ABI encoding (Foundry 1.8.5, re-run after review):
+cast call 0x0000000000000000000000000000000000000064 "arbBlockHash(uint256)(bytes32)" $N --rpc-url http://127.0.0.1:18603          # fork: "EVM error PrecompileError"
+cast call 0x0000000000000000000000000000000000000064 "arbBlockHash(uint256)(bytes32)" $N --rpc-url https://rpc.mainnet.chain.robinhood.com   # live RPC: returns the block hash
 ```

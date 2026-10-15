@@ -26,7 +26,7 @@
   ],
   "summary": {
     "totalFiles": 157,
-    "totalLines": 30009,
+    "totalLines": 30014,
     "byClass": {
       "forge-owned": {
         "files": 5,
@@ -50,7 +50,7 @@
       },
       "test": {
         "files": 19,
-        "lines": 6709
+        "lines": 6714
       },
       "third-party-vendored": {
         "files": 88,
@@ -1140,8 +1140,8 @@
     },
     {
       "path": "test-forge/W06FinancialAcceptance.t.sol",
-      "sha256": "83f1b168d8c6d6fadd7402704c2ff8c4dfb92156c0a8b5df6cb09ab1497555dd",
-      "lines": 274,
+      "sha256": "dc867a17547e718c2d3da5dc06d8c37ae98ab2646523abeaffe4cd38ee84f55e",
+      "lines": 279,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
       "spdx": "MIT"

@@ -8,7 +8,7 @@ This is a map of what the authors considered and what evidence they point to. It
 
 | Asset | Held by | Main threat |
 | --- | --- | --- |
-| Creators' and the protocol's claimable fees | `PonsV2FeeEscrow` (all of it) | owner redirection (F-03); rescue paths (F-04); reentrancy; wrong accounting |
+| Creators' claimable fees and credits held under the splitter's key | `PonsV2FeeEscrow`; after `pullRevenue` the treasury and reserve liabilities are held by `ForgeProtocolRevenueSplitter` (the treasury recipient claims from the splitter) | owner redirection (F-03); rescue paths (F-04); reentrancy; wrong accounting |
 | Treasury and reserve liabilities, non-revenue | `ForgeProtocolRevenueSplitter` | over-allocation from non-eligible credits; attestor compromise; owner misuse |
 | Holders' graduation reserves | factory (Swept phase) until seeding or rescue | `rescueSweptGraduation` (7 d), unseedable-state handling |
 | Locked LP position, locked buyback tokens | `PonsV2LaunchLocker`, `PonsV2BuybackVault` | recipient redirection (F-03) for vest; no path to the LP NFT |

@@ -89,7 +89,7 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
         assertEq(
             address(splitter).balance,
             splitter.treasuryLiability(NATIVE) + splitter.reserveLiability(NATIVE),
-            "no creator funds and no third-party funds sit in the splitter"
+            "the splitter holds only its treasury and reserve liabilities (attested revenue; no creator funds)"
         );
         assertLe(
             l.revenueReceived, l.eligibleCeiling, "allocation never exceeds the attested ceiling"
@@ -164,11 +164,16 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
                         splitter,
                         address(factory),
                         NATIVE,
-                        ceiling + 1,
+                        ceiling,
                         splitter.ledger(NATIVE).authNonce + 1
                     );
                     bytes memory sig = _sign(splitter, keyA, a);
-                    vm.expectRevert();
+                    // The input is otherwise valid, so the refusal must come from the attestor check itself.
+                    if (splitter.revenueAttestor() == address(0)) {
+                        vm.expectRevert(ForgeProtocolRevenueSplitter.AttestorNotSet.selector);
+                    } else {
+                        vm.expectRevert(ForgeProtocolRevenueSplitter.InvalidAttestation.selector);
+                    }
                     splitter.authorizeEligibleRevenue(a, sig);
                 }
             } else if (op == 8) {

@@ -13,7 +13,7 @@ This is preparation material for a **future** independent audit. It is not an au
 | Build profile that defines the Forge stack | `foundry.toml` `[profile.forge]`: solc 0.8.35, optimizer on, 200 runs, `via_ir = true`, `evm_version = "cancun"`, `bytecode_hash = "ipfs"`, `cbor_metadata = true`, `src = contractsV2-forge/src`, `libs = [contractsV2-deployed/lib]` |
 | Deploy-time baseline profile | `[profile.deployed]` over `contractsV2-deployed`, identical compiler settings (the settings of the live PONS V2 deployment, per `docs/W02-SOURCE-RECOVERY.md`) |
 
-The manifest is bound to that commit by a **one-time verification, not by the generator**: all 156 entries were checked against `git show f4fa5e8a…:<path> | sha256sum` when this dossier was prepared (156/156 identical). The 157th file, `test-forge/W06FinancialAcceptance.t.sol` (+274 lines), was added by W06 itself (a test, no production source); the other 156 are byte-identical to the baseline commit. A later commit that adds or edits a Solidity file under an audit root will make `--check` fail until the manifest is regenerated and re-reviewed; that is intended. Limitation (reported by review, accepted): `--check` compares the working tree with the committed manifest, not with `BASELINE_COMMIT`; if a baseline file were edited and the manifest regenerated, `--check` would pass. Reviewers must therefore compare the manifest hashes with `git show f4fa5e8a…:<path>` (REPRODUCTION step 5) rather than rely on `--check` alone.
+The manifest is bound to that commit by a **one-time verification, not by the generator**: all 156 entries were checked against `git show f4fa5e8a…:<path> | sha256sum` when this dossier was prepared (156/156 identical). The 157th file, `test-forge/W06FinancialAcceptance.t.sol` (+279 lines), was added by W06 itself (a test, no production source); the other 156 are byte-identical to the baseline commit. A later commit that adds or edits a Solidity file under an audit root will make `--check` fail until the manifest is regenerated and re-reviewed; that is intended. Limitation (reported by review, accepted): `--check` compares the working tree with the committed manifest, not with `BASELINE_COMMIT`; if a baseline file were edited and the manifest regenerated, `--check` would pass. Reviewers must therefore compare the manifest hashes with `git show f4fa5e8a…:<path>` (REPRODUCTION step 5) rather than rely on `--check` alone.
 
 ## 1.2 The generated manifest
 
@@ -33,10 +33,10 @@ The manifest is bound to that commit by a **one-time verification, not by the ge
 | `pons-vendored-modified` | 1 | 1573 |
 | `pons-vendored` | 29 | 8678 |
 | `third-party-vendored` | 88 | 9996 |
-| `test` | 18 | 6435 |
+| `test` | 19 | 6714 |
 | `mock` | 14 | 1319 |
 | `script` | 1 | 143 |
-| **All** | **157** | **30009** |
+| **All** | **157** | **30014** |
 
 ## 1.3 Classification (how each class is decided)
 
@@ -138,6 +138,7 @@ Per-file hashes, line counts and SPDX tags for these 88 files are in the JSON on
 | `test-forge/W05AttestorCompromise.t.sol` | 198 | `71274a0c3a0954cbfbf2467deb18bcc6163891a7b6b9a0bf51c2df1af775d7d0` | MIT |
 | `test-forge/W05EmergencyRevocation.t.sol` | 285 | `6815ac692dfd0d93c682c15fb5a71616d68b79dd448e1e4be4e3ae1ebdbd8a30` | MIT |
 | `test-forge/W05OwnerPowers.t.sol` | 375 | `c4c5d844eb3c1ea96c39e21677acff792fe9ce49d64cc3e69260231aa4465e20` | MIT |
+| `test-forge/W06FinancialAcceptance.t.sol` | 279 | `dc867a17547e718c2d3da5dc06d8c37ae98ab2646523abeaffe4cd38ee84f55e` | MIT |
 | `test/CurveInvariants.t.sol` | 175 | `2dc49a9cec6e5c0ad0600c36cb27de3483f02f56ede9ce57f0b7ccb252104706` | MIT |
 | `test/PonsV2BondingCurve.t.sol` | 660 | `ad131cb6ddc8d9db9a2fff9ac5fa2fadb7bda949e734c8f667a151baf4e1d781` | MIT |
 | `test/PonsV2BuybackVault.t.sol` | 222 | `e5390e5289ace6059993eb5ef83a10d85378dd8195759eb218b4547d5fa9b062` | MIT |
