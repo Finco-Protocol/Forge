@@ -248,7 +248,6 @@ jobs:
           echo "codeql_default_setup=$state"
           [ "$state" = "configured" ] || nc="CodeQL default setup (state: $state; admin must enable)"
           [ -n "$SONAR_KEY" ] || nc="${nc:+$nc,}SonarQube Cloud (repository variable SONAR_PROJECT_KEY unset; admin must connect)"
-          nc="${nc:+$nc,}CodeRabbit (GitHub App install cannot be detected from CI; admin must install)"
           echo "not_connected=$nc" >> "$GITHUB_OUTPUT"
       - name: unified report + policy
         if: steps.req.outputs.required != ''
