@@ -29,7 +29,7 @@ Verify the source inventory (no network needed, `git` and Node required):
 
 ```bash
 cd apps/forge-web && pnpm install --frozen-lockfile && cd ..
-apps/forge-web/node_modules/.bin/tsx scripts/w06/audit-manifest.ts --check      # AUDIT_MANIFEST_OK files=157 lines=29992
+apps/forge-web/node_modules/.bin/tsx scripts/w06/audit-manifest.ts --check      # AUDIT_MANIFEST_OK files=157 lines=30009
 # independent check of any file against the pinned commit:
 git show f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f:contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol | sha256sum
 ```

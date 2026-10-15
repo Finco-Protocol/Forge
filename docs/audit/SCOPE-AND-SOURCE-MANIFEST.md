@@ -13,7 +13,7 @@ This is preparation material for a **future** independent audit. It is not an au
 | Build profile that defines the Forge stack | `foundry.toml` `[profile.forge]`: solc 0.8.35, optimizer on, 200 runs, `via_ir = true`, `evm_version = "cancun"`, `bytecode_hash = "ipfs"`, `cbor_metadata = true`, `src = contractsV2-forge/src`, `libs = [contractsV2-deployed/lib]` |
 | Deploy-time baseline profile | `[profile.deployed]` over `contractsV2-deployed`, identical compiler settings (the settings of the live PONS V2 deployment, per `docs/W02-SOURCE-RECOVERY.md`) |
 
-The manifest is bound to that commit by construction: all 156 entries were checked against `git show f4fa5e8a…:<path> | sha256sum` when this dossier was prepared (156/156 identical). The 157th file, `test-forge/W06FinancialAcceptance.t.sol` (+257 lines), was added by W06 itself (a test, no production source); the other 156 are byte-identical to the baseline commit. A later commit that adds or edits a Solidity file under an audit root will make `--check` fail until the manifest is regenerated and re-reviewed; that is intended.
+The manifest is bound to that commit by construction: all 156 entries were checked against `git show f4fa5e8a…:<path> | sha256sum` when this dossier was prepared (156/156 identical). The 157th file, `test-forge/W06FinancialAcceptance.t.sol` (+274 lines), was added by W06 itself (a test, no production source); the other 156 are byte-identical to the baseline commit. A later commit that adds or edits a Solidity file under an audit root will make `--check` fail until the manifest is regenerated and re-reviewed; that is intended.
 
 ## 1.2 The generated manifest
 
@@ -36,7 +36,7 @@ The manifest is bound to that commit by construction: all 156 entries were check
 | `test` | 18 | 6435 |
 | `mock` | 14 | 1319 |
 | `script` | 1 | 143 |
-| **All** | **157** | **29992** |
+| **All** | **157** | **30009** |
 
 ## 1.3 Classification (how each class is decided)
 

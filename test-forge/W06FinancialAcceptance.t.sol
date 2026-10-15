@@ -77,7 +77,9 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
     /// treasury + reserve liabilities == allocated revenue; funds on hand cover every liability.
     function _assertConservation() internal view {
         ForgeProtocolRevenueSplitter.AssetLedger memory l = splitter.ledger(NATIVE);
-        assertEq(l.treasuryAllocated + l.reserveAllocated, l.revenueReceived, "allocated == received");
+        assertEq(
+            l.treasuryAllocated + l.reserveAllocated, l.revenueReceived, "allocated == received"
+        );
         assertEq(l.reserveAllocated, l.revenueReceived / 3, "reserve is exactly floor(received/3)");
         assertEq(
             splitter.treasuryLiability(NATIVE) + splitter.reserveLiability(NATIVE),
@@ -89,7 +91,9 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
             splitter.treasuryLiability(NATIVE) + splitter.reserveLiability(NATIVE),
             "no creator funds and no third-party funds sit in the splitter"
         );
-        assertLe(l.revenueReceived, l.eligibleCeiling, "allocation never exceeds the attested ceiling");
+        assertLe(
+            l.revenueReceived, l.eligibleCeiling, "allocation never exceeds the attested ceiling"
+        );
     }
 
     // ── (a)+(b): sequence fuzz over the emergency state machine ────────────────
@@ -189,13 +193,22 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
                 // B was queued before the incident: it can never be the active attestor afterwards.
                 assertTrue(active != attestorB, "pre-incident rotation bypassed the revocation");
                 // Only a NEW post-incident proposal (C) can restore an attestor.
-                assertTrue(active == address(0) || active == attestorC, "unexpected attestor after revocation");
+                assertTrue(
+                    active == address(0) || active == attestorC,
+                    "unexpected attestor after revocation"
+                );
                 // Pulls stay paused until an explicit owner unpause, whoever the attestor is.
-                if (!unpausedSinceRevoke) assertTrue(splitter.pullsPaused(), "pulls resumed without governance");
+                if (!unpausedSinceRevoke) {
+                    assertTrue(splitter.pullsPaused(), "pulls resumed without governance");
+                }
             }
             _assertConservation();
             // Escrow still holds every unclaimed wei owed to the creator (never swept into the splitter).
-            assertEq(escrow.balanceOf(creator), creatorOwed, "creator escrow balance is untouched by splitter state");
+            assertEq(
+                escrow.balanceOf(creator),
+                creatorOwed,
+                "creator escrow balance is untouched by splitter state"
+            );
         }
     }
 
@@ -230,8 +243,12 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
         escrow.claim();
         assertEq(creator.balance, 2 ether);
         _assertConservation();
-        assertEq(splitter.reserveLiability(NATIVE), 1 ether, "reserve has no exit and keeps its balance");
-        assertEq(splitter.verifiedHeadroom(NATIVE), 1 ether, "unpulled headroom is frozen, not erased");
+        assertEq(
+            splitter.reserveLiability(NATIVE), 1 ether, "reserve has no exit and keeps its balance"
+        );
+        assertEq(
+            splitter.verifiedHeadroom(NATIVE), 1 ether, "unpulled headroom is frozen, not erased"
+        );
     }
 
     function test_directed_pause_alone_never_blocks_claims_and_unpause_resumes_pulls() public {
