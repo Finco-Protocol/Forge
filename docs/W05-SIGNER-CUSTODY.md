@@ -157,7 +157,7 @@ The new server key can be enrolled before the on-chain switch, but the role is d
 5. Recovery: create a new key in a ceremony, `rotateSignerKey`, run `setEligibilityAuthority(new)` on both contracts, restart, confirm `verified`, and release the kill switch.
 
 ### 8.2 Revenue attestor compromised
-**`revokeRevenueAttestor()` does not invalidate headroom that is already authorized.** It only stops *new* ceilings, because `authorizeEligibleRevenue` reverts with `AttestorNotSet`. `pullRevenue` still pulls up to `eligibleCeiling − escrowClaimed`. A compromised attestor may already have raised the ceiling to cover third-party credits, so the response **must also pause pulls**:
+**`revokeRevenueAttestor()` does not erase headroom that is already authorized, but since PR #5 Correction A it pauses pulls in the same transaction** (and discards any pending rotation), so the headroom cannot be drained. `authorizeEligibleRevenue` reverts with `AttestorNotSet` and `pullRevenue` reverts with `PullsPaused`. Resuming pulls needs an explicit owner `setPullsPaused(false)`. Procedure (steps 3–4 below are therefore a single transaction):
 
 1. `revokeSignerKey(db, "revenue", <address>, …)` and/or `engageKillSwitch(db, "revenue", …)`. The service stops signing immediately.
 2. Governance (Safe) calls `revokeRevenueAttestor()` on the splitter. This is immediate, and a compromised key's authorizations then revert with `AttestorNotSet`.
@@ -231,3 +231,18 @@ Kill switch and revocation as in section 8.1. Receipts signed after the compromi
   - A KMS-signed Proof-of-Build receipt.
   - A KMS-signed `EligibleRevenue` accepted by `authorizeEligibleRevenue`.
   - The section 8.2 incident sequence.
+
+
+## Authority freshness policy (PR #5 Correction A)
+
+Startup verification is **not** a permanent authorization. Each signing request (every role, including `evidence`) performs one fresh on-chain snapshot read and decides from it:
+
+| Check (per request) | Result when it fails |
+|---|---|
+| registry **and** authorizer `eligibilityAuthority` equal the authority key | `authority` refused (`mismatch`); accepted again only when the chain names the key again |
+| splitter `revenueAttestor` equals the revenue key (`address(0)` = revoked) | `revenue` refused; same recovery rule |
+| no server key (authority, evidence, revenue, relayer) equals any registry/authorizer/factory/splitter owner, pending owner or the treasury recipient | **sticky** custody violation: every role refused until restart + successful startup verification |
+| any required read fails (RPC down, partial snapshot) | refused: fail closed (`unverified`) |
+| durable key version `active`, kill switch off, allowlist, rate limit, replay claim | unchanged (read per request) |
+
+Maximum staleness: **0 blocks** — there is no TTL and no cached "verified" flag. The only remaining window is the read→sign interval of a single request (plus chain finality). Cost: one multi-call snapshot per signature; signing is low-volume (launch authorizations, revenue attestations). Concurrency: every request decides from its own snapshot; an older snapshot can never overwrite newer persisted role state. Tests: `test/integration/w05-signer-freshness.test.ts` (11 tests; 9 of them fail against the previous registry).

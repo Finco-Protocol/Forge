@@ -1002,9 +1002,10 @@
      "timelock": "none (immediate)",
      "emergency": true,
      "monitoringEvents": [
-      "RevenueAttestorUpdated"
+      "RevenueAttestorUpdated",
+      "EmergencyRevocation"
      ],
-     "note": "stops NEW ceilings only; pair with setPullsPaused"
+     "note": "atomic: clears the attestor, discards any pending rotation AND pauses pulls (claims unaffected)"
     }
    ]
   },

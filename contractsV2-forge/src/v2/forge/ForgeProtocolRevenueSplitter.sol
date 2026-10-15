@@ -183,6 +183,9 @@ contract ForgeProtocolRevenueSplitter is EIP712, Ownable2Step, ReentrancyGuard {
     );
     event RevenueAttestorChangeCancelled(address indexed proposed);
     event RevenueAttestorUpdated(address indexed previous, address indexed current);
+    /// @notice Emitted by `revokeRevenueAttestor` with the revoked attestor and the discarded
+    /// pending replacement (zero if none); pulls are paused in the same transaction.
+    event EmergencyRevocation(address indexed revokedAttestor, address indexed discardedPending);
 
     /// @notice Native ETH ledger key.
     address public constant NATIVE = address(0);
@@ -537,11 +540,29 @@ contract ForgeProtocolRevenueSplitter is EIP712, Ownable2Step, ReentrancyGuard {
         emit RevenueAttestorChangeCancelled(proposed);
     }
 
-    /// @notice Immediate, fail-closed revocation: no new ceilings until a
-    /// timelocked replacement executes. Existing ceilings stay usable.
+    /// @notice Atomic emergency containment (PR #5 Correction A). In ONE transaction it
+    /// (1) clears the active attestor, so no new ceiling can be authorized,
+    /// (2) discards any queued attestor rotation, so a proposal made BEFORE the incident can
+    ///     never be executed permissionlessly afterwards (a replacement needs a NEW proposal
+    ///     and the full timelock), and
+    /// (3) pauses new pulls, so headroom the revoked attestor already authorized cannot be
+    ///     drained. Claims (`claimTreasury`, the escrow's creator claims) are never blocked.
+    /// Idempotent. Recovery is explicit: a timelocked replacement attestor AND an owner
+    /// `setPullsPaused(false)`.
     function revokeRevenueAttestor() external onlyOwner {
-        emit RevenueAttestorUpdated(revenueAttestor, address(0));
+        address previous = revenueAttestor;
+        address discarded = pendingRevenueAttestor.newRecipient;
+        if (discarded != address(0)) {
+            delete pendingRevenueAttestor;
+            emit RevenueAttestorChangeCancelled(discarded);
+        }
         revenueAttestor = address(0);
+        emit RevenueAttestorUpdated(previous, address(0));
+        if (!pullsPaused) {
+            pullsPaused = true;
+            emit PullsPausedUpdated(true);
+        }
+        emit EmergencyRevocation(previous, discarded);
     }
 
     function renounceOwnership() public pure override {

@@ -68,13 +68,44 @@
       ]
     },
     {
-      "id": "A07_ROBINHOOD_FORK",
+      "id": "A07a_ROBINHOOD_RPC_RUNTIME_IDENTITY",
       "class": "A",
-      "title": "Read-only checks and fork simulation against the deployed Robinhood 4663 V4 contracts (no broadcast)",
+      "title": "Robinhood 4663 deployed Uniswap V4 contracts: runtime identity and CREATE2 proxy presence via read-only RPC (no fork, no writes)",
       "ciJobs": [
-        "w03: Robinhood Chain 4663 V4 wiring (read-only RPC)",
+        "w03: Robinhood Chain 4663 V4 wiring (read-only RPC)"
+      ]
+    },
+    {
+      "id": "A07b_ROBINHOOD_FORK_EXECUTED_STEPS",
+      "class": "A",
+      "title": "Local Anvil fork of 4663: genuine-V4 lifecycle steps 1-6 and 10 against the REAL deployed PoolManager/PositionManager/Permit2, plus deploy-plan DRY_RUN. Steps 7-9 are NOT part of this item (see A07e). An Anvil fork does not prove production behaviour.",
+      "ciJobs": [
         "w05: Robinhood 4663 fork simulation (no broadcast)"
       ]
+    },
+    {
+      "id": "A07c_ARBSYS_LIVE_READONLY_SEMANTICS",
+      "class": "A",
+      "title": "Live read-only eth_call against the real 4663 RPC: ArbSys.arbBlockNumber()/arbBlockHash() equal the RPC block number/hash (finding W05-05)",
+      "ciJobs": [
+        "w05: Robinhood 4663 fork simulation (no broadcast)"
+      ]
+    },
+    {
+      "id": "A07e_ROBINHOOD_FORK_REVENUE_CLAIMS_LIFECYCLE",
+      "class": "A",
+      "title": "Genuine-V4 lifecycle steps 7-9 on the 4663 fork: revenue attestation + splitter pull, treasury claim, creator claim",
+      "deferred": {
+        "reason": "NOT VERIFIED - skipped in fork mode: the local Anvil fork emulates ArbOS (0x64 is a precompile that cannot be replaced) so these steps cannot run there. They are fully exercised on the fresh-Anvil genuine-V4 suite (A06) and the splitter ArbSys branch by forge tests, but NOT against the 4663 fork or the live chain.",
+        "steps": [
+          7,
+          8,
+          9
+        ],
+        "coveredBy": [
+          "A06_GENUINE_V4_LOCAL"
+        ]
+      }
     },
     {
       "id": "A08_DATABASE",
@@ -172,6 +203,13 @@
       "title": "Production PonsV2MemeHook CREATE2 salt mined for the REAL constructor arguments (escrow, splitter, owner) with mask 0x2044 and reproduced by a second operator",
       "blocks": "OPERATOR_CONFIGURATION_REQUIRED",
       "evidenceRequired": "hook-mine evidence JSON (initCodeHash, salt, address) + second-operator reproduction hash"
+    },
+    {
+      "id": "B09_ROBINHOOD_PRODUCTION_WRITE_ACCEPTANCE",
+      "class": "B",
+      "title": "Robinhood 4663 production write acceptance: an operator-run, separately approved staging/production attestation + pull + claim sequence on the live chain. NOT PERFORMED by W05 (no mainnet writes).",
+      "blocks": "OPERATOR_CONFIGURATION_REQUIRED",
+      "evidenceRequired": "transaction hashes + reconciliation report from an approved release workflow, signed by an allowlisted operator key"
     },
     {
       "id": "C01_SMART_CONTRACT_AUDIT",

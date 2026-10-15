@@ -30,7 +30,7 @@ It does **not** activate production fee routing. `PRODUCTION_BLOCKED=true`, `FIN
 ## Operating notes (sandbox)
 
 - **Pulling revenue:** anyone may call `pullRevenue(asset, 0)`. Pulls never touch creator funds, and never exceed the attested eligible-revenue ceiling. The worker attests new eligible revenue after each indexing pass (sandbox key only). Treasury → Accounting shows the provenance status per asset.
-- **Attestor incidents:** `revokeRevenueAttestor()` (owner) stops new ceilings immediately. A replacement needs the 3-day timelock. Existing headroom stays pullable; pause pulls with `setPullsPaused(true)` if it is in doubt.
+- **Attestor incidents:** `revokeRevenueAttestor()` (owner) is atomic since PR #5 Correction A: it stops new ceilings, discards any pending rotation and pauses pulls (claims unaffected). A replacement needs a NEW proposal and the 3-day timelock, and pulls resume only through an explicit owner `setPullsPaused(false)`.
 - **Claims:**
   - Creators claim with `PonsV2FeeEscrow.claim` / `claimToken` from their own wallet. The UI prepares the transaction; the wallet signs it. A reported hash counts only once its contents and the canonical claim event are verified.
   - The treasury recipient claims with `claimTreasury`.

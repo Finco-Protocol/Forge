@@ -103,7 +103,7 @@ spec = {
   "proposeRevenueAttestor(address)": (O,"signer-rotation","3 days notice + 3 days window",False,["RevenueAttestorChangeProposed"],""),
   "executeRevenueAttestorChange()": ("anyone-after-timelock","signer-rotation","enforced (3d + 3d)",False,["RevenueAttestorUpdated"],""),
   "cancelRevenueAttestorChange()": (O,"signer-rotation","none",False,["RevenueAttestorChangeCancelled"],""),
-  "revokeRevenueAttestor()": (O,"emergency","none (immediate)",True,["RevenueAttestorUpdated"],"stops NEW ceilings only; pair with setPullsPaused"),
+  "revokeRevenueAttestor()": (O,"emergency","none (immediate)",True,["RevenueAttestorUpdated","EmergencyRevocation"],"atomic: clears the attestor, discards any pending rotation AND pauses pulls (claims unaffected)"),
  },
  "PonsV2BuybackVault": {
   "acceptOwnership()": ("pending-owner","governance","Ownable2Step two-step",False,["OwnershipTransferred"],""),

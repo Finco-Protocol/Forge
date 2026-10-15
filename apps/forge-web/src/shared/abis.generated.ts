@@ -10635,6 +10635,25 @@ export const forgeProtocolRevenueSplitterAbi = [
   },
   {
     "type": "event",
+    "name": "EmergencyRevocation",
+    "inputs": [
+      {
+        "name": "revokedAttestor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "discardedPending",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ForgeFactorySet",
     "inputs": [
       {

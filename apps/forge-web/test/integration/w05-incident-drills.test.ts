@@ -130,7 +130,7 @@ describe("W05 incident drills", () => {
     await governanceWrite(sb, sb.deployment.authorizer, forgeLaunchAuthorizerAbi, "setEligibilityAuthority", [sb.deployment.authority]);
   });
 
-  it("§D3 revenue attestor compromised: revoke stops NEW ceilings, pause stops pulls of existing headroom, claims keep working", async () => {
+  it("§D3 revenue attestor compromised: ONE revoke transaction stops new ceilings, discards pending rotations and pauses pulls; claims keep working", async () => {
     await feesOnCurve(true);
     await runWorkerOnce(sb.ctx); // attests the swept protocol leg
     const headroom = await sb.ctx.client.readContract({ address: sb.deployment.revenueSplitter, abi: forgeProtocolRevenueSplitterAbi, functionName: "verifiedHeadroom", args: [NATIVE] });
@@ -138,20 +138,20 @@ describe("W05 incident drills", () => {
     await governanceWrite(sb, sb.deployment.revenueSplitter, forgeProtocolRevenueSplitterAbi, "revokeRevenueAttestor", []);
     const out = await runRevenueAttestation(sb.ctx);
     expect(out.map((o) => o.status)).toContain("ATTESTOR_MISMATCH");
-    // Revocation did not invalidate the already-authorized headroom...
+    // Revocation did not erase the already-authorized headroom...
     expect(await sb.ctx.client.readContract({ address: sb.deployment.revenueSplitter, abi: forgeProtocolRevenueSplitterAbi, functionName: "verifiedHeadroom", args: [NATIVE] })).toBe(headroom);
-    // ...so the incident procedure must also pause pulls.
-    await governanceWrite(sb, sb.deployment.revenueSplitter, forgeProtocolRevenueSplitterAbi, "setPullsPaused", [true]);
+    // ...but the SAME transaction paused pulls (Correction A): no separate step is needed.
+    expect(await sb.ctx.client.readContract({ address: sb.deployment.revenueSplitter, abi: forgeProtocolRevenueSplitterAbi, functionName: "pullsPaused" })).toBe(true);
     const pull = await send(STRANGER_KEY, sb.deployment.revenueSplitter, forgeProtocolRevenueSplitterAbi, "pullRevenue", [NATIVE, 0n]).catch(() => ({ status: "reverted" }));
     expect(pull.status).not.toBe("success");
     await runWorkerOnce(sb.ctx);
     expect((await firing(false)).ids).toEqual(expect.arrayContaining(["SUSPICIOUS_RECIPIENT_CHANGE", "FEE_POLICY_CHANGE"]));
-    // Recovery: unpause, rotate in a new attestor through the timelocked path.
-    await governanceWrite(sb, sb.deployment.revenueSplitter, forgeProtocolRevenueSplitterAbi, "setPullsPaused", [false]);
+    // Recovery is explicit: a NEW timelocked proposal, then an owner-authorized unpause.
     await governanceWrite(sb, sb.deployment.revenueSplitter, forgeProtocolRevenueSplitterAbi, "proposeRevenueAttestor", [sb.deployment.revenueAttestor]);
     await rpc(sb.anvil.url, "evm_increaseTime", [3 * 24 * 3600]);
     await rpc(sb.anvil.url, "evm_mine");
     await send(STRANGER_KEY, sb.deployment.revenueSplitter, forgeProtocolRevenueSplitterAbi, "executeRevenueAttestorChange");
+    await governanceWrite(sb, sb.deployment.revenueSplitter, forgeProtocolRevenueSplitterAbi, "setPullsPaused", [false]);
     expect((await runRevenueAttestation(sb.ctx)).every((o) => o.status !== "ATTESTOR_MISMATCH")).toBe(true);
   });
 

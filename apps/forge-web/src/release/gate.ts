@@ -18,6 +18,8 @@ export type EvidenceClass = "A" | "B" | "C";
 export type ReadinessState =
   | "ENGINEERING_PASS"
   | "ENGINEERING_FAIL"
+  /** Some Class A scope is explicitly NOT VERIFIED (deferred): ENGINEERING_PASS covers only what actually executed. */
+  | "EVIDENCE_INCOMPLETE"
   | "OPERATOR_CONFIGURATION_REQUIRED"
   | "EXTERNAL_AUDIT_REQUIRED"
   | "LEGAL_APPROVAL_REQUIRED"
@@ -33,6 +35,12 @@ export interface GateItem {
   blocks?: "OPERATOR_CONFIGURATION_REQUIRED" | "EXTERNAL_AUDIT_REQUIRED" | "LEGAL_APPROVAL_REQUIRED";
   /** What acceptable evidence must contain (documented for operators/approvers). */
   evidenceRequired?: string;
+  /**
+   * Class A scope that is KNOWN NOT to be verified (e.g. test steps skipped in a harness that cannot run them).
+   * A deferred item can never PASS and can never be satisfied by a CI result: it reports NOT_VERIFIED and adds
+   * EVIDENCE_INCOMPLETE. It closes only by a reviewed manifest change that replaces it with a real, mapped job.
+   */
+  deferred?: { reason: string; steps?: number[]; coveredBy?: string[] };
 }
 
 export interface ReadinessManifest {
@@ -80,7 +88,7 @@ export interface GateInputs {
 export interface GateItemResult {
   id: string;
   class: EvidenceClass;
-  status: "PASS" | "FAIL" | "MISSING_EVIDENCE" | "INVALID_EVIDENCE";
+  status: "PASS" | "FAIL" | "MISSING_EVIDENCE" | "INVALID_EVIDENCE" | "NOT_VERIFIED";
   detail: string;
 }
 
@@ -90,6 +98,8 @@ export interface GateResult {
   productionReady: false;
   items: GateItemResult[];
   blockers: string[];
+  /** What the engineering pass does and does not cover (item ids). */
+  evidenceScope: { verified: string[]; notVerified: string[] };
 }
 
 /** Canonical JSON (sorted keys) so the integrity hash is stable. */
@@ -163,6 +173,14 @@ export async function evaluateGate(i: GateInputs): Promise<GateResult> {
 
   const states = new Set<ReadinessState>();
   for (const item of i.manifest.items) {
+    if (item.deferred) {
+      // Deferred scope is reported, never passed. A CI mapping on a deferred item is a manifest error (it would
+      // let a green unrelated job masquerade as the missing evidence).
+      if ((item.ciJobs ?? []).length) fail(`DEFERRED_ITEM_HAS_CI_MAPPING: ${item.id}`);
+      items.push({ id: item.id, class: item.class, status: "NOT_VERIFIED", detail: item.deferred.reason });
+      states.add("EVIDENCE_INCOMPLETE");
+      continue;
+    }
     if (item.class === "A") {
       const jobs = item.ciJobs ?? [];
       const bad = jobs.filter((j) => i.ciResults[j] !== "success");
@@ -191,10 +209,14 @@ export async function evaluateGate(i: GateInputs): Promise<GateResult> {
   }
 
   const out: ReadinessState[] = [engineering === "PASS" ? "ENGINEERING_PASS" : "ENGINEERING_FAIL"];
-  for (const s of ["OPERATOR_CONFIGURATION_REQUIRED", "EXTERNAL_AUDIT_REQUIRED", "LEGAL_APPROVAL_REQUIRED"] as const) if (states.has(s)) out.push(s);
+  for (const s of ["EVIDENCE_INCOMPLETE", "OPERATOR_CONFIGURATION_REQUIRED", "EXTERNAL_AUDIT_REQUIRED", "LEGAL_APPROVAL_REQUIRED"] as const) if (states.has(s)) out.push(s);
   // Production readiness is never decided here.
   out.push("PRODUCTION_BLOCKED");
-  return { states: out, engineering, productionReady: PRODUCTION_READY, items, blockers };
+  const evidenceScope = {
+    verified: items.filter((x) => x.class === "A" && x.status === "PASS").map((x) => x.id),
+    notVerified: items.filter((x) => x.status === "NOT_VERIFIED").map((x) => x.id),
+  };
+  return { states: out, engineering, productionReady: PRODUCTION_READY, items, blockers, evidenceScope };
 }
 
 /** Hash helper exposed for evidence preparation tooling. */

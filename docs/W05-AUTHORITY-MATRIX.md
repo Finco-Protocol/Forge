@@ -140,7 +140,7 @@ Ownership: Ownable2Step · Upgradeable: no
 | `proposeRevenueAttestor(address)` | owner | signer-rotation | 3 days notice + 3 days window |  | `RevenueAttestorChangeProposed` |  |
 | `executeRevenueAttestorChange()` | anyone-after-timelock | signer-rotation | enforced (3d + 3d) |  | `RevenueAttestorUpdated` |  |
 | `cancelRevenueAttestorChange()` | owner | signer-rotation | none |  | `RevenueAttestorChangeCancelled` |  |
-| `revokeRevenueAttestor()` | owner | emergency | none (immediate) | **yes** | `RevenueAttestorUpdated` | stops NEW ceilings only; pair with setPullsPaused |
+| `revokeRevenueAttestor()` | owner | emergency | none (immediate) | **yes** | `RevenueAttestorUpdated`, `EmergencyRevocation` | atomic: clears the attestor, discards any pending rotation AND pauses pulls (claims unaffected) |
 
 ## PonsV2BuybackVault
 

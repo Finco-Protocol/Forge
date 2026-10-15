@@ -1,17 +1,95 @@
 {
   "$comment": "W05 security findings register consumed by the release gate. An OPEN critical/high finding blocks ENGINEERING_PASS. 'disclosed-owner-trust' = a standing owner power that is documented, monitored and routed to Class C review (C03); it is NOT accepted by any external reviewer yet. Sources: docs/SECURITY-REVIEW.md (F-xx), docs/W05-SECURITY-GOVERNANCE.md (W05-xx).",
   "findings": [
-    { "id": "F-01", "severity": "critical", "status": "fixed", "title": "Published source did not compile / was not the deployed source — resolved by recovered deploy-time tree + byte-parity gate (W02)" },
-    { "id": "F-02", "severity": "high", "status": "fixed", "title": "Core deployed components unpublished — recovered and parity-proven (W02)" },
-    { "id": "F-03", "severity": "high", "status": "disclosed-owner-trust", "title": "Factory owner can redirect any launch's creator fee recipient (3d notice + 3d window); reaches accrued-unswept fees and unreleased vest" },
-    { "id": "F-04", "severity": "high", "status": "disclosed-owner-trust", "title": "Owner rescue hatches (rescueCurveFees, rescuePoolFees, rescueSweptGraduation, forceSweptGraduation)" },
-    { "id": "F-05", "severity": "medium", "status": "disclosed-owner-trust", "title": "Fee-sweep operator chooses conversion/buyback price floors" },
-    { "id": "F-07", "severity": "medium", "status": "open", "title": "No external audit covers the current code (Class C01)" },
-    { "id": "F-09", "severity": "medium", "status": "open", "title": "BUSL-1.1 code linked into the build (Class C04)" },
-    { "id": "W05-01", "severity": "high", "status": "fixed", "title": "Compromised revenue attestor could exhaust the per-asset nonce space and sign an unbounded ceiling, permanently disabling the provenance bound — fixed: sequential nonces + ceiling <= escrow claimed + held" },
-    { "id": "W05-05", "severity": "high", "status": "fixed", "title": "MEASURED on the real Robinhood 4663 RPC (PR CI): EVM block.number is the parent-chain number (26,193,299 vs RPC 88,673,151), so the splitter evidence-block check reverted StaleEvidence for every attestation — fixed: L2 head/hash read through ArbSys (0x64) when it answers, EVM opcodes elsewhere; real-chain confirmation is the A07 CI probe, not a local run" },
-    { "id": "W05-02", "severity": "medium", "status": "disclosed-owner-trust", "title": "renounceOwnership is not disabled on ForgeBindingRegistry and ForgeLaunchAuthorizer; renouncing freezes authority rotation and the launch kill switch" },
-    { "id": "W05-03", "severity": "medium", "status": "disclosed-owner-trust", "title": "Under a timelocked owner every owner function — including emergency stops — inherits the timelock delay; immediate containment relies on off-chain signer kill switches" },
-    { "id": "W05-04", "severity": "low", "status": "disclosed-owner-trust", "title": "rescuePoolFees never rescues a native-quote bucket (by design: native cannot fail to deliver); such fees can only leave via sweep" }
+    {
+      "id": "F-01",
+      "severity": "critical",
+      "status": "fixed",
+      "title": "Published source did not compile / was not the deployed source \u2014 resolved by recovered deploy-time tree + byte-parity gate (W02)"
+    },
+    {
+      "id": "F-02",
+      "severity": "high",
+      "status": "fixed",
+      "title": "Core deployed components unpublished \u2014 recovered and parity-proven (W02)"
+    },
+    {
+      "id": "F-03",
+      "severity": "high",
+      "status": "disclosed-owner-trust",
+      "title": "Factory owner can redirect any launch's creator fee recipient (3d notice + 3d window); reaches accrued-unswept fees and unreleased vest"
+    },
+    {
+      "id": "F-04",
+      "severity": "high",
+      "status": "disclosed-owner-trust",
+      "title": "Owner rescue hatches (rescueCurveFees, rescuePoolFees, rescueSweptGraduation, forceSweptGraduation)"
+    },
+    {
+      "id": "F-05",
+      "severity": "medium",
+      "status": "disclosed-owner-trust",
+      "title": "Fee-sweep operator chooses conversion/buyback price floors"
+    },
+    {
+      "id": "F-07",
+      "severity": "medium",
+      "status": "open",
+      "title": "No external audit covers the current code (Class C01)"
+    },
+    {
+      "id": "F-09",
+      "severity": "medium",
+      "status": "open",
+      "title": "BUSL-1.1 code linked into the build (Class C04)"
+    },
+    {
+      "id": "W05-01",
+      "severity": "high",
+      "status": "fixed",
+      "title": "Compromised revenue attestor could exhaust the per-asset nonce space and sign an unbounded ceiling, permanently disabling the provenance bound \u2014 fixed: sequential nonces + ceiling <= escrow claimed + held"
+    },
+    {
+      "id": "W05-05",
+      "severity": "high",
+      "status": "fixed",
+      "title": "MEASURED on the real Robinhood 4663 RPC (PR CI): EVM block.number is the parent-chain number (26,193,299 vs RPC 88,673,151), so the splitter evidence-block check reverted StaleEvidence for every attestation \u2014 fixed: L2 head/hash read through ArbSys (0x64) when it answers, EVM opcodes elsewhere; real-chain confirmation is the A07c CI probe, not a local run"
+    },
+    {
+      "id": "W05-06",
+      "severity": "high",
+      "status": "fixed",
+      "title": "revokeRevenueAttestor() did not invalidate a pending attestor rotation: a matured proposal could be executed permissionlessly after the emergency revocation (reproduced) \u2014 fixed: revocation atomically discards the pending rotation and pauses pulls; claims unaffected"
+    },
+    {
+      "id": "W05-07",
+      "severity": "medium",
+      "status": "fixed",
+      "title": "SignerRegistry trusted startup verification indefinitely (rotated/revoked on-chain authority kept signing; sticky disables never recovered) \u2014 fixed: fresh on-chain snapshot per signing request, fail closed on RPC failure"
+    },
+    {
+      "id": "W05-08",
+      "severity": "low",
+      "status": "disclosed-owner-trust",
+      "title": "Robinhood fork lifecycle steps 7-9 (revenue attestation/pull/claims) are NOT VERIFIED on the Anvil fork (ArbOS emulation); reported as deferred item A07e and Class B B09 (production write acceptance not performed)"
+    },
+    {
+      "id": "W05-02",
+      "severity": "medium",
+      "status": "disclosed-owner-trust",
+      "title": "renounceOwnership is not disabled on ForgeBindingRegistry and ForgeLaunchAuthorizer; renouncing freezes authority rotation and the launch kill switch"
+    },
+    {
+      "id": "W05-03",
+      "severity": "medium",
+      "status": "disclosed-owner-trust",
+      "title": "Under a timelocked owner every owner function \u2014 including emergency stops \u2014 inherits the timelock delay; immediate containment relies on off-chain signer kill switches"
+    },
+    {
+      "id": "W05-04",
+      "severity": "low",
+      "status": "disclosed-owner-trust",
+      "title": "rescuePoolFees never rescues a native-quote bucket (by design: native cannot fail to deliver); such fees can only leave via sweep"
+    }
   ]
 }

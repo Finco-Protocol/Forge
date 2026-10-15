@@ -19,8 +19,9 @@ import {MockQuotePolicyFactory} from "./mocks/MockQuotePolicyFactory.sol";
  *  - W05: it cannot exhaust the nonce space (sequential nonces) nor
  *    pre-authorise future third-party credits (ceiling capped at escrow
  *    claimed + held at signing time);
- *  - revocation stops NEW authorizations only — already-authorized headroom
- *    stays pullable until the owner pauses pulls;
+ *  - (Correction A) revocation is atomic: it stops NEW authorizations, discards
+ *    any queued rotation and pauses pulls, so already-authorized headroom cannot
+ *    be drained; claims are never blocked (see W05EmergencyRevocation.t.sol);
  *  - pausing pulls never blocks treasury claims, and a timelocked successor
  *    continues the nonce sequence (no permanent lockout).
  */
@@ -119,7 +120,7 @@ contract W05AttestorCompromiseTest is AttestationHelpers {
 
     /// Incident procedure: revoke the attestor AND pause pulls. Revocation
     /// alone leaves existing headroom pullable.
-    function test_revocation_keeps_headroom_until_pulls_are_paused() public {
+    function test_revocation_atomically_pauses_pulls_and_keeps_claims() public {
         _credit(attacker, address(splitter), 2 ether);
         (ForgeProtocolRevenueSplitter.EligibleRevenue memory a, bytes memory sig) =
             _signed(attestorKey, 2 ether, _next());
@@ -132,15 +133,13 @@ contract W05AttestorCompromiseTest is AttestationHelpers {
         vm.expectRevert(ForgeProtocolRevenueSplitter.AttestorNotSet.selector);
         splitter.authorizeEligibleRevenue(a, sig);
 
-        // Revocation did NOT invalidate the 1.5 ETH already authorized.
+        // Correction A: revocation does not erase the 1.5 ETH already authorized, but it
+        // pauses new pulls in the SAME transaction, so that headroom cannot be drained.
         assertEq(splitter.verifiedHeadroom(NATIVE), 1.5 ether);
-        splitter.pullRevenue(NATIVE, 0.5 ether);
-
-        vm.prank(governance);
-        splitter.setPullsPaused(true);
+        assertTrue(splitter.pullsPaused());
         vm.expectRevert(ForgeProtocolRevenueSplitter.PullsPaused.selector);
-        splitter.pullRevenue(NATIVE, 0);
-        assertEq(escrow.balanceOf(address(splitter)), 1 ether, "remaining stays in escrow");
+        splitter.pullRevenue(NATIVE, 0.5 ether);
+        assertEq(escrow.balanceOf(address(splitter)), 1.5 ether, "remaining stays in escrow");
 
         // Treasury claims are never blocked by the pause.
         uint256 liability = splitter.treasuryLiability(NATIVE);

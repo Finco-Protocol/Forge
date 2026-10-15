@@ -10,9 +10,10 @@
  *   - startup verification fails closed (expected address, on-chain holder,
  *     external treasury/governance keys, key overlap, non-dev chains);
  *   - the revenue-attestor incident sequence: registry revocation stops new
- *     signatures immediately; on-chain revokeRevenueAttestor() does NOT
- *     invalidate already-authorized headroom; setPullsPaused(true) does;
- *     claims keep working.
+ *     signatures immediately; on-chain revokeRevenueAttestor() is ATOMIC
+ *     (PR #5 Correction A): it clears the attestor, discards any pending
+ *     rotation AND pauses pulls, so already-authorized headroom cannot be
+ *     drained; claims keep working.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getAddress, hashMessage, parseEther, recoverAddress, zeroAddress, type Abi, type Address, type Hex } from "viem";
@@ -193,7 +194,7 @@ describe("W05 KMS-held keys verify on chain", () => {
     expect(audit.rows.length).toBe(1);
   });
 
-  it("revenue-attestor incident: registry revocation → on-chain revoke keeps headroom pullable → setPullsPaused(true) stops pulls → claims still work", async () => {
+  it("revenue-attestor incident: registry revocation → on-chain revoke is atomic (clears attestor + pauses pulls) → claims still work", async () => {
     const attestor = addr(SANDBOX_ROLES.revenueAttestor);
     const headroom = await splitterRead<bigint>("verifiedHeadroom", [NATIVE]);
     expect(headroom).toBeGreaterThan(0n);
@@ -236,22 +237,21 @@ describe("W05 KMS-held keys verify on chain", () => {
     const rogueSig = await rogue.signDigest(eligibleRevenueDigest(31337, splitter, auth));
     expect(await simulate(STRANGER_KEY, splitter, forgeProtocolRevenueSplitterAbi, "authorizeEligibleRevenue", [auth, rogueSig])).toBe("OK");
 
+    // Part of the authorized headroom is pulled BEFORE the incident (so a treasury liability exists to claim afterwards).
+    const half = headroom / 2n;
+    expect(await send(STRANGER_KEY, splitter, forgeProtocolRevenueSplitterAbi, "pullRevenue", [NATIVE, half])).toBe("success");
+
     // 3. Governance: revokeRevenueAttestor() — new ceilings are now impossible on chain …
     await governanceWrite(sb, splitter, forgeProtocolRevenueSplitterAbi as Abi, "revokeRevenueAttestor", []);
     expect(await splitterRead<Address>("revenueAttestor")).toBe(zeroAddress);
     expect(await simulate(STRANGER_KEY, splitter, forgeProtocolRevenueSplitterAbi, "authorizeEligibleRevenue", [auth, rogueSig])).toBe("AttestorNotSet");
 
-    // … but the ALREADY-AUTHORIZED headroom is NOT invalidated: anyone can still pull up to it.
-    const half = headroom / 2n;
-    expect(await send(STRANGER_KEY, splitter, forgeProtocolRevenueSplitterAbi, "pullRevenue", [NATIVE, half])).toBe("success");
+    // … and (Correction A) the SAME transaction paused pulls: the ALREADY-AUTHORIZED headroom is not erased
+    // but nobody can drain it.
+    expect(await splitterRead<boolean>("pullsPaused")).toBe(true);
     expect(await splitterRead<bigint>("verifiedHeadroom", [NATIVE])).toBe(headroom - half);
-    expect(await simulate(STRANGER_KEY, splitter, forgeProtocolRevenueSplitterAbi, "pullRevenue", [NATIVE, headroom])).toBe("ExceedsVerifiedRevenue");
-
-    // 4. Incident procedure step 2: setPullsPaused(true) — the remaining headroom can no longer be pulled.
-    await governanceWrite(sb, splitter, forgeProtocolRevenueSplitterAbi as Abi, "setPullsPaused", [true]);
+    expect(await simulate(STRANGER_KEY, splitter, forgeProtocolRevenueSplitterAbi, "pullRevenue", [NATIVE, headroom - half])).toBe("PullsPaused");
     expect(await simulate(STRANGER_KEY, splitter, forgeProtocolRevenueSplitterAbi, "pullRevenue", [NATIVE, 0n])).toBe("PullsPaused");
-    expect(await simulate(STRANGER_KEY, splitter, forgeProtocolRevenueSplitterAbi, "pullRevenue", [NATIVE, 1n])).toBe("PullsPaused");
-    expect(await splitterRead<bigint>("verifiedHeadroom", [NATIVE])).toBe(headroom - half);
 
     // 5. Claims are unaffected by the pause: the treasury claims its allocation, the creator claims escrow fees.
     const liability = await splitterRead<bigint>("treasuryLiability", [NATIVE]);

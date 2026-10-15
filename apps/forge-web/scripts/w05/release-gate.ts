@@ -59,6 +59,7 @@ async function main() {
   console.log(`READINESS_STATES=${r.states.join(",")}`);
   console.log(`PRODUCTION_READY=${String(r.productionReady)}`);
   for (const i of r.items) console.log(`${i.class} ${i.id.padEnd(30)} ${i.status.padEnd(18)} ${i.detail}`);
+  if (r.evidenceScope.notVerified.length) console.log(`::warning::EVIDENCE_INCOMPLETE - NOT VERIFIED: ${r.evidenceScope.notVerified.join(", ")}`);
   for (const b of r.blockers) console.log(`::error::${b}`);
   process.exit(r.engineering === "PASS" ? 0 : 1);
 }

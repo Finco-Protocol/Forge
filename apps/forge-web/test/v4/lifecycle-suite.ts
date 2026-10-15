@@ -2,6 +2,7 @@
  * The genuine-V4 lifecycle acceptance suite, parameterised by mode so the
  * local-genuine project and the CI fork project run the SAME assertions.
  */
+import { FORK_DEFERRED_STEPS } from "./fork-deferred";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getAddress, parseEther, type Address } from "viem";
 import { forgeProtocolRevenueSplitterAbi, ponsV2BondingCurveAbi, ponsV2FeeEscrowAbi, ponsV2LaunchFactoryAbi, ponsV2LaunchLockerAbi, ponsV2MemeHookAbi } from "@/shared/abis.generated";
@@ -35,7 +36,8 @@ export function defineGenuineLifecycleSuite(mode: GenuineMode) {
   // reproduced on a LOCAL fork. They run in full on the fresh-Anvil genuine-V4 suite (mode "local"); the
   // real-chain ArbSys property is asserted read-only by test/v4-fork/arbos-block-semantics.test.ts and the
   // splitter's ArbSys branch by forge tests (test_H2_*). This is a documented gap, NOT a pass.
-  const itRevenue = mode === "fork" ? it.skip : it;
+  const deferred = (n: number) => mode === "fork" && (FORK_DEFERRED_STEPS as readonly number[]).includes(n);
+  const itStep = (n: number) => (deferred(n) ? it.skip : it);
   describe(`W05 genuine Uniswap V4 lifecycle (${mode})`, () => {
     const steps: string[] = [];
     evidence.steps = steps;
@@ -135,7 +137,7 @@ export function defineGenuineLifecycleSuite(mode: GenuineMode) {
       steps.push("swap-buy+operator-conversion");
     });
 
-    itRevenue("7. attested ceiling → splitter pull allocates 2:1 (treasury:reserve); third parties cannot exceed the ceiling", async () => {
+    itStep(7)("7. attested ceiling → splitter pull allocates 2:1 (treasury:reserve); third parties cannot exceed the ceiling", async () => {
       const head = await L.pub.getBlockNumber();
       const eligible = await L.eligibleNativeCredits(BigInt(d.deployBlock), head);
       expect(eligible).toBe(await L.escrowBalance(d.revenueSplitter));
@@ -160,7 +162,7 @@ export function defineGenuineLifecycleSuite(mode: GenuineMode) {
       steps.push("attest+pull");
     });
 
-    itRevenue("8. the treasury recipient claims its liability; the reserve has no exit", async () => {
+    itStep(8)("8. the treasury recipient claims its liability; the reserve has no exit", async () => {
       const t = L.c(KEYS.treasury);
       const liability = await L.read<bigint>(d.revenueSplitter, forgeProtocolRevenueSplitterAbi, "treasuryLiability", [NATIVE]);
       expect(liability).toBeGreaterThan(0n);
@@ -178,7 +180,7 @@ export function defineGenuineLifecycleSuite(mode: GenuineMode) {
       steps.push("treasury-claim");
     });
 
-    itRevenue("9. the creator claims everything credited to them in the canonical escrow", async () => {
+    itStep(9)("9. the creator claims everything credited to them in the canonical escrow", async () => {
       const owed = await L.escrowBalance(L.creator);
       expect(owed).toBeGreaterThan(0n);
       const b0 = await L.pub.getBalance({ address: L.creator });

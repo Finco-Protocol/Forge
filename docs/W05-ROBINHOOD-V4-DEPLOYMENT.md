@@ -137,6 +137,19 @@ Audit, governance multisig/timelock, attestor and treasury custody, the
 `blockhash` semantics probe, proxy presence on 4663, legal (BUSL v4-core),
 ERC-20 quote asset review. See `docs/W04-W05-HANDOVER.md`.
 
-## Fork-mode limitation (measured in PR CI) — a gap, not a pass
+## Robinhood evidence classification (PR #5 Correction A)
 
-The local Anvil fork of chain 4663 emulates ArbOS: address `0x64` (ArbSys) is a precompile that `anvil_setCode` cannot replace, and gas/L1 accounting differs from the real EVM assumptions in the harness. Therefore lifecycle steps 7–9 (revenue attestation → splitter pull → treasury/creator claims) are **skipped in fork mode** and run only on the fresh-Anvil genuine-V4 suite. What still covers them: (a) fork steps 1–6 and 10 against the REAL deployed PoolManager/PositionManager/Permit2; (b) the read-only probe `test/v4-fork/arbos-block-semantics.test.ts`, which asserted on the real RPC that `ArbSys.arbBlockNumber()`/`arbBlockHash()` equal the RPC's block number/hash (finding W05-05); (c) forge tests `test_H2_*` for the splitter's ArbSys branch. The splitter's behaviour on the live ArbOS chain end-to-end remains unproven until a testnet/staging attestation is executed by an operator (Class B).
+The release report distinguishes six categories. Nothing here claims that an Anvil fork proves production behaviour.
+
+| # | Evidence | Item | Status |
+|---|---|---|---|
+| 1 | Genuine V4 **local** lifecycle (fresh Anvil, genuine PoolManager/PositionManager/Permit2, all 10 steps incl. attestation, pull, claims) | `A06_GENUINE_V4_LOCAL` | verified (CI + local) |
+| 2 | Robinhood 4663 contract/runtime identity and CREATE2 proxy presence, read-only RPC | `A07a_ROBINHOOD_RPC_RUNTIME_IDENTITY` | verified |
+| 3 | Fork lifecycle steps that **executed**: 1–6 and 10 against the REAL deployed V4 contracts on a local Anvil fork, plus deploy-plan DRY_RUN | `A07b_ROBINHOOD_FORK_EXECUTED_STEPS` | verified (scope limited to those steps) |
+| 4 | ArbSys live **read-only** semantics: `arbBlockNumber()`/`arbBlockHash(N-1)` equal the RPC block number/hash | `A07c_ARBSYS_LIVE_READONLY_SEMANTICS` | verified |
+| 5 | Fork revenue/claims lifecycle (steps 7–9) | `A07e_ROBINHOOD_FORK_REVENUE_CLAIMS_LIFECYCLE` | **NOT VERIFIED** (skipped; gate state `EVIDENCE_INCOMPLETE`) |
+| 6 | Robinhood production write acceptance | `B09_ROBINHOOD_PRODUCTION_WRITE_ACCEPTANCE` | **NOT PERFORMED** (Class B, no mainnet writes) |
+
+Why steps 7–9 are deferred: the local Anvil fork of chain 4663 emulates ArbOS. `0x64` (ArbSys) is a precompile that `anvil_setCode` cannot replace (observed `PrecompileError` in CI), so neither the real ArbSys nor a test double can serve the splitter's evidence read there, and gas/L1 accounting differs from the harness's assumptions. The skipped step list is a single constant (`test/v4/fork-deferred.ts`) checked against the manifest by a unit test, so skipping a step without deferring it (or the reverse) fails CI. The three steps are fully exercised on the fresh-Anvil suite (#1), and the splitter's ArbSys branch by forge tests (`test_H2_*`), but never against the 4663 fork or the live chain.
+
+Harness investigation: `test/v4-fork/anvil-arbsys-investigation.test.ts` is a diagnostic (it asserts nothing about fidelity) that records what Anvil does at `0x64` on a fork with the remote chain id and on one with `--chain-id 31337`; its output (`W05_ANVIL_ARBSYS_PROBE`) is in the CI log of the fork job. Even if a chain-id-overridden fork allowed a test double at `0x64`, that would be a labelled emulation of documented ArbSys behaviour, not evidence about the target chain, so it could not replace category 3/4 facts or category 6.
