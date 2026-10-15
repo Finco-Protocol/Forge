@@ -43,28 +43,35 @@ export async function createAppContext(
     if (!opts.db) await db.close().catch(() => undefined);
     throw e;
   }
-  const client = makePublicClient(cfg);
-  const relayer = makeRelayer(cfg, requireKey("FORGE_RELAYER_PRIVATE_KEY", cfg.signer.relayerKey));
-  // Custody: local-test (default, dev chains only) or KMS (injected backend; also dev chains only
-  // while PRODUCTION_SIGNING_ENABLED=false). Every custody signer sits behind the W05 GuardedSigner.
-  const custody = await buildDigestSigners(cfg, opts.kms);
-  if (custody.authority!.address === custody.evidence!.address || custody.authority!.address === relayer.account.address) {
-    throw new Error("Authority, evidence and relayer keys must be distinct.");
+  // Everything after the database opens can fail (keys, custody, registry verification): close a database WE
+  // opened on any failure so a refused start never leaks a connection. A caller-supplied database stays open.
+  try {
+    const client = makePublicClient(cfg);
+    const relayer = makeRelayer(cfg, requireKey("FORGE_RELAYER_PRIVATE_KEY", cfg.signer.relayerKey));
+    // Custody: local-test (default, dev chains only) or KMS (injected backend; also dev chains only
+    // while PRODUCTION_SIGNING_ENABLED=false). Every custody signer sits behind the W05 GuardedSigner.
+    const custody = await buildDigestSigners(cfg, opts.kms);
+    if (custody.authority!.address === custody.evidence!.address || custody.authority!.address === relayer.account.address) {
+      throw new Error("Authority, evidence and relayer keys must be distinct.");
+    }
+    if (custody.revenue && [custody.authority!.address, custody.evidence!.address, relayer.account.address].includes(custody.revenue.address)) {
+      throw new Error("The revenue attestor key must be distinct from the authority, evidence and relayer keys.");
+    }
+    const signers = await SignerRegistry.create({
+      cfg,
+      db,
+      client,
+      signers: { authority: custody.authority, evidence: custody.evidence, revenue: custody.revenue },
+      keyRefs: custody.keyRefs,
+      relayerAddress: relayer.account.address,
+    });
+    const github = new GithubApp(cfg.github, opts.fetchImpl);
+    const authority = new AuthoritySigner({ cfg, db, client, authority: signers.guarded("authority")! });
+    return { cfg, db, github, client, relayer, authority, evidenceSigner: signers.guarded("evidence")!, revenueAttestor: signers.guarded("revenue"), signers };
+  } catch (e) {
+    if (!opts.db) await db.close().catch(() => undefined);
+    throw e;
   }
-  if (custody.revenue && [custody.authority!.address, custody.evidence!.address, relayer.account.address].includes(custody.revenue.address)) {
-    throw new Error("The revenue attestor key must be distinct from the authority, evidence and relayer keys.");
-  }
-  const signers = await SignerRegistry.create({
-    cfg,
-    db,
-    client,
-    signers: { authority: custody.authority, evidence: custody.evidence, revenue: custody.revenue },
-    keyRefs: custody.keyRefs,
-    relayerAddress: relayer.account.address,
-  });
-  const github = new GithubApp(cfg.github, opts.fetchImpl);
-  const authority = new AuthoritySigner({ cfg, db, client, authority: signers.guarded("authority")! });
-  return { cfg, db, github, client, relayer, authority, evidenceSigner: signers.guarded("evidence")!, revenueAttestor: signers.guarded("revenue"), signers };
 }
 
 /**

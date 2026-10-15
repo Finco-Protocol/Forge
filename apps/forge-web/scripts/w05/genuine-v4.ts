@@ -151,10 +151,14 @@ export async function genuineV4OnFork(url: string): Promise<GenuineV4> {
     ["PoolManager", GENUINE.poolManager(), poolManager],
     ["PositionManager", GENUINE.positionManager(), positionManager],
   ] as const) {
-    provenance.push({ contract, artifact: a.file, package: a.package, compiler: a.compiler, optimizerRuns: a.optimizerRuns, viaIR: a.viaIR, evmVersion: a.evmVersion, address, runtimeCheck: await checkRuntime(url, a, address) });
+    const runtimeCheck = await checkRuntime(url, a, address);
+    if (!runtimeCheck.equalAfterMasking) throw new Error(`${contract} runtime at ${address} differs from the genuine artifact at byte ${runtimeCheck.firstDiffOffset}`);
+    provenance.push({ contract, artifact: a.file, package: a.package, compiler: a.compiler, optimizerRuns: a.optimizerRuns, viaIR: a.viaIR, evmVersion: a.evmVersion, address, runtimeCheck });
   }
   const dp2 = GENUINE.deployPermit2();
-  provenance.push({ contract: "Permit2", artifact: dp2.file, package: dp2.package, compiler: "permit2 runtime literal", optimizerRuns: null, viaIR: false, evmVersion: "n/a", address: permit2, runtimeCheck: await checkPermit2Runtime(url, permit2) });
+  const p2Check = await checkPermit2Runtime(url, permit2);
+  if (!p2Check.equalAfterMasking) throw new Error(`Permit2 runtime at ${permit2} differs from the genuine artifact at byte ${p2Check.firstDiffOffset}`);
+  provenance.push({ contract: "Permit2", artifact: dp2.file, package: dp2.package, compiler: "permit2 runtime literal", optimizerRuns: null, viaIR: false, evmVersion: "n/a", address: permit2, runtimeCheck: p2Check });
   return { mode: "fork", chainId, poolManager, positionManager, permit2, weth9: null, positionDescriptor: null, stateView: null, provenance };
 }
 

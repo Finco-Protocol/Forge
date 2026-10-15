@@ -1,95 +1,289 @@
 {
-  "$comment": "Triage decision table used by `node security/make-baseline.mjs` to GENERATE security/baseline.json (one entry per finding fingerprint). First matching decision wins. Every decision is a PROPOSAL by the implementing agent until an independent reviewer approves it. Narrow by design: a decision never matches vendored dependencies, and any NEW finding (different fingerprint) is un-triaged again. High/critical findings are never suppressed by a scope-wide wildcard: each is listed with its own fingerprint and reason.",
+  "$comment": "Triage decision table used by `node security/make-baseline.mjs` to GENERATE security/baseline.json (one entry per finding fingerprint). First matching decision wins. Every decision is a PROPOSAL by the implementing agent until an independent reviewer approves it. Narrow by design: a decision never matches vendored dependencies, and any NEW finding (different fingerprint) is un-triaged again. High/critical findings are never suppressed by a scope-wide wildcard: each is listed with its own fingerprint and reason. High/critical findings are matched only by decisions that name the rule(s) (enforced by make-baseline.mjs).",
   "reviewStatus": "PROPOSED_BY_AGENT_PENDING_INDEPENDENT_REVIEW",
   "decisions": [
-    { "match": { "scanner": "semgrep", "rule": "forge-sql-string-interpolation", "file": "apps/forge-web/src/server/db/index.ts" },
-      "classification": "by-design", "disposition": "accepted",
+    {
+      "match": {
+        "scanner": "semgrep",
+        "rule": "forge-sql-string-interpolation",
+        "file": "apps/forge-web/src/server/db/index.ts"
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "SET statement_timeout cannot take a bind parameter; the interpolated value is a number produced by Math.floor/Math.max or an already-validated integer from server config, never user input.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "semgrep", "rule": "forge-sql-string-interpolation", "file": "apps/forge-web/src/server/github/webhooks.ts" },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "semgrep",
+        "rule": "forge-sql-string-interpolation",
+        "file": "apps/forge-web/src/server/github/webhooks.ts"
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "Interpolated fragments are constants: a ternary between two fixed column names, or the WHERE fragment of revokeUserVerifications() which is now typed as a union of three literal strings; every value is a bind parameter.",
-      "requiredFix": "none (the helper's `where` parameter was narrowed to a literal union in this change)" },
-    { "match": { "scanner": "semgrep", "rule": "forge-sql-string-interpolation", "scope": "app-scripts" },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none (the helper's `where` parameter was narrowed to a literal union in this change)"
+    },
+    {
+      "match": {
+        "scanner": "semgrep",
+        "rule": "forge-sql-string-interpolation",
+        "scope": "app-scripts"
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "Operator/dev tooling (benchmark, backup rehearsal) builds CREATE/DROP DATABASE statements from names it generates itself (forge_bench_<n>_<pid>); DDL identifiers cannot be bind parameters and no external input reaches them.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "semgrep", "rule": "github-actions-mutable-action-tag" },
-      "classification": "confirmed-issue", "disposition": "open",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "semgrep",
+        "rule": "github-actions-mutable-action-tag"
+      },
+      "classification": "confirmed-issue",
+      "disposition": "open",
       "reason": "Third-party and first-party actions are referenced by mutable tag (e.g. actions/checkout@v4) rather than a full commit SHA, so a compromised or force-moved tag would run in CI with the job's token. Real supply-chain hardening gap; not exploitable by a PR author, hence medium.",
-      "requiredFix": "Pin every `uses:` to a full commit SHA (keep the tag in a comment) and let Dependabot/Renovate bump them; tracked as follow-up outside this tooling change." },
-
-    { "match": { "scanner": "slither", "rule": "arbitrary-send-eth", "scope": "forge-revenue-treasury" },
-      "classification": "false-positive", "disposition": "accepted",
+      "requiredFix": "Pin every `uses:` to a full commit SHA (keep the tag in a comment) and let Dependabot/Renovate bump them; tracked as follow-up outside this tooling change."
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "rule": "arbitrary-send-eth",
+        "scope": "forge-revenue-treasury"
+      },
+      "classification": "false-positive",
+      "disposition": "accepted",
       "reason": "ForgeProtocolRevenueSplitter._send only pays the fixed treasuryRecipient (claimTreasury, msg.sender-checked) or the recipient of releaseNonRevenue; it is private, called after state updates, under nonReentrant, with the result checked. 'Arbitrary' is the scanner's view of an address parameter.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "slither", "scope": "forge-revenue-treasury", "rules": ["reentrancy-balance", "reentrancy-no-eth", "reentrancy-benign", "reentrancy-events", "unused-return"] },
-      "classification": "false-positive", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "scope": "forge-revenue-treasury",
+        "rules": [
+          "reentrancy-balance",
+          "reentrancy-no-eth",
+          "reentrancy-benign",
+          "reentrancy-events",
+          "unused-return"
+        ]
+      },
+      "classification": "false-positive",
+      "disposition": "accepted",
       "reason": "pullRevenue is nonReentrant and calls only the canonical PonsV2FeeEscrow (claim/claimToken); the ETH leg re-enters only receive(), which is gated by the _pullingNative flag. Amounts are measured from the balance delta, not trusted from return values; the escrow return values are intentionally ignored. Covered by the splitter invariant suite (conservation, no over-pull) and the W05 attestor tests.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "slither", "scope": "forge-revenue-treasury", "rules": ["incorrect-equality"] },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "scope": "forge-revenue-treasury",
+        "rules": [
+          "incorrect-equality"
+        ]
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "`received == 0` / `amount == 0` are sentinel checks on locally computed values (balance delta, requested amount) that revert with NothingReceived or select the 'all headroom' mode; they are not attacker-steerable balance equality.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "slither", "scope": "forge-revenue-treasury", "rules": ["low-level-calls"] },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "scope": "forge-revenue-treasury",
+        "rules": [
+          "low-level-calls"
+        ]
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "Two deliberate low-level calls: the checked ETH transfer in _send, and the ArbSys staticcall in _evidenceView whose result length/success is validated (falls back to the EVM opcodes only when ArbSys does not answer). Both are covered by tests (W05EmergencyRevocation/ForgeRevenueSplitter test_H2_*).",
-      "requiredFix": "none" },
-    { "match": { "scanner": "aderyn", "rule": "reentrancy-state-change", "scope": "forge-revenue-treasury" },
-      "classification": "false-positive", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "aderyn",
+        "rule": "reentrancy-state-change",
+        "scope": "forge-revenue-treasury"
+      },
+      "classification": "false-positive",
+      "disposition": "accepted",
       "reason": "The 'external calls' preceding the state writes are view reads (escrow balanceOf, factory/token policy getters) in authorizeEligibleRevenue/setAssetApproved (owner-only), or the guarded escrow claim inside the nonReentrant pullRevenue whose state writes ARE the reentrancy guard (_pullingNative).",
-      "requiredFix": "none" },
-    { "match": { "scanner": "aderyn", "rule": "storage-array-memory-edit", "scope": "forge-revenue-treasury" },
-      "classification": "false-positive", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "aderyn",
+        "rule": "storage-array-memory-edit",
+        "scope": "forge-revenue-treasury"
+      },
+      "classification": "false-positive",
+      "disposition": "accepted",
       "reason": "_matured(pending*) receives a memory COPY only to read effectiveAt/expiresAt/newRecipient; the storage struct is cleared with `delete pending*` afterwards. No storage array is edited through memory.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "aderyn", "rule": "unchecked-return", "scope": "forge-revenue-treasury" },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "aderyn",
+        "rule": "unchecked-return",
+        "scope": "forge-revenue-treasury"
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "feeEscrow.claim/claimToken return values are intentionally ignored: pullRevenue accounts for what actually arrived via the balance delta (NothingReceived on zero) and bounds it by the attested ceiling.",
-      "requiredFix": "none" },
-
-    { "match": { "scanner": "slither", "rule": "uninitialized-local", "scope": "forge-authorization" },
-      "classification": "false-positive", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "rule": "uninitialized-local",
+        "scope": "forge-authorization"
+      },
+      "classification": "false-positive",
+      "disposition": "accepted",
       "reason": "requireAuthorizedLaunchCall declares the decoded launch parameters up front and assigns every one by abi.decode tuple destructuring in each non-reverting branch (unknown selectors revert UnknownLaunchEntry).",
-      "requiredFix": "none" },
-    { "match": { "scanner": "slither", "rule": "missing-zero-check", "scope": "forge-authorization" },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "rule": "missing-zero-check",
+        "scope": "forge-authorization"
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "setEligibilityAuthority(address(0)) is the deliberate on-chain kill switch that disables all launches/bindings (authority matrix: emergency control). A zero check would remove the incident control.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "aderyn", "rule": "state-no-address-check", "scope": "forge-authorization" },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "aderyn",
+        "rule": "state-no-address-check",
+        "scope": "forge-authorization"
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "Same as missing-zero-check: address(0) authority is the intended kill-switch state, only the owner can set it, and the change is monitored (EligibilityAuthorityUpdated).",
-      "requiredFix": "none" },
-
-    { "match": { "scanner": "aderyn", "rule": "reentrancy-state-change", "scope": "forge-modified-pons" },
-      "classification": "false-positive", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "aderyn",
+        "rule": "reentrancy-state-change",
+        "scope": "forge-modified-pons"
+      },
+      "classification": "false-positive",
+      "disposition": "accepted",
       "reason": "Constructor of the PONS-derived factory: the flagged external call is a view (positionManager_.poolManager()) wiring check before immutables are set; no external party can re-enter a constructor.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "slither", "rule": "calls-loop", "scope": "forge-modified-pons" },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "rule": "calls-loop",
+        "scope": "forge-modified-pons"
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "_exemptFromSnipeTax calls the curve once per exemption entry; the array is supplied by the launching creator for their own launch and is bounded by gas/launch economics; behaviour is inherited from PONS and covered by W01 regression tests.",
-      "requiredFix": "none" },
-
-    { "match": { "scanner": "slither", "scope": "forge-authorization", "rules": ["timestamp", "assembly", "cyclomatic-complexity", "shadowing-local"] },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "scope": "forge-authorization",
+        "rules": [
+          "timestamp",
+          "assembly",
+          "cyclomatic-complexity",
+          "shadowing-local"
+        ]
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "Informational/low: deadline and expiry checks intentionally use block.timestamp (minutes-to-days windows); one audited EIP-712 assembly block; complexity of the signature-verification paths is covered by the M-ELIG adversarial suite; local names shadow OZ helper names harmlessly.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "slither", "scope": "forge-revenue-treasury", "rules": ["timestamp", "cyclomatic-complexity"] },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "slither",
+        "scope": "forge-revenue-treasury",
+        "rules": [
+          "timestamp",
+          "cyclomatic-complexity"
+        ]
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "Timelocks (3 days) and attestation deadlines intentionally use block.timestamp; validator skew of seconds is immaterial. Complexity is in the attestation/pull validation path, covered by the splitter unit, invariant and W05 compromised-attestor suites.",
-      "requiredFix": "none" },
-    { "match": { "scanner": "aderyn", "rule": "centralization-risk", "scopes": ["forge-authorization", "forge-revenue-treasury", "forge-modified-pons"] },
-      "classification": "by-design", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scanner": "aderyn",
+        "rule": "centralization-risk",
+        "scopes": [
+          "forge-authorization",
+          "forge-revenue-treasury",
+          "forge-modified-pons"
+        ]
+      },
+      "classification": "by-design",
+      "disposition": "accepted",
       "reason": "Owner-gated functions are the documented governance model; each is classified in the 103-function authority matrix (docs/W05-AUTHORITY-MATRIX.md), owner is a Safe + timelock in the target deployment, standing owner powers F-03/F-04/W05-03 are disclosed and routed to external review C03.",
-      "requiredFix": "external review C03; no code change" },
-    { "match": { "scanner": "aderyn", "scopes": ["forge-authorization", "forge-revenue-treasury", "forge-modified-pons"], "rules": ["literal-instead-of-constant", "push-zero-opcode", "unspecific-solidity-pragma", "unused-public-function", "require-revert-in-loop", "large-numeric-literal", "non-reentrant-not-first", "unchecked-return", "unused-state-variable"] },
-      "classification": "informational", "disposition": "accepted",
+      "requiredFix": "external review C03; no code change"
+    },
+    {
+      "match": {
+        "scanner": "aderyn",
+        "scopes": [
+          "forge-authorization",
+          "forge-revenue-treasury",
+          "forge-modified-pons"
+        ],
+        "rules": [
+          "literal-instead-of-constant",
+          "push-zero-opcode",
+          "unspecific-solidity-pragma",
+          "unused-public-function",
+          "require-revert-in-loop",
+          "large-numeric-literal",
+          "non-reentrant-not-first",
+          "unchecked-return",
+          "unused-state-variable"
+        ]
+      },
+      "classification": "informational",
+      "disposition": "accepted",
       "reason": "Style/gas-level notes: the compiler is pinned to 0.8.35 by foundry.toml (profile forge) regardless of the ^ pragma, PUSH0 is intended for the cancun target, loops that revert validate caller-supplied arrays, and none changes fund flow. Revisit during the external audit.",
-      "requiredFix": "none" },
-
-    { "match": { "scope": "inherited-pons" },
-      "classification": "inherited-accepted", "disposition": "accepted",
+      "requiredFix": "none"
+    },
+    {
+      "match": {
+        "scope": "inherited-pons",
+        "rules": [
+          "abi-encode-packed-hash-collision",
+          "contract-locks-ether",
+          "eth-send-unchecked-address",
+          "reentrancy-state-change",
+          "unsafe-casting",
+          "arbitrary-send-eth",
+          "reentrancy-eth",
+          "reentrancy-balance"
+        ]
+      },
+      "classification": "inherited-accepted",
+      "disposition": "accepted",
+      "reason": "HIGH-severity scanner finding in UNMODIFIED inherited PONS code (byte-identical to the deploy-time tree pinned in provenance/). It cannot be patched here without invalidating the deployed-source evidence. NOT exploit-triaged by Forge: listed per rule and per fingerprint so it stays visible; deferred to the external audit (C01) and PONS Labs.",
+      "requiredFix": "none in this repository; external audit C01"
+    },
+    {
+      "match": {
+        "scope": "inherited-pons"
+      },
+      "classification": "inherited-accepted",
+      "disposition": "accepted",
       "reason": "Unmodified inherited PONS code (byte-identical to the deploy-time tree pinned in provenance/). Changing it would invalidate the deployed-source evidence, so it cannot be patched here. Not independently exploit-triaged by Forge; deferred to the external audit (C01) and PONS Labs. See docs/SECURITY-REVIEW.md.",
-      "requiredFix": "none in this repository; external audit C01" }
+      "requiredFix": "none in this repository; external audit C01"
+    }
   ]
 }

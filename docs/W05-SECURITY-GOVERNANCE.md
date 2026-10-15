@@ -20,7 +20,7 @@ Every state-changing function of the ten Forge-owned contracts is classified (ac
 | W05-04 | low | disclosed-owner-trust | `rescuePoolFees` never rescues a native-quote bucket (by design) |
 | F-07 / F-09 | medium | open | No external audit of current code (C01); BUSL-1.1 legal review (C04) |
 
-"disclosed-owner-trust" means documented, monitored and routed to Class C review (C03). **No external reviewer has accepted any of it.** No financial authority was removed or silently altered (F-03/F-04 stay as deployed-source behaviour); the only contract change in W05 is W05-01 in the Forge-owned splitter.
+"disclosed-owner-trust" means documented, monitored and routed to Class C review (C03). **No external reviewer has accepted any of it.** No financial authority was removed or silently altered (F-03/F-04 stay as deployed-source behaviour); the only contract changes in W05 are W05-01, W05-05 and W05-06 (all in the Forge-owned splitter).
 
 ## 3. F-03 / F-04 — measured by `test-forge/W05OwnerPowers.t.sol` (11 tests)
 The tests execute each power against genuine contracts and record its true reach (what it can and cannot move): the owner can redirect future and accrued-unswept creator fees and unreleased vest after the notice window, but cannot touch already-claimed funds or pooled liabilities of other launches; rescues only reach buckets they name. Mitigations proposed (none activated, none requiring a contract change):

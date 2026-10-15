@@ -31,7 +31,7 @@ import { revocationHealth } from "../worker";
 import { PRODUCTION_BLOCKED, FORGE_FEE_POLICY_AUTHORITY_UNPROVEN } from "../config";
 import robinhood from "../../../config/networks/robinhood-4663.json";
 import { creatorEarnings, governanceReport, prepareClaim, recordClaimSubmission, treasuryReport } from "../finance/service";
-import { opsAlerts, opsMetrics } from "./ops";
+import { opsAlerts, opsHealth, opsMetrics } from "./ops";
 import { requireNotLockedDown } from "../ops/controls";
 import { correlationIdFor, logEvent } from "../ops/log";
 
@@ -321,7 +321,17 @@ const health: Handler = async (ctx) => {
   const system = await systemHealth(ctx);
   // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO),
   // `ledger.halted`, `db.ok=false` and `worker.ok=false` (no live heartbeat; expected with no worker running).
-  return json({ ok: block !== null && system.db.ok && system.ledger.ok, block, revocations, ...system });
+  // PUBLIC: booleans and the revocation lag only. Worker identities, database errors, migration state and ledger
+  // halt reasons are operator data: GET /api/ops/health (bearer FORGE_OPS_TOKEN).
+  return json({
+    ok: block !== null && system.db.ok && system.ledger.ok,
+    block,
+    revocations,
+    db: { ok: system.db.ok },
+    indexer: { ok: system.indexer.ok },
+    worker: { ok: system.worker.ok },
+    ledger: { ok: system.ledger.ok, halted: "halted" in system.ledger ? system.ledger.halted : false },
+  });
 };
 
 // ── W04 economics & treasury ─────────────────────────────────────────────
@@ -387,6 +397,7 @@ route("POST", "/api/finance/claims/prepare", claimPrepare);
 route("POST", "/api/finance/claims/submitted", claimSubmitted);
 route("GET", "/api/ops/alerts", opsAlerts);
 route("GET", "/api/ops/metrics", opsMetrics);
+route("GET", "/api/ops/health", opsHealth);
 
 export async function dispatch(ctx: AppContext, req: Request): Promise<Response> {
   // W05: every response carries a correlation id (echoed when the caller supplied a well-formed one).

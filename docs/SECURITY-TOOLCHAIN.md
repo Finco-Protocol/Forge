@@ -68,3 +68,11 @@ Path detection skips the Solidity job unless `contractsV2-forge/`, `foundry.*`, 
 
 ## 7. Remaining
 External audit (C01), F-03/F-04 review (C03), legal (C04–C06), CodeQL/CodeRabbit/SonarQube Cloud administrator connection, branch-protection required check, SHA-pinning of actions, independent review of the proposed baseline.
+
+## Correction B additions (supply chain, baseline gate, CI execution)
+
+- **Actions pinned to full commit SHAs** (version kept in a comment). Each SHA was resolved from the upstream repository's own tag (`git ls-remote --tags https://github.com/<owner>/<repo>`, annotated tags peeled with `^{}`), not guessed: checkout v4.4.0, setup-node v4.4.0, setup-python v5.6.0, upload-artifact v4.6.2, download-artifact v4.3.0, foundry-toolchain v1.9.1, pnpm/action-setup v4.4.0, codeql-action/upload-sarif v3.38.3, sonarqube-scan-action v5.3.2; `postgres:16` pinned to its multi-arch index digest. A test (`security-report.test.ts`) fails on any unpinned `uses:`/`image:`.
+- **Least privilege**: every workflow has `permissions: contents: read` at workflow level; `security-events: write` exists only on the `sarif` job, which runs no scanner. Scanner jobs hold no write token. All checkouts use `persist-credentials: false`. Event/step data reaches shell scripts only through `env:`.
+- **Workflow lint gate**: `actionlint` + `zizmor` (pinned) run in the `workflows` job (medium and above fail). Known residual: zizmor `adhoc-packages` (low) for the pinned Aderyn npm CLI, which has no lockfile.
+- **Report command**: CI runs `security/ci-report.sh`, which creates `security-report/` before `| tee` under `set -euo pipefail`; `apps/forge-web/test/unit/security-ci-command.test.ts` runs that exact script on a clean tree (exit 0 / 1 policy / 2 scanner error all preserved).
+- **Baseline is not acceptance**: `security/baseline.json` is the implementing agent's proposal. The report prints `Security acceptance: NOT GRANTED (UNREVIEWED)` unless a `review` block (`approvedBy`, `approvedAt`, `entriesSha256` = digest of the entries) is added by an independent reviewer; any later edit makes it `STALE_APPROVAL`. Findings are labelled OPEN / ACCEPTED / FALSE_POSITIVE / DEFERRED_EXTERNAL_AUDIT and split inherited-PONS vs Forge-owned. CI never regenerates the baseline (tested). Inherited-PONS findings are deferred to the external audit, not declared safe.

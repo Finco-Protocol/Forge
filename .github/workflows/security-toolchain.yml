@@ -38,8 +38,9 @@ jobs:
       solidity: ${{ steps.detect.outputs.solidity }}
       app: ${{ steps.detect.outputs.app }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           fetch-depth: 0
       - id: detect
         env:
@@ -67,21 +68,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
-      actions: read
     env:
       FOUNDRY_PROFILE: forge
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: install pinned scanners
@@ -109,35 +109,12 @@ jobs:
           aderyn . --src contractsV2-forge/src -o security-out/aderyn.sarif >/dev/null
           aderyn . --src contractsV2-forge/src -o security-out/aderyn.md >/dev/null
           test -s security-out/aderyn.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: security-solidity
           path: security-out/
           if-no-files-found: error
-      - name: upload Slither SARIF to GitHub code scanning
-        id: sarif_slither
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: security-out/slither.sarif
-          category: slither
-      - name: upload Aderyn SARIF to GitHub code scanning
-        id: sarif_aderyn
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: security-out/aderyn.sarif
-          category: aderyn
-      - name: SARIF integration status
-        if: always()
-        run: |
-          {
-            echo "### SARIF -> GitHub code scanning"
-            echo "- Slither: \`${{ steps.sarif_slither.outcome }}\`"
-            echo "- Aderyn: \`${{ steps.sarif_aderyn.outcome }}\`"
-            echo "(A failed upload on a private repository without Code Security, or on a fork PR, is reported here and does not hide scanner results.)"
-          } >> "$GITHUB_STEP_SUMMARY"
 
   appsec:
     name: "security: application (Semgrep CE)"
@@ -146,11 +123,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
-      actions: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: install pinned Semgrep CE
@@ -175,25 +152,91 @@ jobs:
             --json-output security-out/semgrep.json --sarif-output security-out/semgrep.sarif \
             apps/forge-web/src apps/forge-web/scripts scripts .github security 2>&1 | tee security-out/semgrep.log
           test -s security-out/semgrep.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: security-appsec
           path: security-out/
           if-no-files-found: error
+
+  workflows:
+    name: "security: GitHub Actions workflows (actionlint + zizmor, any finding fails)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: actionlint + zizmor (offline; unpinned actions, excess permissions, template injection, credential persistence)
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "actionlint-py==1.7.7.24" "zizmor==1.31.0"
+          actionlint .github/workflows/*.yml
+          # gate: medium and above fail; the one known low (adhoc-packages: the pinned Aderyn npm CLI has no lockfile) is documented, not silenced
+          zizmor --offline --pedantic --format plain --min-severity medium .github/workflows
+
+  sarif:
+    # Only this job holds `security-events: write`. It runs no scanner and no third-party tool besides the pinned
+    # upload action: it re-uploads SARIF files produced (without any write token) by the scanner jobs.
+    name: "security: SARIF upload to code scanning (no scanner runs here)"
+    needs: [solidity, appsec]
+    if: always() && (needs.solidity.result == 'success' || needs.appsec.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.solidity.result == 'success'
+        with:
+          name: security-solidity
+          path: sarif-in/solidity
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.appsec.result == 'success'
+        with:
+          name: security-appsec
+          path: sarif-in/appsec
+      - name: upload Slither SARIF to GitHub code scanning
+        id: sarif_slither
+        if: needs.solidity.result == 'success'
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@9f759ee644a3e7c15c1390abf49868036c00067b # v3.38.3
+        with:
+          sarif_file: sarif-in/solidity/slither.sarif
+          category: slither
+      - name: upload Aderyn SARIF to GitHub code scanning
+        id: sarif_aderyn
+        if: needs.solidity.result == 'success'
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@9f759ee644a3e7c15c1390abf49868036c00067b # v3.38.3
+        with:
+          sarif_file: sarif-in/solidity/aderyn.sarif
+          category: aderyn
       - name: upload Semgrep SARIF to GitHub code scanning
         id: sarif_semgrep
+        if: needs.appsec.result == 'success'
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9f759ee644a3e7c15c1390abf49868036c00067b # v3.38.3
         with:
-          sarif_file: security-out/semgrep.sarif
+          sarif_file: sarif-in/appsec/semgrep.sarif
           category: semgrep
       - name: SARIF integration status
         if: always()
+        env:
+          SLITHER_OUTCOME: ${{ steps.sarif_slither.outcome }}
+          ADERYN_OUTCOME: ${{ steps.sarif_aderyn.outcome }}
+          SEMGREP_OUTCOME: ${{ steps.sarif_semgrep.outcome }}
         run: |
           {
             echo "### SARIF -> GitHub code scanning"
-            echo "- Semgrep: \`${{ steps.sarif_semgrep.outcome }}\`"
+            echo "- Slither: \`${SLITHER_OUTCOME}\`"
+            echo "- Aderyn: \`${ADERYN_OUTCOME}\`"
+            echo "- Semgrep: \`${SEMGREP_OUTCOME}\`"
+            echo "(A failed upload on a private repository without Code Security, or on a fork PR, is reported here and does not hide scanner results; the policy gate is the report job.)"
           } >> "$GITHUB_STEP_SUMMARY"
 
   report:
@@ -206,13 +249,14 @@ jobs:
       security-events: read
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           submodules: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: scan-in
           pattern: security-*
@@ -244,28 +288,24 @@ jobs:
         run: |
           set -u
           nc=""
-          state="$(gh api "repos/${{ github.repository }}/code-scanning/default-setup" --jq .state 2>/dev/null || echo UNKNOWN)"
+          state="$(gh api "repos/${GITHUB_REPOSITORY}/code-scanning/default-setup" --jq .state 2>/dev/null || echo UNKNOWN)"
           echo "codeql_default_setup=$state"
           [ "$state" = "configured" ] || nc="CodeQL default setup (state: $state; admin must enable)"
           [ -n "$SONAR_KEY" ] || nc="${nc:+$nc,}SonarQube Cloud (repository variable SONAR_PROJECT_KEY unset; admin must connect)"
           echo "not_connected=$nc" >> "$GITHUB_OUTPUT"
       - name: unified report + policy
         if: steps.req.outputs.required != ''
-        run: |
-          set -euo pipefail
-          node security/report.mjs --root . --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
-            --out-dir security-report --baseline security/baseline.json \
-            --require "${{ steps.req.outputs.required }}" \
-            --slither scan-in/slither.json --aderyn scan-in/aderyn.json --semgrep scan-in/semgrep.json \
-            --versions "slither=${SLITHER_VERSION},aderyn=${ADERYN_VERSION},semgrep=${SEMGREP_VERSION}" \
-            --not-connected "${{ steps.cloud.outputs.not_connected }}" \
-            | tee security-report/policy.log
-        # exit 1 = new critical/high in Forge-owned code; exit 2 = scanner/report/config error
+        env:
+          REPORT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          REPORT_REQUIRED: ${{ steps.req.outputs.required }}
+          REPORT_NOT_CONNECTED: ${{ steps.cloud.outputs.not_connected }}
+        # exit 1 = new critical/high in Forge-owned code; exit 2 = scanner/report/config error (security/ci-report.sh)
+        run: bash security/ci-report.sh
       - name: publish summary
         if: always() && steps.req.outputs.required != ''
         run: |
           if [ -f security-report/security-report.md ]; then cat security-report/security-report.md >> "$GITHUB_STEP_SUMMARY"; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always() && steps.req.outputs.required != ''
         with:
           name: security-unified-report

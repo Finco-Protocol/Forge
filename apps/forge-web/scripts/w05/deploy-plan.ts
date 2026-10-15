@@ -23,6 +23,7 @@ import {
   getAddress,
   http,
   keccak256,
+  toFunctionSelector,
   toHex,
   type Abi,
   type Address,
@@ -31,6 +32,7 @@ import {
 import manifest4663 from "../../config/networks/robinhood-4663.json";
 import { loadArtifact, REPO_ROOT } from "../artifacts";
 import { isLocalAnvilFork } from "../sandbox-lib";
+import { acceptS09, acceptS10, rawEthCall } from "./smoke-accept";
 import { rpcCall } from "./anvil-proc";
 import { contractBuildRecord, forgeArtifactPath, readRawArtifact, tomlBuildSettings } from "./build-info";
 import { compareRuntime } from "./uniswap-artifacts";
@@ -142,6 +144,11 @@ function argValue(v: string): unknown {
 }
 
 /** Executes a manifest on a LOCAL chain (fresh Anvil or local Anvil fork) by impersonating its role addresses. */
+/** OpenZeppelin ECDSAInvalidSignatureLength(0): the authorizer rejects the empty creator signature of an unauthorized launch. */
+const S09_EXPECTED_REVERT = concat(["0xfce698f7", toHex(0n, { size: 32 })]);
+/** IHooks.beforeInitialize(address,PoolKey,uint160) */
+const BEFORE_INITIALIZE = toFunctionSelector("function beforeInitialize(address,(address,address,uint24,int24,address),uint160)");
+
 export async function executeDryRun(m: DeployManifest, rpcUrl: string): Promise<DryRunReport> {
   const integrity = verifyManifest(m);
   if (integrity.length) throw new Error(`refusing to dry-run an invalid manifest: ${integrity.join("; ")}`);
@@ -228,13 +235,21 @@ export async function executeDryRun(m: DeployManifest, rpcUrl: string): Promise<
     authorizationExpiresAt: 2n ** 40n, authorizationNonce: 0n, creatorSignature: "0x", attestationPayload: "0x",
   };
   const data = encodeFunctionData({ abi: abiOf("factory") as Abi, functionName: "launchToken", args: [params, 0n, NATIVE] } as never);
-  const s09 = await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ from: stranger, to: m.addresses.factory, data }, "latest"] }) }).then((r) => r.json() as Promise<{ error?: { data?: string } }>);
-  check("S09", !!s09.error, `unauthorized launch reverted: ${s09.error?.data?.slice(0, 10) ?? "NO REVERT"}`);
+  const s09Call = { from: stranger, to: m.addresses.factory, data };
+  // The factory forwards the authorizer's ECDSA length check on the empty creator signature: exact data, from the factory call.
+  const s09 = acceptS09(s09Call, { from: stranger, to: m.addresses.factory, data }, await rawEthCall(rpcUrl, s09Call), S09_EXPECTED_REVERT);
+  check("S09", s09.ok, s09.detail);
   // S10 hook refuses initialize from a non-factory sender (genuine PoolManager.initialize, eth_call)
   const initAbi = [{ type: "function", name: "initialize", stateMutability: "nonpayable", inputs: [{ name: "key", type: "tuple", components: [{ name: "currency0", type: "address" }, { name: "currency1", type: "address" }, { name: "fee", type: "uint24" }, { name: "tickSpacing", type: "int24" }, { name: "hooks", type: "address" }] }, { name: "sqrtPriceX96", type: "uint160" }], outputs: [{ type: "int24" }] }] as const;
   const initData = encodeFunctionData({ abi: initAbi, functionName: "initialize", args: [{ currency0: NATIVE, currency1: "0x0000000000000000000000000000000000000001", fee: 0, tickSpacing: 10, hooks: m.addresses.memeHook }, 2n ** 96n] });
-  const s10 = await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ from: stranger, to: m.network.poolManager, data: initData }, "latest"] }) }).then((r) => r.json() as Promise<{ error?: { data?: string } }>);
-  check("S10", !!s10.error, `PoolManager.initialize with the Forge hook from a stranger reverted: ${s10.error?.data?.slice(0, 10) ?? "NO REVERT"}`);
+  const s10Call = { from: stranger, to: m.network.poolManager, data: initData };
+  const s10 = acceptS10(s10Call, { from: stranger, to: m.network.poolManager, data: initData }, await rawEthCall(rpcUrl, s10Call), {
+    poolManager: m.network.poolManager,
+    hook: m.addresses.memeHook,
+    hookCallbackSelector: BEFORE_INITIALIZE,
+    hookErrorSelector: toFunctionSelector("function NotFactory()"),
+  });
+  check("S10", s10.ok, `PoolManager.initialize with the Forge hook from a stranger: ${s10.detail}`);
   return { manifestHash: m.contentHash, environment: m.environment, rpcChainId, executedSteps: executed, checks, ok: checks.every((c) => c.ok) };
 }
 

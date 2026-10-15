@@ -22,8 +22,9 @@
  */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 export class ScannerReportError extends Error {}
 
@@ -276,6 +277,36 @@ export function applyBaseline(findings, baseline) {
   return { stale };
 }
 
+/** Canonical digest of the triage entries; an independent approval must be bound to exactly this content. */
+export function baselineDigest(baseline) {
+  const canon = [...(baseline?.entries ?? [])].sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
+  return createHash("sha256").update(JSON.stringify(canon)).digest("hex");
+}
+
+/**
+ * Independent acceptance of the baseline. The baseline is written by the implementing agent; it counts as security
+ * acceptance ONLY with a `review` block {approvedBy, approvedAt, entriesSha256} whose digest equals the current entries
+ * (any later edit invalidates it). Nothing in the tooling or in CI ever writes that block.
+ */
+export function baselineAcceptance(baseline) {
+  const r = baseline?.review;
+  if (!r) return { status: "UNREVIEWED", granted: false, detail: "baseline has no independent review block; findings below are the implementing agent's proposed triage, NOT security acceptance" };
+  if (!r.approvedBy || !r.approvedAt || !/^[0-9a-f]{64}$/.test(r.entriesSha256 ?? "")) return { status: "MALFORMED_REVIEW", granted: false, detail: "review block incomplete (approvedBy, approvedAt, entriesSha256 required)" };
+  if (r.entriesSha256 !== baselineDigest(baseline)) return { status: "STALE_APPROVAL", granted: false, detail: "baseline entries changed after the recorded approval; re-review required" };
+  return { status: "INDEPENDENTLY_APPROVED", granted: true, detail: `approved by ${r.approvedBy} at ${r.approvedAt}` };
+}
+
+/** OPEN / ACCEPTED / FALSE_POSITIVE / RESOLVED / UNTRIAGED label for a finding (UNTRIAGED = not in the baseline). */
+export function triageStatus(f) {
+  if (f.baselineStatus === "new") return "UNTRIAGED";
+  if (f.classification === "false-positive" && f.disposition !== "open") return "FALSE_POSITIVE";
+  if (f.classification === "inherited-accepted" && f.disposition !== "open") return "DEFERRED_EXTERNAL_AUDIT";
+  if (f.disposition === "open") return "OPEN";
+  if (f.disposition === "resolved") return "RESOLVED";
+  return "ACCEPTED";
+}
+export const ownershipOf = (f) => (f.scope === "inherited-pons" ? "inherited-pons" : "forge-owned");
+
 /** A finding blocks iff: new (not in baseline), critical/high, in a Forge-owned scope. */
 export function isBlocking(f) {
   return f.baselineStatus === "new" && (f.severity === "critical" || f.severity === "high") && BLOCKING_SCOPES.has(f.scope);
@@ -285,7 +316,7 @@ export function isBlocking(f) {
 
 const COUNT_ORDER = ["critical", "high", "medium", "low", "info"];
 
-export function buildReport({ findings, stale, commit, versions, coverage, scannersRun, notConnected }) {
+export function buildReport({ findings, stale, commit, versions, coverage, scannersRun, notConnected, acceptance }) {
   const blocking = findings.filter(isBlocking);
   const bySeverity = Object.fromEntries(COUNT_ORDER.map((s) => [s, findings.filter((f) => f.severity === s).length]));
   const byScope = {};
@@ -294,6 +325,13 @@ export function buildReport({ findings, stale, commit, versions, coverage, scann
     byScope[f.scope].total++;
     byScope[f.scope][f.baselineStatus]++;
   }
+  const triage = {};
+  for (const f of findings) {
+    const t = (triage[triageStatus(f)] ??= { "inherited-pons": 0, "forge-owned": 0 });
+    t[ownershipOf(f)]++;
+  }
+  const openHighForgeOwned = findings.filter((f) => triageStatus(f) === "OPEN" && (f.severity === "high" || f.severity === "critical") && ownershipOf(f) === "forge-owned");
+  const openHighInherited = findings.filter((f) => triageStatus(f) === "OPEN" && (f.severity === "high" || f.severity === "critical") && ownershipOf(f) === "inherited-pons");
   const byScanner = {};
   for (const f of findings) byScanner[f.scanner] = (byScanner[f.scanner] ?? 0) + 1;
   return {
@@ -305,9 +343,13 @@ export function buildReport({ findings, stale, commit, versions, coverage, scann
     notConnected,
     coverage,
     summary: { total: findings.length, bySeverity, byScope, byScanner, new: findings.filter((f) => f.baselineStatus === "new").length, blocking: blocking.length, staleBaselineEntries: stale.length },
+    acceptance: acceptance ?? baselineAcceptance(null),
+    triage,
+    openHighForgeOwned: openHighForgeOwned.map((f) => f.fingerprint),
+    openHighInheritedPons: openHighInherited.map((f) => f.fingerprint),
     verdict: blocking.length ? "BLOCKED_NEW_CRITICAL_HIGH_IN_FORGE_OWNED_CODE" : "PASS",
     blocking: blocking.map((f) => f.fingerprint),
-    findings,
+    findings: findings.map((f) => ({ ...f, triageStatus: triageStatus(f), ownership: ownershipOf(f) })),
     staleBaseline: stale.map((e) => ({ fingerprint: e.fingerprint, scanner: e.scanner, rule: e.rule, file: e.file, disposition: "resolved-or-moved" })),
   };
 }
@@ -321,9 +363,13 @@ export function renderMarkdown(r) {
   L.push(`- Verdict: **${r.verdict}**`);
   L.push(`- Scanners run: ${r.scannersRun.map((s) => `${s} ${r.scannerVersions[s] ?? "?"}`).join(", ")}`);
   if (r.notConnected.length) L.push(`- NOT CONNECTED (cloud services awaiting administrator authorisation): ${r.notConnected.join(", ")}`);
+  L.push(`- Security acceptance: **${r.acceptance.granted ? "GRANTED" : "NOT GRANTED"}** (baseline: ${r.acceptance.status}) - ${r.acceptance.detail}`);
   L.push(`- Findings: ${r.summary.total} (new: ${r.summary.new}, blocking: ${r.summary.blocking}, stale baseline entries: ${r.summary.staleBaselineEntries})`, "");
   L.push(`| Severity | Count |`, `|---|---|`);
   for (const s of COUNT_ORDER) L.push(`| ${s} (${priorityOf(s)}) | ${r.summary.bySeverity[s]} |`);
+  L.push("", `## Triage status (OPEN / ACCEPTED / FALSE_POSITIVE; inherited PONS vs Forge-owned)`, "", `| Status | Inherited PONS | Forge-owned |`, `|---|---|---|`);
+  for (const [k, v] of Object.entries(r.triage).sort()) L.push(`| ${k} | ${v["inherited-pons"]} | ${v["forge-owned"]} |`);
+  L.push("", `OPEN high/critical: ${r.openHighForgeOwned.length} in Forge-owned code, ${r.openHighInheritedPons.length} in inherited PONS code (inherited code is not "safe" because it is unchanged; it needs the external audit).`);
   L.push("", `## Coverage`, "");
   for (const [k, v] of Object.entries(r.coverage)) L.push(`- **${k}**: ${v}`);
   L.push("", `## By scope`, "", `| Scope | Total | New | Baseline (triaged) |`, `|---|---|---|---|`);
@@ -332,16 +378,16 @@ export function renderMarkdown(r) {
   L.push("", `## New findings and all critical/high findings (${interesting.length})`, "");
   if (!interesting.length) L.push("_none_");
   else {
-    L.push(`| Pri | Scanner | Rule | Scope | Location | Status | Classification | Disposition |`, `|---|---|---|---|---|---|---|---|`);
+    L.push(`| Pri | Scanner | Rule | Scope | Location | Status | Classification | Triage |`, `|---|---|---|---|---|---|---|---|`);
     for (const f of interesting.sort((a, b) => a.priority.localeCompare(b.priority) || a.file.localeCompare(b.file) || a.line - b.line)) {
-      L.push(`| ${f.priority} | ${f.scanner} | \`${esc(f.rule)}\` | ${f.scope} | \`${esc(f.file)}:${f.line}\` | ${f.baselineStatus} | ${f.classification} | ${f.disposition} |`);
+      L.push(`| ${f.priority} | ${f.scanner} | \`${esc(f.rule)}\` | ${f.scope} | \`${esc(f.file)}:${f.line}\` | ${f.baselineStatus} | ${f.classification} | ${triageStatus(f)} (${ownershipOf(f)}) |`);
     }
   }
   if (r.staleBaseline.length) {
     L.push("", `## Stale baseline entries (resolved or moved; remove after review)`, "");
     for (const s of r.staleBaseline) L.push(`- \`${s.fingerprint}\` ${s.scanner}/${s.rule} ${s.file}`);
   }
-  L.push("", `_Full per-finding detail (evidence, required fix, reason) is in security-report.json. Baseline entries are proposals until an independent reviewer approves them._`, "");
+  L.push("", `_Full per-finding detail (evidence, required fix, reason) is in security-report.json. Baseline entries are the implementing agent's proposals; they are not security acceptance until an independent reviewer records an approval bound to the baseline digest._`, "");
   return L.join("\n");
 }
 
@@ -388,7 +434,8 @@ export async function main(argv) {
   const baseline = baselinePath ? validateBaseline(readJson(baselinePath, "baseline")) : { version: 1, entries: [] };
   const { stale } = applyBaseline(findings, baseline);
   const notConnected = (arg(argv, "--not-connected") ?? "").split(",").filter(Boolean);
-  const report = buildReport({ findings, stale, commit, versions, coverage, scannersRun, notConnected });
+  const acceptance = baselineAcceptance(baseline);
+  const report = buildReport({ findings, stale, commit, versions, coverage, scannersRun, notConnected, acceptance });
 
   mkdirSync(outDir, { recursive: true });
   writeFileSync(path.join(outDir, "security-report.json"), JSON.stringify(report, null, 2) + "\n");
@@ -400,13 +447,26 @@ export async function main(argv) {
       .map((f) => ({ fingerprint: f.fingerprint, scanner: f.scanner, rule: f.rule, file: f.file, line: f.line, scope: f.scope, severity: f.severity, anchor: f.anchor, classification: "", disposition: "", reason: "", requiredFix: "" }));
     writeFileSync(skeleton, JSON.stringify({ version: 1, entries }, null, 2) + "\n");
   }
-  console.log(`SECURITY_REPORT commit=${commit} total=${report.summary.total} new=${report.summary.new} blocking=${report.summary.blocking} stale=${report.summary.staleBaselineEntries} verdict=${report.verdict}`);
+  console.log(`SECURITY_REPORT commit=${commit} total=${report.summary.total} new=${report.summary.new} blocking=${report.summary.blocking} stale=${report.summary.staleBaselineEntries} verdict=${report.verdict} acceptance=${acceptance.status} openHighForgeOwned=${report.openHighForgeOwned.length} openHighInherited=${report.openHighInheritedPons.length}`);
+  if (!acceptance.granted) console.log(`::warning::security baseline is ${acceptance.status}: this report is NOT independent security acceptance`);
+  for (const f of findings.filter((x) => report.openHighForgeOwned.includes(x.fingerprint))) console.log(`::warning file=${f.file},line=${f.line}::OPEN ${f.priority} in Forge-owned code (baselined, unresolved): ${f.scanner}/${f.rule}`);
   for (const f of findings.filter(isBlocking)) console.log(`::error file=${f.file},line=${f.line}::[${f.priority}] ${f.scanner}/${f.rule} NEW in ${f.scope}: ${f.title}`);
   for (const s of stale) console.log(`::warning::stale baseline entry ${s.fingerprint} (${s.scanner}/${s.rule} ${s.file}) no longer matches - resolved or moved; remove after review`);
   return report.summary.blocking ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+/** True when this module is the process entry point (handles encoded paths, symlinks, Windows paths). */
+function isEntryPoint() {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   main(process.argv.slice(2)).then(
     (code) => process.exit(code),
     (e) => {

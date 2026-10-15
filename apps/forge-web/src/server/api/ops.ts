@@ -9,6 +9,7 @@ import { json } from "../http";
 import { refuse } from "../errors";
 import { ALERT_RULES, collectSignals, evaluateAlerts, toPrometheus } from "../ops/monitor";
 import { readControl } from "../ops/controls";
+import { systemHealth } from "../ops/health";
 
 function requireOpsToken(ctx: AppContext, req: Request) {
   const want = ctx.cfg.ops.token;
@@ -32,4 +33,10 @@ export async function opsMetrics(ctx: AppContext, req: Request): Promise<Respons
   return new Response(toPrometheus(signals, evaluateAlerts(signals)), {
     headers: { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" },
   });
+}
+
+/** Full system health (database/migration state, worker identities, ledger halt reasons): operator-only. */
+export async function opsHealth(ctx: AppContext, req: Request): Promise<Response> {
+  requireOpsToken(ctx, req);
+  return json(await systemHealth(ctx));
 }

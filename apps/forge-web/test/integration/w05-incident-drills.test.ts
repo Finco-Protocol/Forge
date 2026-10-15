@@ -72,11 +72,22 @@ describe("W05 incident drills", () => {
     expect(text).toMatch(/^forge_rpc_up 1$/m);
     expect(text).toMatch(/forge_alert_firing\{rule="TREASURY_DEFICIT",severity="critical"\} 0/);
     expect(m.headers.get("x-correlation-id")).toBeTruthy();
-    const ctx2 = await createAppContext({ ...sb.env, FORGE_OPS_TOKEN: "" as string }, { db: await PgliteDb.open() }).catch(() => null);
-    if (ctx2) {
+    // An EMPTY token (e.g. copied from .env.example) means "endpoints disabled", never a startup failure.
+    const ctx2 = await createAppContext({ ...sb.env, FORGE_OPS_TOKEN: "" as string }, { db: await PgliteDb.open() });
+    try {
       expect((await dispatch(ctx2, new Request("http://localhost:3000/api/ops/alerts"))).status).toBe(404);
+      expect((await dispatch(ctx2, new Request("http://localhost:3000/api/ops/health"))).status).toBe(404);
+    } finally {
       await ctx2.db.close();
     }
+    // The PUBLIC health endpoint exposes booleans only; the detail is operator-only.
+    const pub = await (await dispatch(sb.ctx, new Request("http://localhost:3000/api/health"))).json();
+    expect(Object.keys(pub.db)).toEqual(["ok"]);
+    expect(pub.worker).toEqual({ ok: expect.any(Boolean) });
+    expect(JSON.stringify(pub)).not.toMatch(/migration|workers|error|pool/i);
+    const detail = await dispatch(sb.ctx, new Request("http://localhost:3000/api/ops/health", { headers: { authorization: `Bearer ${OPS_TOKEN}` } }));
+    expect(detail.status).toBe(200);
+    expect((await detail.json()).db.migration).toBeDefined();
   });
 
   it("§D15 active launch attempt during emergency lockdown: refused immediately, alert fires, revocations still run, release restores", async () => {
@@ -86,8 +97,16 @@ describe("W05 incident drills", () => {
     const d = await sc.browser.post("/api/launch/drafts", sc.draft);
     expect(d.status).toBe(503);
     expect(d.json.error.code).toBe("EMERGENCY_LOCKDOWN");
-    // The authority itself refuses eligibility attestations and NEW bindings while locked down.
-    const denied = await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text AS n FROM signing_requests WHERE reason = 'emergency lockdown engaged'");
+    // The authority itself refuses NEW bindings while locked down: drive it directly and count the audited denial.
+    const countDenied = async () => Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text AS n FROM signing_requests WHERE reason = 'emergency lockdown engaged'")).rows[0]!.n);
+    const deniedBefore = await countDenied();
+    await expect(
+      sb.ctx.authority.signBindingOp(
+        { githubRepoId: 1n, creator: "0x00000000000000000000000000000000000000a1", bindingExpiresAt: 2n ** 40n, opDeadline: 2n ** 40n, opNonce: 1n, parentOpDigest: `0x${"00".repeat(32)}`, repoFullName: "o/r", revoke: false },
+        { reason: "drill §D15", requestedBy: "drill" },
+      ),
+    ).rejects.toMatchObject({ code: "SIGNING_POLICY_DENIED" });
+    expect(await countDenied()).toBe(deniedBefore + 1);
     const { ids } = await firing(false);
     expect(ids).toContain("EMERGENCY_LOCKDOWN_ACTIVE");
     expect(ids).toContain("UNAUTHORIZED_LAUNCH_ATTEMPTS");
@@ -95,7 +114,6 @@ describe("W05 incident drills", () => {
     const unbind = await sc.browser.request("DELETE", "/api/wallet/binding");
     expect(unbind.status).toBe(200);
     await runWorkerOnce(sb.ctx);
-    expect(Number(denied.rows[0]!.n)).toBeGreaterThanOrEqual(0);
     } finally {
       await setControl(sb.ctx.db, "emergency_lockdown", false, "drill complete", "drill-operator");
     }

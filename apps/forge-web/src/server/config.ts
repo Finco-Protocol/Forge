@@ -130,7 +130,7 @@ const EnvSchema = z.object({
   FORGE_TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   FINCO_BURN_ENABLED: bool(false),
   // W05: bearer token for the read-only operator endpoints (/api/ops/*); unset = endpoints disabled.
-  FORGE_OPS_TOKEN: z.string().min(32, "FORGE_OPS_TOKEN must be at least 32 characters").optional(),
+  FORGE_OPS_TOKEN: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().min(32, "FORGE_OPS_TOKEN must be at least 32 characters").optional()),
   // W05 production DB mode / worker / materialized ledger (see docs/W05-DATABASE-LEDGER.md).
   ...DbEnvShape,
   FORGE_JOB_LEASE_SECONDS: z.coerce.number().int().min(10).max(3600).default(120),

@@ -179,7 +179,8 @@ export async function collectSignals(ctx: AppContext, opts: { finance?: boolean 
     at: new Date().toISOString(),
     rpcOk: head !== null,
     headBlock: head === null ? null : head.toString(),
-    indexerLagBlocks: head !== null && cp.last_block !== undefined ? Number(head - BigInt(cp.last_block)) : null,
+    // The indexer deliberately trails the head by `confirmations`; lag is measured against that safe head.
+    indexerLagBlocks: head !== null && cp.last_block !== undefined ? Math.max(0, Number(head - BigInt(ctx.cfg.confirmations) - BigInt(cp.last_block))) : null,
     webhookBacklog: num(wh.n),
     oldestWebhookBacklogSeconds: Math.round(num(wh.oldest)),
     verificationFailures1h: num(vf.n),

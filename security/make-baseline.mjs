@@ -37,7 +37,9 @@ const entries = [];
 const unmatched = [];
 for (const f of findings) {
   if (f.scope === "vendored-dependency") continue;
-  const d = dec.decisions.find((x) => matches(x.match, f));
+  // High/critical findings are only ever matched by decisions that NAME the rule(s) - never by a scope-wide catch-all.
+  const high = f.severity === "high" || f.severity === "critical";
+  const d = dec.decisions.find((x) => matches(x.match, f) && (!high || x.match.rule || x.match.rules));
   if (!d) {
     unmatched.push(f);
     continue;

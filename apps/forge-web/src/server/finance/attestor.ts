@@ -26,8 +26,9 @@
  * W05, PRODUCTION_SIGNING_ENABLED=false): custody is the local-test signer or
  * a KMS signer, both refusing every chain but 31337/1337, and both reached
  * only through the W05 signing-policy guard (docs/W05-SIGNER-CUSTODY.md).
- * Incident note: revokeRevenueAttestor() does NOT invalidate headroom that is
- * already authorized; the procedure must also call setPullsPaused(true).
+ * Incident note: revokeRevenueAttestor() does not erase headroom that is already
+ * authorized, but it atomically pauses pulls and discards any pending rotation
+ * (PR #5 Correction A); resuming needs an explicit owner setPullsPaused(false).
  */
 import { hashTypedData, type Address, type Hex } from "viem";
 import { forgeProtocolRevenueSplitterAbi, ponsV2FeeEscrowAbi } from "@/shared/abis.generated";

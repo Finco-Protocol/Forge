@@ -25,21 +25,22 @@ run**), `ONCHAIN_VERIFIED` (carried from `docs/ROBINHOOD-CHAIN-VALIDATION.md`,
 | Genuine artifacts | `@uniswap/v4-core@1.0.2` (solc 0.8.26, runs 44444444, via_ir), `@uniswap/v4-periphery@1.0.3` (PositionManager runs 30000) | LOCAL-PROVEN: PoolManager runtime is 24,009 B locally = on-chain size |
 
 ### Finality / reorg notes (from repo docs and source)
-- The splitter accepts evidence only if `evidenceBlock < block.number`,
-  `block.number - evidenceBlock <= 256` and `blockhash(evidenceBlock)` equals
-  the signed hash (`ForgeProtocolRevenueSplitter.sol:283-290`). The attestor
-  fills these from RPC `eth_getBlock` at the indexer checkpoint
-  (`src/server/finance/attestor.ts:153-175`).
-- **Open risk (not resolved here):** 4663 is an Arbitrum Orbit chain
-  (ONCHAIN_VERIFIED, indirect). Arbitrum documents that `block.number` and
-  `blockhash` inside the EVM are not the L2 RPC block number/hash. If that
-  holds on 4663, every attestation reverts `StaleEvidence` there. A local
-  Anvil fork cannot show this (Anvil uses Ethereum semantics). The CI probe
-  `test/v4-fork/arbos-block-semantics.test.ts` asks the real chain via
-  `eth_call` and will fail if the assumption is wrong. **Status: UNVERIFIED
-  until that probe runs in CI.** If it fails, the splitter's evidence rule
-  needs a contract change (Forge-owned source, out of scope here) before
-  production.
+- The splitter reads the evidence head and block hash in `_evidenceView`
+  (`ForgeProtocolRevenueSplitter.sol`): through the ArbSys precompile (`0x64`,
+  `arbBlockNumber()` / `arbBlockHash(n)`) when it answers, otherwise through
+  the EVM opcodes (`block.number` / `blockhash`). It accepts evidence only if
+  the evidence block is below that head, within 256 blocks of it, and its hash
+  equals the signed hash. The attestor fills these from RPC `eth_getBlock` at
+  the indexer checkpoint (`src/server/finance/attestor.ts`).
+- **Resolved by measurement (finding W05-05):** 4663 is an Arbitrum Orbit
+  chain and, as measured by CI against the real RPC, the EVM `block.number`
+  there is the parent-chain number (26,193,299 vs RPC block 88,673,151), so the
+  original opcode-based check could never match RPC evidence. With ArbSys the
+  live read-only probe `test/v4-fork/arbos-block-semantics.test.ts` asserts
+  `arbBlockNumber() == RPC block` and `arbBlockHash(N-1) == RPC hash`; this is
+  item `A07c_ARBSYS_LIVE_READONLY_SEMANTICS` (verified). Not verified: the
+  splitter's end-to-end behaviour on a local fork or the live chain (see the
+  evidence classification below, `A07e` and `B09`).
 - `FORGE_CONFIRMATIONS` / reorg window for Orbit (sequencer soft finality vs
   L1 batch finality) remain a W05 decision recorded in
   `docs/W03-W04-HANDOVER.md` (FINALITY); not decided here.

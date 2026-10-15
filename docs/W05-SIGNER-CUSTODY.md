@@ -87,7 +87,9 @@ A failure at steps 2–4 for a role **disables that role**: `status(role).enable
 
 If the RPC is unreachable at startup, roles remain `unverified`. Each sign attempt re-runs the verification, and the role stays refused until verification succeeds. Unverified is never treated as verified.
 
-A disabled role stays disabled for the life of the process. After the operator fixes the cause, a restart re-verifies.
+Two kinds of disable (PR #5 Correction A):
+- **Sticky** disables (custody violation, configured-address mismatch, key enrolment/version problems) last for the life of the process; after the operator fixes the cause, a restart re-verifies.
+- **Chain-derived** disables (the on-chain authority or attestor does not name this key, or is revoked) are recomputed from a FRESH read on every signing request (`chainReason` in `registry.ts`). They clear on the next request only when the chain names the key again; a stale cached "verified" state never re-enables a role (see "Authority freshness policy" below).
 
 ## 5. Signing-policy guard (`src/server/signer/guard.ts`)
 
@@ -157,26 +159,24 @@ The new server key can be enrolled before the on-chain switch, but the role is d
 5. Recovery: create a new key in a ceremony, `rotateSignerKey`, run `setEligibilityAuthority(new)` on both contracts, restart, confirm `verified`, and release the kill switch.
 
 ### 8.2 Revenue attestor compromised
-**`revokeRevenueAttestor()` does not erase headroom that is already authorized, but since PR #5 Correction A it pauses pulls in the same transaction** (and discards any pending rotation), so the headroom cannot be drained. `authorizeEligibleRevenue` reverts with `AttestorNotSet` and `pullRevenue` reverts with `PullsPaused`. Resuming pulls needs an explicit owner `setPullsPaused(false)`. Procedure (steps 3–4 below are therefore a single transaction):
+**`revokeRevenueAttestor()` does not erase headroom that is already authorized, but since PR #5 Correction A it pauses pulls in the same transaction** (and discards any pending rotation), so the headroom cannot be drained. `authorizeEligibleRevenue` reverts with `AttestorNotSet` and `pullRevenue` reverts with `PullsPaused`. Resuming pulls needs an explicit owner `setPullsPaused(false)`. Procedure (the former separate pause step is part of step 2):
 
 1. `revokeSignerKey(db, "revenue", <address>, …)` and/or `engageKillSwitch(db, "revenue", …)`. The service stops signing immediately.
-2. Governance (Safe) calls `revokeRevenueAttestor()` on the splitter. This is immediate, and a compromised key's authorizations then revert with `AttestorNotSet`.
-3. Governance (Safe) calls `setPullsPaused(true)` on the splitter. The remaining headroom can no longer be pulled. `claimTreasury` and creator escrow claims **keep working**, because the pause only affects pulls.
-4. Reconcile. Compare `EligibleRevenueAuthorized` events against `signer_audit` (`role='revenue'`) and against the recomputed eligible revenue (`attestor.ts`). Quantify any headroom above the recomputed value; it is third-party credit, not creator funds, and is bounded by the escrow balance under the splitter's key.
-5. Recovery:
+2. Governance (Safe) calls `revokeRevenueAttestor()` on the splitter. One atomic transaction: a compromised key's authorizations then revert with `AttestorNotSet`, any queued rotation is discarded, and pulls are paused, so the remaining headroom can no longer be pulled. `claimTreasury` and creator escrow claims **keep working**, because the pause only affects pulls.
+3. Reconcile. Compare `EligibleRevenueAuthorized` events against `signer_audit` (`role='revenue'`) and against the recomputed eligible revenue (`attestor.ts`). Quantify any headroom above the recomputed value; it is third-party credit, not creator funds, and is bounded by the escrow balance under the splitter's key.
+4. Recovery:
    - Create a new key.
    - `rotateSignerKey`.
-   - `proposeRevenueAttestor(new)` and, after the 3-day timelock, `executeRevenueAttestorChange`.
+   - `proposeRevenueAttestor(new)` (a NEW proposal; an earlier one was discarded by the revocation) and, after the 3-day timelock, `executeRevenueAttestorChange`.
    - Restart and confirm `verified`.
-   - Unpause pulls only after review. The ceiling cannot be lowered on chain, so any over-authorized headroom becomes pullable again the moment pulls are unpaused.
+   - Unpause pulls (`setPullsPaused(false)`, owner only) only after review; executing a replacement does not unpause. The ceiling cannot be lowered on chain, so any over-authorized headroom becomes pullable again the moment pulls are unpaused.
 
 This sequence is executed on anvil by `test/integration/signer-custody.test.ts` ("revenue-attestor incident"):
 - authorize a ceiling with a KMS-signed `EligibleRevenue`;
 - registry revocation, after which the next attestation is refused with no KMS call made;
 - a rogue authorization from the still-live key simulates **OK** before the on-chain revoke;
-- `revokeRevenueAttestor()`, after which the same authorization reverts with `AttestorNotSet`;
-- a pull of half the headroom still **succeeds**, and a pull above the remaining headroom reverts with `ExceedsVerifiedRevenue`;
-- `setPullsPaused(true)`, after which pulls revert with `PullsPaused`;
+- a pull of half the headroom **succeeds** (before the incident), and a pull above the remaining headroom reverts with `ExceedsVerifiedRevenue`;
+- `revokeRevenueAttestor()`, after which the same authorization reverts with `AttestorNotSet` and every pull reverts with `PullsPaused` (no separate pause transaction);
 - `claimTreasury` and the creator's escrow `claim()` both succeed.
 
 ### 8.3 Relayer key lost or compromised

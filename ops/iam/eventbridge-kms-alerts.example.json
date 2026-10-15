@@ -1,5 +1,5 @@
 {
-  "_comment": "Page on any key-management change to a Forge signing key, and on Sign calls from any principal other than that key's signer role (the key policy already denies them; this alerts on the attempt).",
+  "_comment": "Page on any key-management change to a Forge signing key, and on Sign calls that were denied. CloudTrail records the key in different fields per operation: requestParameters.keyId (policy/enable/disable/deletion/grant; the caller may pass a key id OR an ARN, so both are listed), requestParameters.targetKeyId (CreateAlias/UpdateAlias), and only requestParameters.aliasName for DeleteAlias (no key field) - hence three rules. Replace the <...> placeholders; resources.ARN is deliberately not used.",
   "Rules": [
     {
       "Name": "forge-kms-key-management-change",
@@ -17,16 +17,66 @@
             "EnableKey",
             "ScheduleKeyDeletion",
             "CancelKeyDeletion",
-            "CreateGrant",
-            "CreateAlias",
-            "UpdateAlias",
-            "DeleteAlias"
+            "CreateGrant"
           ],
           "requestParameters": {
             "keyId": [
               "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_AUTHORITY_KEY_ID>",
               "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_EVIDENCE_KEY_ID>",
-              "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_REVENUE_ATTESTOR_KEY_ID>"
+              "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_REVENUE_ATTESTOR_KEY_ID>",
+              "<FORGE_AUTHORITY_KEY_ID>",
+              "<FORGE_EVIDENCE_KEY_ID>",
+              "<FORGE_REVENUE_ATTESTOR_KEY_ID>"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "Name": "forge-kms-alias-retarget",
+      "EventPattern": {
+        "source": [
+          "aws.kms"
+        ],
+        "detail-type": [
+          "AWS API Call via CloudTrail"
+        ],
+        "detail": {
+          "eventName": [
+            "CreateAlias",
+            "UpdateAlias"
+          ],
+          "requestParameters": {
+            "targetKeyId": [
+              "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_AUTHORITY_KEY_ID>",
+              "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_EVIDENCE_KEY_ID>",
+              "arn:aws:kms:<AWS_REGION>:<AWS_ACCOUNT_ID>:key/<FORGE_REVENUE_ATTESTOR_KEY_ID>",
+              "<FORGE_AUTHORITY_KEY_ID>",
+              "<FORGE_EVIDENCE_KEY_ID>",
+              "<FORGE_REVENUE_ATTESTOR_KEY_ID>"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "Name": "forge-kms-alias-delete",
+      "EventPattern": {
+        "source": [
+          "aws.kms"
+        ],
+        "detail-type": [
+          "AWS API Call via CloudTrail"
+        ],
+        "detail": {
+          "eventName": [
+            "DeleteAlias"
+          ],
+          "requestParameters": {
+            "aliasName": [
+              "alias/<FORGE_AUTHORITY_ALIAS>",
+              "alias/<FORGE_EVIDENCE_ALIAS>",
+              "alias/<FORGE_REVENUE_ATTESTOR_ALIAS>"
             ]
           }
         }

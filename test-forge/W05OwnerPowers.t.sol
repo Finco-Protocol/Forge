@@ -176,7 +176,7 @@ contract W05OwnerPowersTest is ForgeStackFixture {
         factory.executeCreatorFeeRecipientChange(token);
 
         vm.prank(creator);
-        vm.expectRevert(); // the original creator is no longer a vest beneficiary
+        vm.expectRevert(bytes4(keccak256("NotVestBeneficiary()"))); // the original creator is no longer a vest beneficiary
         vault.release(token);
         vm.prank(newRecipient);
         vault.release(token);
@@ -204,7 +204,7 @@ contract W05OwnerPowersTest is ForgeStackFixture {
         }
         // The curve itself only accepts the factory.
         vm.prank(stranger);
-        vm.expectRevert();
+        vm.expectRevert(bytes4(keccak256("NotFactory()")));
         _curve(curve).rescueFees();
     }
 
