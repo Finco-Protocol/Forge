@@ -44,6 +44,26 @@ describeStaging("W06 staging acceptance (separate web + worker processes, Postgr
   const extraDbs: string[] = [];
   const creatorKey = generatePrivateKey();
 
+  /**
+   * The worker reacts to indexed fee events with its own transactions (revenue attestation), which are then indexed
+   * as new chain events. A baseline digest is only meaningful once that cascade has settled: lag 0 and neither the
+   * head block nor the number of indexed events changed for several consecutive samples.
+   */
+  async function quiesce(stableSamples = 4, everyMs = 1_500) {
+    let last = "";
+    let stable = 0;
+    await stack.until("indexer quiescent", async () => {
+      const h = await stack.opsGet("/api/ops/health");
+      const probe = new PgDb(stack.dbUrl, { max: 2, applicationName: "forge-cli" });
+      const n = (await probe.query<{ n: string }>("SELECT count(*)::text AS n FROM chain_events")).rows[0]!.n;
+      await probe.close();
+      const sig = `${h.json.indexer?.headBlock}|${h.json.indexer?.lagBlocks}|${n}`;
+      stable = sig === last && h.json.indexer?.lagBlocks === "0" ? stable + 1 : 0;
+      last = sig;
+      return stable >= stableSamples;
+    }, 90_000, everyMs);
+  }
+
   beforeAll(async () => {
     stack = await StagingStack.create({ adminUrl: ADMIN!, leaseSeconds: 10 });
   }, 180_000);
@@ -168,6 +188,7 @@ describeStaging("W06 staging acceptance (separate web + worker processes, Postgr
     const sweep = await wallet.sendTransaction({ to: token.curve as Hex, data: encodeFunctionData({ abi: ponsV2BondingCurveAbi, functionName: "sweepFees", args: [0n] }) });
     await pub.waitForTransactionReceipt({ hash: sweep });
     await stack.until("lag 0", async () => (await stack.opsGet("/api/ops/health")).json.indexer?.lagBlocks === "0", 60_000);
+    await quiesce();
     digestBeforeRestart = await digestDatabase(stack.dbUrl, stack.env);
     expect(digestBeforeRestart.counts.chain_events ?? 0).toBeGreaterThan(0);
     rec("seed_activity", { launched: token.token, chainEvents: digestBeforeRestart.counts.chain_events, ledgerDigest: digestBeforeRestart.ledgerDigest });
