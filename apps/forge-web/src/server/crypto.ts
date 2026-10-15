@@ -18,10 +18,16 @@ function key(secret: string, purpose: string): Buffer {
   return createHash("sha256").update(`${purpose}\0${secret}`).digest();
 }
 
-/** AES-256-GCM, key derived from SESSION_SECRET per purpose. Output: iv.tag.ciphertext (base64url). */
+const GCM_TAG_BYTES = 16;
+
+/**
+ * AES-256-GCM, key derived from SESSION_SECRET per purpose. Output: iv.tag.ciphertext (base64url).
+ * The authentication tag length is PINNED to 16 bytes on both sides (Semgrep gcm-no-tag-length): without it
+ * Node accepts truncated tags (down to 4 bytes) on decrypt, which makes forgeries practical.
+ */
 export function encrypt(secret: string, purpose: string, plaintext: string): string {
   const iv = randomBytes(12);
-  const c = createCipheriv("aes-256-gcm", key(secret, purpose), iv);
+  const c = createCipheriv("aes-256-gcm", key(secret, purpose), iv, { authTagLength: GCM_TAG_BYTES });
   const ct = Buffer.concat([c.update(plaintext, "utf8"), c.final()]);
   return [iv, c.getAuthTag(), ct].map((b) => b.toString("base64url")).join(".");
 }
@@ -29,7 +35,8 @@ export function encrypt(secret: string, purpose: string, plaintext: string): str
 export function decrypt(secret: string, purpose: string, blob: string): string {
   const [iv, tag, ct] = blob.split(".").map((s) => Buffer.from(s, "base64url"));
   if (!iv || !tag || !ct) throw new Error("bad ciphertext");
-  const d = createDecipheriv("aes-256-gcm", key(secret, purpose), iv);
+  if (iv.length !== 12 || tag.length !== GCM_TAG_BYTES) throw new Error("bad ciphertext");
+  const d = createDecipheriv("aes-256-gcm", key(secret, purpose), iv, { authTagLength: GCM_TAG_BYTES });
   d.setAuthTag(tag);
   return Buffer.concat([d.update(ct), d.final()]).toString("utf8");
 }

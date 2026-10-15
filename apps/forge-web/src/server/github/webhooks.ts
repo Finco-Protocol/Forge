@@ -33,7 +33,10 @@ export async function invalidateRepository(q: Queryable, repoId: number | string
   ]);
 }
 
-async function revokeUserVerifications(q: Queryable, where: string, params: unknown[], reason: string) {
+/** The only WHERE fragments this helper may splice into SQL (all constant; values are always bind parameters). */
+type VerificationScope = "repo_id = $1 AND github_user_id = $2" | "github_user_id = $1 AND owner_id = $2" | "owner_id = $1";
+
+async function revokeUserVerifications(q: Queryable, where: VerificationScope, params: unknown[], reason: string) {
   await q.query(`UPDATE verifications SET revoked_at = now(), revoke_reason = $${params.length + 1} WHERE revoked_at IS NULL AND ${where}`, [...params, reason]);
 }
 

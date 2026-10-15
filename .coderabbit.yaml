@@ -1,0 +1,115 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit configuration for Finco-Protocol/Forge ONLY.
+# Committing this file does NOT install CodeRabbit: a repository administrator must install the CodeRabbit GitHub
+# App on THIS repository only (never "all repositories") - see docs/SECURITY-TOOLCHAIN.md. CodeRabbit is advisory:
+# it never replaces the independent reviewer, the policy gate or the external audit.
+language: en-US
+early_access: false
+enable_free_tier: true
+tone_instructions: >-
+  Be terse and specific. Report only actionable findings with file/line, the failure scenario, and the smallest fix.
+  Do not praise, do not restate the diff, no style nits unless they hide a bug.
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+  auto_review:
+    enabled: true
+    drafts: true            # PRs in this repository are opened as Draft first; review them
+    base_branches: ["main", "feat/.*"]
+    auto_incremental_review: true
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/out/**"
+    - "!**/cache/**"
+    - "!**/.next/**"
+    - "!apps/forge-web/src/shared/abis.generated.ts"
+    - "!contractsV2-deployed/lib/**"
+    - "!contractsV2/lib/**"
+    - "!contractsV1/**"
+    - "!provenance/**"
+    - "!docs/evidence/**"
+    - "!security/baseline.json"
+  path_instructions:
+    - path: "contractsV2-forge/src/v2/forge/**"
+      instructions: |
+        Forge-owned Solidity (authorization registry/authorizer and the revenue splitter). Review as a hostile auditor:
+        access control on every state-changing function (compare with apps/forge-web/config/authority-matrix.json),
+        EIP-712 domain/replay/nonce/deadline handling, signature malleability, timelock and emergency-revocation
+        state transitions (a pending change must never survive an emergency revoke), reentrancy and effects ordering,
+        accounting conservation (treasury + reserve + creator never exceeds what the escrow actually paid), rounding,
+        fee-on-transfer/rebasing assets, block.number/blockhash semantics on Arbitrum-style chains (ArbSys), and
+        EIP-170 contract size. Flag any change to fee math, supply or graduation economics as high severity.
+    - path: "contractsV2-forge/src/v2/PonsV2LaunchFactory.sol"
+      instructions: |
+        PONS-derived and MODIFIED by Forge. Review only the Forge changes against contractsV2-deployed/src/v2/PonsV2LaunchFactory.sol;
+        the rest is inherited deploy-time source and must not change.
+    - path: "contractsV2-forge/src/v2/**"
+      instructions: |
+        Inherited PONS source must be byte-identical to contractsV2-deployed/src (provenance gate). Any diff outside
+        PonsV2LaunchFactory.sol and contractsV2-forge/src/v2/forge/ is a blocking finding.
+    - path: "test-forge/**"
+      instructions: "Foundry tests. Check that negative tests assert the specific revert, that vm.expectRevert is not consumed by a preceding call, and that invariants are not vacuous."
+    - path: "apps/forge-web/src/server/api/**"
+      instructions: |
+        Next.js API/auth surface. Check authN/authZ on every route, CSRF/Origin handling, SIWE nonce and domain binding,
+        GitHub OAuth state and webhook HMAC (constant-time compare, raw body), input validation, rate limiting, error
+        messages that leak internals, and that lockdown/kill switches fail closed.
+    - path: "apps/forge-web/src/server/signer/**"
+      instructions: |
+        Custody layer (KMS/HSM). Signing must stay behind GuardedSigner: allowlisted typed-data only, digest recomputed
+        server-side, on-chain authority re-read on EVERY request, fail closed on RPC errors, key-version and kill-switch
+        checks, audit and replay protection. PRODUCTION_SIGNING_ENABLED must stay false. Never log keys or signatures
+        material beyond digests.
+    - path: "apps/forge-web/src/server/finance/**"
+      instructions: |
+        Financial ledger and revenue attestor. Check that every figure is derived from finalized canonical chain events,
+        BigInt arithmetic only (no float), reorg handling, idempotent replay, reconciliation (no silent surplus/deficit),
+        and that attestations never exceed provable eligible revenue. FINCO_BURN_ENABLED must stay false.
+    - path: "apps/forge-web/src/server/github/**"
+      instructions: "GitHub App integration. Check token scoping/rotation, webhook signature verification, rate-limit handling that fails closed, and that repository identity is the numeric repo id, never a name."
+    - path: "apps/forge-web/src/server/db/**"
+      instructions: "PostgreSQL access. All values must be bind parameters; migrations must be additive, checksummed and lock-protected; no destructive DDL in request paths."
+    - path: "apps/forge-web/scripts/**"
+      instructions: "Operator/deployment tooling. Defaults must be DRY_RUN with writes disabled; chain 4663 must be refused; no private keys on argv or in logs."
+    - path: ".github/workflows/**"
+      instructions: "CI. Flag mutable action tags, pull_request_target misuse, ${{ }} injection in run steps, over-broad permissions, and secrets exposed to forks."
+    - path: "release/**"
+      instructions: "Release-readiness manifest/registries. approver-registry.json must stay empty in this repository; no item may be marked production-ready here."
+  tools:
+    github-checks:
+      enabled: true
+    gitleaks:
+      enabled: true
+    semgrep:
+      enabled: true
+    eslint:
+      enabled: true
+    actionlint:
+      enabled: true
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+chat:
+  auto_reply: true
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: local
+  pull_requests:
+    scope: local
+  issues:
+    scope: local
+code_generation:
+  docstrings:
+    language: en-US
+  unit_tests: {}

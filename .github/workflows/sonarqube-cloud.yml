@@ -1,0 +1,49 @@
+# SonarQube Cloud analysis for the Forge application (TypeScript/JavaScript/Python/workflows). Runs ONLY after a
+# repository administrator has imported THIS repository in SonarQube Cloud and set:
+#   secret   SONAR_TOKEN
+#   variables SONAR_ORGANIZATION, SONAR_PROJECT_KEY
+# Until then the job reports "NOT CONNECTED" and passes - that is NOT an analysis result (the unified report lists
+# SonarQube Cloud as not connected). Fork PRs cannot read secrets and are skipped the same way.
+name: SonarQube Cloud
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  sonar:
+    name: "security: SonarQube Cloud (needs admin connection)"
+    runs-on: ubuntu-latest
+    steps:
+      - id: cfg
+        env:
+          TOKEN: ${{ secrets.SONAR_TOKEN }}
+          ORG: ${{ vars.SONAR_ORGANIZATION }}
+          KEY: ${{ vars.SONAR_PROJECT_KEY }}
+        run: |
+          if [ -n "$TOKEN" ] && [ -n "$ORG" ] && [ -n "$KEY" ]; then
+            echo "connected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "connected=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SONARQUBE_CLOUD_NOT_CONNECTED - administrator must import this repository and set SONAR_TOKEN, SONAR_ORGANIZATION, SONAR_PROJECT_KEY (docs/SECURITY-TOOLCHAIN.md). No analysis ran."
+            echo "SonarQube Cloud: NOT CONNECTED (no analysis ran)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.connected == 'true'
+        with:
+          fetch-depth: 0   # Sonar needs full history for blame / new-code detection
+      - uses: SonarSource/sonarqube-scan-action@v5
+        if: steps.cfg.outputs.connected == 'true'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >-
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}

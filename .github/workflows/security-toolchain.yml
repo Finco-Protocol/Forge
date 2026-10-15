@@ -1,0 +1,274 @@
+# FINCO Forge security toolchain (free tools only, this repository only).
+#   Slither + Aderyn  -> Forge-owned Solidity (full dependency graph analysed, vendored paths not reported)
+#   Semgrep CE        -> app code, scripts, workflows (community rules + project rules; no Semgrep token)
+#   Unified report    -> normalised findings, baseline triage, policy gate
+# CodeQL (default setup), CodeRabbit and SonarQube Cloud need repository-administrator authorisation: see
+# docs/SECURITY-TOOLCHAIN.md. Nothing here deploys, signs or merges anything.
+name: Security Toolchain
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * 1"   # weekly, catches new rules / advisories on an unchanged tree
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-toolchain-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: v1.8.5
+  SLITHER_VERSION: "0.11.6"
+  ADERYN_VERSION: "0.6.8"
+  SEMGREP_VERSION: "1.181.0"
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  changes:
+    name: "security: change detection"
+    runs-on: ubuntu-latest
+    outputs:
+      solidity: ${{ steps.detect.outputs.solidity }}
+      app: ${{ steps.detect.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+            sol=false; app=false
+            echo "$files" | grep -Eq '^(contractsV2-forge/|foundry\.toml|foundry\.lock|contractsV2-deployed/|security/|\.github/workflows/security-toolchain\.yml)' && sol=true || true
+            echo "$files" | grep -Eq '^(apps/forge-web/(src|scripts|package\.json|pnpm-lock\.yaml)|scripts/|\.github/|semgrep/|security/)' && app=true || true
+          else
+            sol=true; app=true   # push to main, weekly schedule, manual run: scan everything
+          fi
+          echo "solidity=$sol" >> "$GITHUB_OUTPUT"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "solidity=$sol app=$app" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  solidity:
+    name: "security: Solidity (Slither + Aderyn)"
+    needs: changes
+    if: needs.changes.outputs.solidity == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    env:
+      FOUNDRY_PROFILE: forge
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: install pinned scanners
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "slither-analyzer==${SLITHER_VERSION}"
+          npm install --global "@cyfrin/aderyn@${ADERYN_VERSION}"
+          slither --version
+          aderyn --version
+      - name: Slither (compiles the approved `forge` profile once; vendored paths analysed but not reported)
+        run: |
+          set -euo pipefail
+          mkdir -p security-out
+          # --fail-none: Slither's exit code is the number of findings; a CRASH is detected from the report
+          # (success=false / missing file) by security/report.mjs, never mistaken for a clean scan.
+          slither . --foundry-out-directory out/forge --fail-none \
+            --filter-paths "contractsV2-deployed/lib|contractsV2/lib|test-forge" \
+            --json security-out/slither.json --sarif security-out/slither.sarif \
+            2>&1 | tee security-out/slither.log
+          test -s security-out/slither.json
+      - name: Aderyn (reuses the artifacts compiled above)
+        run: |
+          set -euo pipefail
+          aderyn . --src contractsV2-forge/src -o security-out/aderyn.json 2>&1 | tee security-out/aderyn.log
+          aderyn . --src contractsV2-forge/src -o security-out/aderyn.sarif >/dev/null
+          aderyn . --src contractsV2-forge/src -o security-out/aderyn.md >/dev/null
+          test -s security-out/aderyn.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-solidity
+          path: security-out/
+          if-no-files-found: error
+      - name: upload Slither SARIF to GitHub code scanning
+        id: sarif_slither
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-out/slither.sarif
+          category: slither
+      - name: upload Aderyn SARIF to GitHub code scanning
+        id: sarif_aderyn
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-out/aderyn.sarif
+          category: aderyn
+      - name: SARIF integration status
+        if: always()
+        run: |
+          {
+            echo "### SARIF -> GitHub code scanning"
+            echo "- Slither: \`${{ steps.sarif_slither.outcome }}\`"
+            echo "- Aderyn: \`${{ steps.sarif_aderyn.outcome }}\`"
+            echo "(A failed upload on a private repository without Code Security, or on a fork PR, is reported here and does not hide scanner results.)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  appsec:
+    name: "security: application (Semgrep CE)"
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: install pinned Semgrep CE
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "semgrep==${SEMGREP_VERSION}"
+          semgrep --version
+      - name: project rule tests (every custom rule has flagged + clean fixtures)
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: semgrep --test --metrics=off --disable-version-check semgrep/
+      - name: Semgrep scan (community packs + project rules; no token, metrics off)
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: |
+          set -euo pipefail
+          mkdir -p security-out
+          semgrep scan --metrics=off --disable-version-check \
+            --config p/typescript --config p/nextjs --config p/github-actions --config p/secrets \
+            --config p/owasp-top-ten --config p/jwt --config p/python \
+            --config semgrep/forge-rules.yml \
+            --json-output security-out/semgrep.json --sarif-output security-out/semgrep.sarif \
+            apps/forge-web/src apps/forge-web/scripts scripts .github security 2>&1 | tee security-out/semgrep.log
+          test -s security-out/semgrep.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-appsec
+          path: security-out/
+          if-no-files-found: error
+      - name: upload Semgrep SARIF to GitHub code scanning
+        id: sarif_semgrep
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-out/semgrep.sarif
+          category: semgrep
+      - name: SARIF integration status
+        if: always()
+        run: |
+          {
+            echo "### SARIF -> GitHub code scanning"
+            echo "- Semgrep: \`${{ steps.sarif_semgrep.outcome }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  report:
+    name: "security: unified report + policy gate (new critical/high in Forge-owned code blocks)"
+    needs: [changes, solidity, appsec]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: scan-in
+          pattern: security-*
+          merge-multiple: true
+      - name: decide which scanners are REQUIRED (a crashed or missing scanner is never a clean scan)
+        id: req
+        env:
+          SOL: ${{ needs.solidity.result }}
+          APP: ${{ needs.appsec.result }}
+          CHG: ${{ needs.changes.result }}
+        run: |
+          set -euo pipefail
+          for r in "$CHG" "$SOL" "$APP"; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::a scanner or setup job ended '$r' - that is a failure, not a clean scan"; exit 2 ;;
+            esac
+          done
+          req=""
+          [ "$SOL" = "success" ] && req="slither,aderyn"
+          [ "$APP" = "success" ] && req="${req:+$req,}semgrep"
+          echo "required=$req" >> "$GITHUB_OUTPUT"
+          if [ -z "$req" ]; then echo "::notice::no security-relevant paths changed; no scanner was required"; fi
+      - name: cloud-service connection status (informational)
+        id: cloud
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SONAR_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+        run: |
+          set -u
+          nc=""
+          state="$(gh api "repos/${{ github.repository }}/code-scanning/default-setup" --jq .state 2>/dev/null || echo UNKNOWN)"
+          echo "codeql_default_setup=$state"
+          [ "$state" = "configured" ] || nc="CodeQL default setup (state: $state; admin must enable)"
+          [ -n "$SONAR_KEY" ] || nc="${nc:+$nc,}SonarQube Cloud (repository variable SONAR_PROJECT_KEY unset; admin must connect)"
+          nc="${nc:+$nc,}CodeRabbit (GitHub App install cannot be detected from CI; admin must install)"
+          echo "not_connected=$nc" >> "$GITHUB_OUTPUT"
+      - name: unified report + policy
+        if: steps.req.outputs.required != ''
+        run: |
+          set -euo pipefail
+          node security/report.mjs --root . --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --out-dir security-report --baseline security/baseline.json \
+            --require "${{ steps.req.outputs.required }}" \
+            --slither scan-in/slither.json --aderyn scan-in/aderyn.json --semgrep scan-in/semgrep.json \
+            --versions "slither=${SLITHER_VERSION},aderyn=${ADERYN_VERSION},semgrep=${SEMGREP_VERSION}" \
+            --not-connected "${{ steps.cloud.outputs.not_connected }}" \
+            | tee security-report/policy.log
+        # exit 1 = new critical/high in Forge-owned code; exit 2 = scanner/report/config error
+      - name: publish summary
+        if: always() && steps.req.outputs.required != ''
+        run: |
+          if [ -f security-report/security-report.md ]; then cat security-report/security-report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.req.outputs.required != ''
+        with:
+          name: security-unified-report
+          path: security-report/
+          if-no-files-found: error

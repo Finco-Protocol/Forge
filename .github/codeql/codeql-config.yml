@@ -1,0 +1,29 @@
+# CodeQL configuration for Finco-Protocol/Forge ONLY.
+#
+# STATUS: no CodeQL workflow is committed on purpose. Enable GitHub Code Security "default setup" for THIS
+# repository (docs/SECURITY-TOOLCHAIN.md section CodeQL) - default setup is configured in repository settings and
+# does not read this file. If the administrators prefer an advanced setup instead, use this file via
+#   - uses: github/codeql-action/init@v3
+#     with: { config-file: ./.github/codeql/codeql-config.yml }
+# and DISABLE default setup first (the two must not both run).
+#
+# CodeQL does NOT analyse Solidity; Slither and Aderyn do (security-toolchain.yml).
+name: "Forge CodeQL config"
+paths:
+  - apps/forge-web/src
+  - apps/forge-web/scripts
+  - scripts
+  - security
+  - .github/workflows
+paths-ignore:
+  - "**/node_modules/**"
+  - "**/.next/**"
+  - "**/out/**"
+  - apps/forge-web/src/shared/abis.generated.ts
+  - contractsV2-deployed
+  - contractsV2
+  - contractsV1
+  - provenance
+  - media
+  - docs/evidence
+# Languages to enable in the settings UI / advanced matrix: javascript-typescript, python, actions.

@@ -26,3 +26,8 @@ apps/forge-web/playwright-report/
 apps/forge-web/test-results/
 apps/forge-web/.env
 apps/forge-web/.env.local
+
+# security toolchain scratch outputs
+security-out/
+security-report/
+scan-in/
