@@ -81,6 +81,9 @@ export class PgDb implements Db {
   constructor(url: string, cfg: Partial<DbPoolConfig> = {}) {
     this.poolCfg = { ...DEFAULT_POOL, ...cfg };
     const c = this.poolCfg;
+    // withSessionLock holds one connection for the whole callback while the callback (migrate / indexer tick) needs
+    // another from the same pool; with a single connection that deadlocks until the connection timeout.
+    if (!(c.max >= 2)) throw new Error(`database pool needs at least 2 connections (got ${c.max}): session-lock callbacks use a second connection`);
     this.pool = new pg.Pool({
       connectionString: url,
       max: c.max,

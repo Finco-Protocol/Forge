@@ -40,7 +40,7 @@ const DbEnvShape = {
   DATABASE_URL: z.string().optional(),
   FORGE_PGLITE_DIR: z.string().optional(),
   FORGE_PROCESS_ROLE: z.enum(PROCESS_ROLES).default("web"),
-  FORGE_DB_POOL_MAX: z.coerce.number().int().min(1).max(200).default(DEFAULT_POOL.max),
+  FORGE_DB_POOL_MAX: z.coerce.number().int().min(2, "FORGE_DB_POOL_MAX must be at least 2 (advisory-lock callbacks need a second connection)").max(200).default(DEFAULT_POOL.max),
   FORGE_DB_IDLE_TIMEOUT_MS: z.coerce.number().int().min(0).default(DEFAULT_POOL.idleTimeoutMs),
   FORGE_DB_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(0).default(DEFAULT_POOL.connectionTimeoutMs),
   FORGE_DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(DEFAULT_POOL.statementTimeoutMs),

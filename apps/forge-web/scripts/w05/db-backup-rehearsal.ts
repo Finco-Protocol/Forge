@@ -12,6 +12,7 @@
  * AND reference ledger digests, startup checks) -> drop both DBs.
  * Exit code 1 on any mismatch.
  */
+import { randomBytes } from "node:crypto";
 import { createDatabaseSql, dropDatabaseSql } from "./sql-ident";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, statSync } from "node:fs";
@@ -31,7 +32,9 @@ if (!admin) throw new Error("set FORGE_REHEARSAL_ADMIN_URL (scratch PostgreSQL a
 const bin = process.env.PG_BIN ?? "/usr/lib/postgresql/16/bin";
 const nEvents = Number(process.argv[process.argv.indexOf("--events") + 1] || 20000);
 const withDb = (db: string) => { const u = new URL(admin); u.pathname = `/${db}`; return u.toString(); };
-const sfx = `${process.pid}`;
+// per-run random suffix: two processes with the same PID on one server never share (or force-drop) a database
+const sfx = `${process.pid}_${randomBytes(4).toString("hex")}`;
+const created: string[] = [];
 const src = `forge_rehearsal_src_${sfx}`, dst = `forge_rehearsal_restored_${sfx}`;
 const log = (m: string) => console.log(`[rehearsal] ${m}`);
 const t0 = performance.now();
@@ -45,6 +48,7 @@ let failed = false;
 const dumpFile = path.join(mkdtempSync(path.join(tmpdir(), "forge-rehearsal-")), "forge.dump");
 try {
   await ac.query(createDatabaseSql(src));
+  created.push(src);
   const sdb = new PgDb(withDb(src), { max: 4, applicationName: "forge-cli" });
   await migrate(sdb);
   const h = generateHistory({ seed: 20261014, targetEvents: nEvents });
@@ -64,6 +68,7 @@ try {
   execFileSync(path.join(bin, "pg_dump"), ["--format=custom", "--no-owner", `--file=${dumpFile}`, withDb(src)]);
   log(`pg_dump -Fc -> ${statSync(dumpFile).size} bytes (${lap()})`);
   await ac.query(createDatabaseSql(dst));
+  created.push(dst);
   execFileSync(path.join(bin, "pg_restore"), ["--no-owner", "--exit-on-error", `--dbname=${withDb(dst)}`, dumpFile]);
   log(`pg_restore into fresh database complete (${lap()})`);
 
@@ -87,7 +92,8 @@ try {
   failed = true;
   console.error("[rehearsal] ERROR", (e as Error).message);
 } finally {
-  for (const d of [src, dst]) await ac.query(dropDatabaseSql(d, true)).catch(() => undefined);
+  // drop only databases THIS run successfully created
+  for (const d of created) await ac.query(dropDatabaseSql(d, true)).catch(() => undefined);
   await ac.end();
 }
 log(failed ? "RESULT: FAILED" : "RESULT: OK");

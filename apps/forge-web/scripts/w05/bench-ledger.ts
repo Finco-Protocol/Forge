@@ -123,9 +123,12 @@ if (admin) {
     await admin.query(createDatabaseSql(name));
     const u = new URL(pgUrl!); u.pathname = `/${name}`;
     const db = new PgDb(u.toString(), { max: 2, applicationName: "forge-bench", statementTimeoutMs: 0 });
-    ms.push((await time(() => migrate(db)))[1]);
-    await db.close();
-    await admin.query(dropDatabaseSql(name));
+    try {
+      ms.push((await time(() => migrate(db)))[1]);
+    } finally {
+      await db.close();
+      await admin.query(dropDatabaseSql(name));
+    }
   }
   (env as Record<string, unknown>).migrationEmptyDb_ms = stats(ms);
   await admin.end();

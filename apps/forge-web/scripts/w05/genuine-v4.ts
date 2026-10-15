@@ -178,7 +178,7 @@ export function requireForkRpc(env: Record<string, string | undefined> = process
 
 export async function startGenuineChain(mode: GenuineMode): Promise<GenuineChain> {
   if (mode === "local-genuine") {
-    const anvil = await spawnAnvil(["--chain-id", "31337"]);
+    const anvil = await spawnAnvil(["--chain-id", "31337"], { captureLogs: true });
     try {
       const v4 = await deployGenuineV4Local(anvil.url);
       return { mode, anvil, v4, stop: () => anvil.stop() };
@@ -190,7 +190,7 @@ export async function startGenuineChain(mode: GenuineMode): Promise<GenuineChain
   const forkUrl = requireForkRpc();
   const extra = ["--fork-url", forkUrl];
   if (process.env.FORGE_FORK_BLOCK_NUMBER) extra.push("--fork-block-number", process.env.FORGE_FORK_BLOCK_NUMBER);
-  const anvil = await spawnAnvil(extra, { timeoutMs: 120_000 });
+  const anvil = await spawnAnvil(extra, { timeoutMs: 120_000, captureLogs: true });
   try {
     const v4 = await genuineV4OnFork(anvil.url);
     return { mode, anvil, v4, stop: () => anvil.stop() };

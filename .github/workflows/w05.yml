@@ -111,6 +111,8 @@ jobs:
       - name: fork tests (anvil --fork-url; every transaction is local; includes runtime identity, CREATE2 proxy presence, block.number/blockhash probe)
         run: pnpm test:v4:fork
       - name: deploy-plan DRY_RUN on the 4663 fork
+        # per-step confirmation budget is 60 s (FORGE_TX_CONFIRM_TIMEOUT_MS); the report (also on failure) records every step, node snapshot and Anvil log tail
+        timeout-minutes: 15
         run: pnpm w05:deploy-plan dry-run --env fork-4663 --out ../../w05-fork-dryrun.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

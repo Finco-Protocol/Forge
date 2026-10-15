@@ -154,3 +154,37 @@ The release report distinguishes six categories. Nothing here claims that an Anv
 Why steps 7–9 are deferred: the local Anvil fork of chain 4663 emulates ArbOS. `0x64` (ArbSys) is a precompile that `anvil_setCode` cannot replace (observed `PrecompileError` in CI), so neither the real ArbSys nor a test double can serve the splitter's evidence read there, and gas/L1 accounting differs from the harness's assumptions. The skipped step list is a single constant (`test/v4/fork-deferred.ts`) checked against the manifest by a unit test, so skipping a step without deferring it (or the reverse) fails CI. The three steps are fully exercised on the fresh-Anvil suite (#1), and the splitter's ArbSys branch by forge tests (`test_H2_*`), but never against the 4663 fork or the live chain.
 
 Harness investigation: `test/v4-fork/anvil-arbsys-investigation.test.ts` is a diagnostic (it asserts nothing about fidelity) that records what Anvil does at `0x64` on a fork with the remote chain id and on one with `--chain-id 31337`; its output (`W05_ANVIL_ARBSYS_PROBE`) is in the CI log of the fork job. Even if a chain-id-overridden fork allowed a test double at `0x64`, that would be a labelled emulation of documented ArbSys behaviour, not evidence about the target chain, so it could not replace category 3/4 facts or category 6.
+
+## Dry-run transaction confirmation (Correction D)
+
+The 4663 fork dry-run (`pnpm w05:deploy-plan dry-run --env fork-4663`) sends every deployment transaction to a **local
+Anvil** (impersonated role accounts; the real Robinhood RPC is only the read-only fork source). Once, in CI, a step timed
+out with only viem's `Timed out while waiting for transaction <hash>` after 180 s.
+
+**Observed (CI, run 38716345280 / 38716338758, commit 4f54aa3):** the transaction hash was returned by the local node, the
+receipt never appeared. The same job passed on the preceding commit and passed 6/6 locally. The harness did not record
+which step, nonce, fee, or node state was involved. **Root cause: not established from the failing logs.**
+**Mechanism demonstrated (ad hoc, local):** with the fork's remote backend slowed to ~20 s per read, Anvil returns the
+transaction hash after the first slow read and the receipt stays `null` while the remaining cold state reads are in
+flight - the same signature. That is a candidate, not a finding: nothing in the failed logs proves the remote was slow.
+
+What changed (no timeout increase, no `anvil_mine`):
+
+- every step records step/op/contract/function, sender, expected nonce, tx hash, gas and fees as seen by the node,
+  blocks before/after, visibility by hash, receipt status and elapsed time (`stepHistory` in the report);
+- a **60 s per-step** confirmation budget (`FORGE_TX_CONFIRM_TIMEOUT_MS`) instead of an opaque 180 s, and the receipt must
+  be for *that* hash, from *that* sender, to the expected target, with `status: success`; chain id is checked before submit;
+- on a timeout the node snapshot is captured (tx by hash, receipt, latest/pending nonce, block, base fee, gas price,
+  automine/interval mining, txpool, Anvil log tail) and the failure is **classified from that evidence**:
+  `TX_NOT_ACCEPTED | PENDING_AUTOMINE_DISABLED | PENDING_NONCE_GAP | NONCE_CONFLICT | UNDERPRICED | PENDING_MINING_STALLED |
+  RPC_RECEIPT_UNAVAILABLE | ANVIL_EXITED | WRONG_CHAIN | RECEIPT_MISMATCH | CONFIRMED_REVERT` (`PENDING_MINING_STALLED` is
+  only the residual: accepted + pending with automine on, nonce right, fee above base fee);
+- before the first step: loopback-only RPC (a non-loopback URL is refused before any request), `anvil_getAutomine` must be
+  `true`, the deployer nonce must equal the manifest's predicted CREATE nonce, and on a fork the cold-read latency of the
+  fork backend is measured (`forkBackend` in the report);
+- a failed deployment is a `FAILED` report (never a partial success) written to the same `--out` artifact together with the
+  step history, snapshot and Anvil log tail; Anvil is stopped with SIGTERM -> SIGKILL and reaped if the harness exits.
+
+If this failure recurs, the artifact `w05-fork-dryrun` names the step and the class; a `PENDING_MINING_STALLED` with a high
+`forkBackend.maxMs` would point at the remote fork backend, and the next correction would target that (for example a
+pinned fork block with a restored cache), not the transaction.

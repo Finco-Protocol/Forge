@@ -29,6 +29,13 @@ afterAll(async () => chain?.stop());
 describe("W05 deploy-plan DRY_RUN (local-genuine)", () => {
   it("executes every manifest step; every contract lands at its predicted address; all checks pass", () => {
     expect(report.executedSteps).toBe(manifest.steps.length);
+    // Correction D: every step is recorded with its node evidence; blocks come from the live node and advance monotonically
+    expect(report.status).toBe("COMPLETE");
+    expect(report.mining).toEqual({ automine: true, intervalMining: null });
+    expect(report.stepHistory).toHaveLength(manifest.steps.length);
+    expect(report.stepHistory.every((s) => s.outcome === "CONFIRMED" && s.receiptStatus === "success" && s.txNonce === s.expectedNonce && s.visibleByHash)).toBe(true);
+    const blocks = report.stepHistory.map((s) => s.blockAtConfirm!);
+    expect(blocks.every((b, i) => i === 0 || b > blocks[i - 1]!)).toBe(true);
     const failed = report.checks.filter((c) => !c.ok);
     expect(failed, JSON.stringify(failed)).toEqual([]);
     for (const id of ["S02", "S03", "S08", "S09", "S10", "S06:deployer-has-no-role"]) expect(report.checks.find((c) => c.id === id)?.ok, id).toBe(true);

@@ -18,8 +18,13 @@ export interface AnvilProc {
   url: string;
   port: number;
   proc: ChildProcess;
+  /** tail of anvil's stdout+stderr (only populated when spawned with captureLogs) */
+  logs(): string;
+  /** SIGTERM, wait for exit, SIGKILL after 5 s; resolves once the process is gone */
   stop(): Promise<void>;
 }
+
+const LOG_CAP = 64 * 1024;
 
 export async function rpcCall<T = unknown>(url: string, method: string, params: unknown[] = []): Promise<T> {
   const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
@@ -32,11 +37,27 @@ export async function rpcCall<T = unknown>(url: string, method: string, params: 
  * Spawns a STANDARD Anvil (EIP-170 enforced) on 127.0.0.1. `extra` may add
  * `--fork-url …` etc. Waits until eth_chainId answers (forks can be slow).
  */
-export async function spawnAnvil(extra: string[] = [], opts: { timeoutMs?: number } = {}): Promise<AnvilProc> {
+export async function spawnAnvil(extra: string[] = [], opts: { timeoutMs?: number; captureLogs?: boolean } = {}): Promise<AnvilProc> {
   const port = await freePort();
   let stderr = "";
-  const proc = spawn("anvil", ["--host", "127.0.0.1", "--port", String(port), "--silent", ...extra], { stdio: ["ignore", "ignore", "pipe"] });
-  proc.stderr?.on("data", (d: Buffer) => (stderr += d.toString()));
+  let tail = "";
+  const append = (d: Buffer) => {
+    tail += d.toString();
+    if (tail.length > LOG_CAP) tail = tail.slice(-LOG_CAP);
+  };
+  // captureLogs: no --silent so the node's own request/mining/fork-backend log lines are available as failure evidence.
+  const proc = spawn("anvil", ["--host", "127.0.0.1", "--port", String(port), ...(opts.captureLogs ? [] : ["--silent"]), ...extra], { stdio: ["ignore", opts.captureLogs ? "pipe" : "ignore", "pipe"] });
+  proc.stderr?.on("data", (d: Buffer) => {
+    stderr += d.toString();
+    if (stderr.length > LOG_CAP) stderr = stderr.slice(-LOG_CAP);
+    append(d);
+  });
+  proc.stdout?.on("data", append);
+  // never leave an orphan if the harness process itself exits
+  const reap = () => {
+    if (proc.exitCode === null) proc.kill("SIGKILL");
+  };
+  process.once("exit", reap);
   const url = `http://127.0.0.1:${port}`;
   const deadline = Date.now() + (opts.timeoutMs ?? 60_000);
   for (;;) {
@@ -56,9 +77,16 @@ export async function spawnAnvil(extra: string[] = [], opts: { timeoutMs?: numbe
     url,
     port,
     proc,
+    logs: () => tail,
     stop: async () => {
-      proc.kill("SIGTERM");
-      await new Promise((r) => setTimeout(r, 50));
+      if (proc.exitCode === null && proc.signalCode === null) {
+        const exited = new Promise<void>((resolve) => proc.once("exit", () => resolve()));
+        proc.kill("SIGTERM");
+        const killer = setTimeout(() => proc.kill("SIGKILL"), 5_000);
+        await exited;
+        clearTimeout(killer);
+      }
+      process.removeListener("exit", reap);
     },
   };
 }

@@ -34,6 +34,7 @@ import { loadArtifact, REPO_ROOT } from "../artifacts";
 import { isLocalAnvilFork } from "../sandbox-lib";
 import { acceptS09, acceptS10, rawEthCall } from "./smoke-accept";
 import { rpcCall } from "./anvil-proc";
+import { assertLocalAutomine, assertLoopbackRpc, probeForkLatency, sendAndConfirm, TxConfirmError, type SendCtx, type StepRecord, type TxClass, type TxSnapshot } from "./tx-confirm";
 import { contractBuildRecord, forgeArtifactPath, readRawArtifact, tomlBuildSettings } from "./build-info";
 import { compareRuntime } from "./uniswap-artifacts";
 import { hookInitCode, hookMaskOk } from "./hook-mine-lib";
@@ -134,6 +135,16 @@ export interface DryRunReport {
   executedSteps: number;
   checks: Array<{ id: string; ok: boolean; detail: string }>;
   ok: boolean;
+  /** COMPLETE only when every manifest step confirmed and every check ran; anything else is FAILED (never a partial "success") */
+  status: "COMPLETE" | "FAILED";
+  /** one record per attempted deployment step (nonce, hash, fees, blocks, receipt, elapsed) */
+  stepHistory: StepRecord[];
+  /** present on a transaction-confirmation failure: classification, step, and the node snapshot */
+  failure?: { step: number; classification: TxClass; message: string; snapshot: TxSnapshot | null };
+  /** local Anvil mining configuration observed before the first step */
+  mining?: { automine: boolean; intervalMining: number | null };
+  /** fork only: cold-state read latency of the Anvil fork backend measured before the first step */
+  forkBackend?: { samplesMs: number[]; maxMs: number };
 }
 
 function argValue(v: string): unknown {
@@ -149,7 +160,8 @@ const S09_EXPECTED_REVERT = concat(["0xfce698f7", toHex(0n, { size: 32 })]);
 /** IHooks.beforeInitialize(address,PoolKey,uint160) */
 const BEFORE_INITIALIZE = toFunctionSelector("function beforeInitialize(address,(address,address,uint24,int24,address),uint160)");
 
-export async function executeDryRun(m: DeployManifest, rpcUrl: string): Promise<DryRunReport> {
+export async function executeDryRun(m: DeployManifest, rpcUrl: string, node: Pick<SendCtx, "proc" | "logs" | "timeoutMs"> = {}): Promise<DryRunReport> {
+  assertLoopbackRpc(rpcUrl); // before ANY request: a real RPC can never be a dry-run target
   const integrity = verifyManifest(m);
   if (integrity.length) throw new Error(`refusing to dry-run an invalid manifest: ${integrity.join("; ")}`);
   const rpcChainId = Number(await rpcCall<Hex>(rpcUrl, "eth_chainId"));
@@ -165,28 +177,54 @@ export async function executeDryRun(m: DeployManifest, rpcUrl: string): Promise<
     wallets.set(k, createWalletClient({ chain, transport: http(rpcUrl), account: a }));
   }
   await rpcCall(rpcUrl, "anvil_setNonce", [m.roles.deployer, toHex(m.deployerStartNonce)]);
+  const mining = await assertLocalAutomine(rpcUrl);
+  const forkBackend = localDev ? undefined : await probeForkLatency(rpcUrl);
+  const startNonce = Number(BigInt(await rpcCall<Hex>(rpcUrl, "eth_getTransactionCount", [m.roles.deployer, "pending"])));
+  if (startNonce !== m.deployerStartNonce) throw new Error(`deployer nonce is ${startNonce}, manifest predicts CREATE addresses from ${m.deployerStartNonce}`);
 
   const checks: DryRunReport["checks"] = [];
   const check = (id: string, ok: boolean, detail: string) => checks.push({ id, ok, detail });
   const abiOf = (c: ContractKey) => loadArtifact(CONTRACT_NAMES[c]).abi;
+  const stepHistory: StepRecord[] = [];
+  const sendCtx: SendCtx = { rpcUrl, expectedChainId: rpcChainId, ...node };
+  const failed = (e: TxConfirmError): DryRunReport => {
+    stepHistory.push(e.record);
+    check(`STEP:${e.record.n}`, false, `${e.classification}: ${e.record.detail ?? e.message}`);
+    return {
+      manifestHash: m.contentHash, environment: m.environment, rpcChainId, executedSteps: stepHistory.filter((r) => r.outcome === "CONFIRMED").length,
+      checks, ok: false, status: "FAILED", stepHistory, mining, forkBackend,
+      failure: { step: e.record.n, classification: e.classification, message: e.message, snapshot: e.snapshot },
+    };
+  };
   let executed = 0;
   for (const s of m.steps) {
     const w = wallets.get(s.from)!;
-    let hash: Hex;
-    if (s.kind === "create") {
-      const a = loadArtifact(CONTRACT_NAMES[s.contract]);
-      hash = await w.deployContract({ abi: a.abi, bytecode: a.bytecode, args: s.args.map((x) => argValue(x.value)), account: m.roles[s.from], chain } as never);
-    } else if (s.kind === "create2") {
-      const init = hookInitCode(loadArtifact("PonsV2MemeHook").bytecode, m.hook.constructorArgs);
-      if (keccak256(init) !== m.hook.initCodeHash) throw new Error("hook init code differs from the manifest (artifact drift)");
-      hash = await w.sendTransaction({ to: m.network.create2Deployer, data: concat([m.hook.salt, init]), account: m.roles[s.from], chain } as never);
-    } else {
-      const args = s.fn === "addLaunchConfig" ? [(() => { const c = JSON.parse(s.args[0]!.value) as Record<string, unknown>; return { ...c, supply: BigInt(c.supply as string), curveFeeBps: BigInt(c.curveFeeBps as string), phantomQuote: BigInt(c.phantomQuote as string), graduationThreshold: BigInt(c.graduationThreshold as string) }; })()] : s.args.map((x) => argValue(x.value));
-      hash = await w.sendTransaction({ to: m.addresses[s.contract], data: encodeFunctionData({ abi: abiOf(s.contract), functionName: s.fn!, args } as never), account: m.roles[s.from], chain } as never);
+    const from = m.roles[s.from];
+    const info = { n: s.n, op: s.kind, contract: s.contract, fn: s.fn ?? null };
+    try {
+      let target: Address | null;
+      let submit: () => Promise<Hex>;
+      if (s.kind === "create") {
+        const a = loadArtifact(CONTRACT_NAMES[s.contract]);
+        target = null;
+        submit = () => w.deployContract({ abi: a.abi, bytecode: a.bytecode, args: s.args.map((x) => argValue(x.value)), account: from, chain } as never);
+      } else if (s.kind === "create2") {
+        const init = hookInitCode(loadArtifact("PonsV2MemeHook").bytecode, m.hook.constructorArgs);
+        if (keccak256(init) !== m.hook.initCodeHash) throw new Error("hook init code differs from the manifest (artifact drift)");
+        target = m.network.create2Deployer;
+        submit = () => w.sendTransaction({ to: m.network.create2Deployer, data: concat([m.hook.salt, init]), account: from, chain } as never);
+      } else {
+        const args = s.fn === "addLaunchConfig" ? [(() => { const c = JSON.parse(s.args[0]!.value) as Record<string, unknown>; return { ...c, supply: BigInt(c.supply as string), curveFeeBps: BigInt(c.curveFeeBps as string), phantomQuote: BigInt(c.phantomQuote as string), graduationThreshold: BigInt(c.graduationThreshold as string) }; })()] : s.args.map((x) => argValue(x.value));
+        target = m.addresses[s.contract];
+        submit = () => w.sendTransaction({ to: target!, data: encodeFunctionData({ abi: abiOf(s.contract), functionName: s.fn!, args } as never), account: from, chain } as never);
+      }
+      const { record, receipt: r } = await sendAndConfirm(sendCtx, info, { from, to: target }, submit);
+      stepHistory.push(record);
+      if (s.kind === "create" && getAddress(r.contractAddress!) !== s.predicted) throw new Error(`step ${s.n}: deployed at ${r.contractAddress}, manifest predicted ${s.predicted}`);
+    } catch (e) {
+      if (e instanceof TxConfirmError) return failed(e);
+      throw e;
     }
-    const r = await pub.waitForTransactionReceipt({ hash });
-    if (r.status !== "success") throw new Error(`step ${s.n} (${s.kind} ${s.contract}${s.fn ? "." + s.fn : ""}) reverted`);
-    if (s.kind === "create" && getAddress(r.contractAddress!) !== s.predicted) throw new Error(`step ${s.n}: deployed at ${r.contractAddress}, manifest predicted ${s.predicted}`);
     executed++;
   }
   for (const a of Object.values(m.roles)) await rpcCall(rpcUrl, "anvil_stopImpersonatingAccount", [a]);
@@ -250,8 +288,11 @@ export async function executeDryRun(m: DeployManifest, rpcUrl: string): Promise<
     hookErrorSelector: toFunctionSelector("function NotFactory()"),
   });
   check("S10", s10.ok, `PoolManager.initialize with the Forge hook from a stranger: ${s10.detail}`);
-  return { manifestHash: m.contentHash, environment: m.environment, rpcChainId, executedSteps: executed, checks, ok: checks.every((c) => c.ok) };
+  const allOk = checks.every((c) => c.ok);
+  return { manifestHash: m.contentHash, environment: m.environment, rpcChainId, executedSteps: executed, checks, ok: allOk, status: allOk ? "COMPLETE" : "FAILED", stepHistory, mining, forkBackend };
 }
+
+let dryRunLogTail = (): string => "";
 
 /** local-genuine / fork-4663 DRY_RUN: start the chain, build the manifest against it, execute, check. */
 export async function dryRun(env: "local-genuine" | "fork-4663", given?: DeployManifest): Promise<{ manifest: DeployManifest; report: DryRunReport; chain: GenuineChain }> {
@@ -260,9 +301,10 @@ export async function dryRun(env: "local-genuine" | "fork-4663", given?: DeployM
     const m =
       given ??
       buildDeployManifest(planInputFor(env, { poolManager: chain.v4.poolManager, positionManager: chain.v4.positionManager, permit2: chain.v4.permit2 }), forgeBuildProvider());
-    const report = await executeDryRun(m, chain.anvil.url);
+    const report = await executeDryRun(m, chain.anvil.url, { proc: chain.anvil.proc, logs: chain.anvil.logs });
     return { manifest: m, report, chain };
   } catch (e) {
+    dryRunLogTail = (() => { const t = chain.anvil.logs().slice(-4000); return () => t; })();
     await chain.stop();
     throw e;
   }
@@ -317,10 +359,22 @@ async function main() {
   if (cmd === "dry-run") {
     const env = (arg(argv, "env") ?? "local-genuine") as "local-genuine" | "fork-4663";
     const given = arg(argv, "manifest") ? (JSON.parse(readFileSync(arg(argv, "manifest")!, "utf8")) as DeployManifest) : undefined;
-    const { manifest, report, chain } = await dryRun(env, given);
+    let started: Awaited<ReturnType<typeof dryRun>>;
+    try {
+      started = await dryRun(env, given);
+    } catch (e) {
+      // Preserve a FAILED artifact (same --out convention) so CI uploads evidence even when the harness itself throws.
+      out(arg(argv, "out"), { status: "FAILED", environment: env, error: e instanceof Error ? e.message : String(e), anvilLogTail: dryRunLogTail() });
+      throw e;
+    }
+    const { manifest, report, chain } = started;
+    dryRunLogTail = () => chain.anvil.logs().slice(-4000);
     await chain.stop();
     out(arg(argv, "out"), { manifest, report });
-    if (!report.ok) process.exit(1);
+    if (!report.ok) {
+      console.error(`DRY_RUN FAILED: ${report.failure ? report.failure.message : report.checks.filter((c) => !c.ok).map((c) => c.id).join(", ")}`);
+      process.exit(1);
+    }
     return;
   }
   throw new Error(`unknown command ${cmd}`);
