@@ -38,7 +38,13 @@
     "release:gate": "tsx scripts/w05/release-gate.ts evaluate",
     "bench:platform": "tsx scripts/w05/bench-platform.ts",
     "ops:github-app-check": "tsx scripts/w05/github-app-check.ts",
-    "ops:control": "tsx scripts/w05/ops-control.ts"
+    "ops:control": "tsx scripts/w05/ops-control.ts",
+    "test:staging": "vitest run --project staging",
+    "staging:manifest": "tsx scripts/w06/staging-ops.ts manifest",
+    "staging:verify": "tsx scripts/w06/staging-ops.ts verify",
+    "staging:check": "tsx scripts/w06/staging-ops.ts check-env",
+    "staging:snapshot": "tsx scripts/w06/staging-ops.ts snapshot",
+    "staging:rollback-plan": "tsx scripts/w06/staging-ops.ts rollback-plan"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.9",
@@ -68,7 +74,8 @@
     "tsx": "4.20.6",
     "typescript": "5.9.3",
     "typescript-eslint": "8.71.2",
-    "vitest": "3.2.7"
+    "vitest": "3.2.7",
+    "yaml": "2.8.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

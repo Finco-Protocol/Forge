@@ -26,7 +26,15 @@ export default async function globalSetup() {
   gh.addRepo({ id: 5001, name: "forge-demo", owner: org });
   gh.setPermission(5001, 1001, "admin");
   gh.setPermission(5001, 1002, "write");
-  gh.install(7001, org, [5001]);
+  // W06 journey actors (simulated GitHub): carol administers the journey repos; dave only has write access.
+  gh.addUser(1003, "carol-admin");
+  gh.addUser(1004, "dave-writer");
+  for (const [id, name] of [[5003, "journey-main"], [5004, "journey-revoke"], [5005, "journey-stale"]] as const) {
+    gh.addRepo({ id, name, owner: org });
+    gh.setPermission(id, 1003, "admin");
+    gh.setPermission(id, 1004, "write");
+  }
+  gh.install(7001, org, [5001, 5003, 5004, 5005]);
   gh.nextLoginUser = 1001;
   await gh.start();
 

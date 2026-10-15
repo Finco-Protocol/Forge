@@ -1,7 +1,7 @@
 {
   "$comment": "W05 release-readiness items (source of release/readiness-manifest.json; run `pnpm release:manifest` in apps/forge-web to restamp the integrity hash). Class A = engineering-verified by CI (check-run names on the exact head SHA). Class B = operator-verified (signed by an allowlisted operator key; registry EMPTY in this repo). Class C = independent external approval (signed by an allowlisted external approver; registry EMPTY). Nothing here can make production ready: only a separately approved release workflow may.",
   "version": 1,
-  "workflow": "W05",
+  "workflow": "W06",
   "expectedFlags": {
     "PRODUCTION_BLOCKED": true,
     "FINCO_BURN_ENABLED": false,
@@ -146,6 +146,38 @@
       "title": "Deployment dry-run, manifest integrity and refusal tests (write mode disabled, chain 4663 refused)",
       "ciJobs": [
         "w05: genuine Uniswap V4 integration (local)"
+      ]
+    },
+    {
+      "id": "A13_STAGING_ACCEPTANCE",
+      "class": "A",
+      "title": "W06 staging package: separate web + worker processes on PostgreSQL \u2014 config refusal, empty-DB migration, cold start, restart with state, indexer recovery, worker SIGKILL recovery, failed-migration handling, backup/restore ledger digest, rollback planning (docker compose itself is NOT executed by CI; see docs/W06-STAGING.md)",
+      "ciJobs": [
+        "w06: staging acceptance (separate web + worker processes, PostgreSQL)"
+      ]
+    },
+    {
+      "id": "A14_FULL_JOURNEY_BROWSER",
+      "class": "A",
+      "title": "W06 real-browser user journey (wallet, GitHub sign-in, verification, launch, trade, graduation on the SANDBOX pool, Explore, earnings, claim, revocation, negative cases, mobile/keyboard) against the production build; external services simulated",
+      "ciJobs": [
+        "w03: browser E2E (Playwright, production build)"
+      ]
+    },
+    {
+      "id": "A15_FINANCIAL_GOVERNANCE_ACCEPTANCE",
+      "class": "A",
+      "title": "W06 financial invariants (Foundry sequence fuzz + ledger properties), GitHub App acceptance matrix, governance/signer freshness and incident drills",
+      "ciJobs": [
+        "w06: financial, governance and GitHub App acceptance"
+      ]
+    },
+    {
+      "id": "A16_AUDIT_DOSSIER_INTEGRITY",
+      "class": "A",
+      "title": "W06 audit dossier source manifest matches the tree (drift gate) and the staging package static checks pass. This is dossier integrity, not an audit.",
+      "ciJobs": [
+        "w06: audit dossier integrity (source manifest drift)"
       ]
     },
     {

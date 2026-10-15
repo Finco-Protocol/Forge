@@ -44,6 +44,11 @@ export default defineConfig({
           poolOptions: { forks: { singleFork: true } },
         },
       },
+      // W06: separate web + worker processes, PostgreSQL, local chain, simulated GitHub (opt-in via FORGE_STAGING_ADMIN_URL).
+      {
+        resolve: { alias },
+        test: { name: "staging", include: ["test/staging/**/*.test.ts"], environment: "node", testTimeout: 240_000, hookTimeout: 300_000, pool: "forks", poolOptions: { forks: { singleFork: true } } },
+      },
     ],
   },
 });

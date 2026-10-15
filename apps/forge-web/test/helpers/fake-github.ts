@@ -110,16 +110,16 @@ export class FakeGithub {
   }
 
   // ── HTTP ─────────────────────────────────────────────────────────────
-  async start(port = 0): Promise<string> {
+  async start(port = 0, host = "127.0.0.1", publicUrl?: string): Promise<string> {
     this.server = createServer((req, res) => {
       this.handle(req, res).catch((e) => {
         res.writeHead(500, { "content-type": "application/json" });
         res.end(JSON.stringify({ message: String(e) }));
       });
     });
-    await new Promise<void>((r) => this.server!.listen(port, "127.0.0.1", () => r()));
+    await new Promise<void>((r) => this.server!.listen(port, host, () => r()));
     const addr = this.server.address();
-    this.url = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : port}`;
+    this.url = publicUrl ?? `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : port}`;
     return this.url;
   }
   async stop() {
@@ -268,6 +268,17 @@ export class FakeGithub {
     if (req.method === "POST" && p === "/__control/login-as") {
       const body = JSON.parse(await readBody(req)) as { userId: number };
       this.nextLoginUser = body.userId;
+      return send(200, { ok: true });
+    }
+    // W06: state changes for browser E2E (the simulated GitHub is the only party that can move a repository / drop an installation).
+    if (req.method === "POST" && p.startsWith("/__control/")) {
+      const action = p.slice("/__control/".length);
+      const body = JSON.parse((await readBody(req)) || "{}") as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+      if ((action === "transfer" || action === "set-permission") && !this.repos.get(body.repoId)) return send(404, { message: "Not Found" });
+      if (action === "transfer") this.transfer(body.repoId, body.owner);
+      else if (action === "set-permission") this.setPermission(body.repoId, body.userId, body.perm ?? null);
+      else if (action === "uninstall") this.uninstall(body.id);
+      else return send(404, { message: "Not Found" });
       return send(200, { ok: true });
     }
     return send(404, { message: "Not Found" });

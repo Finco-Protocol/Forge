@@ -1,0 +1,144 @@
+{
+  "kind": "w06-staging-acceptance",
+  "simulated": [
+    "chain: local Anvil 31337",
+    "GitHub: in-process FakeGithub (SANDBOX_NOT_EVIDENCE)"
+  ],
+  "real": [
+    "PostgreSQL server",
+    "separate web and worker OS processes",
+    "migrations",
+    "pg_dump/pg_restore",
+    "SIGTERM/SIGKILL"
+  ],
+  "notExecutedHere": [
+    "docker compose (no Docker daemon in this environment; statically verified by test/unit/w06-staging-package.test.ts)"
+  ],
+  "steps": [
+    {
+      "step": "config_refusal",
+      "status": "PASS",
+      "detail": {
+        "cases": [
+          "chain 4663",
+          "public RPC host",
+          "real GitHub",
+          "non-test key",
+          "burn flag",
+          "signing flag",
+          "production-looking database"
+        ],
+        "workerExitCode": 1,
+        "schemaUntouched": true
+      }
+    },
+    {
+      "step": "production_chain_refusal",
+      "status": "PASS",
+      "detail": {
+        "probedChainId": 4663,
+        "refused": true,
+        "localChainAccepted": 31337
+      }
+    },
+    {
+      "step": "migrate_from_empty",
+      "status": "PASS",
+      "detail": {
+        "migrations": [
+          "001_init.sql",
+          "002_revocation_queue.sql",
+          "003_finance.sql",
+          "004_signer_audit.sql",
+          "005_ledger_materialization.sql",
+          "006_ops.sql"
+        ],
+        "secondRunApplied": 0
+      }
+    },
+    {
+      "step": "cold_start",
+      "status": "PASS",
+      "detail": {
+        "ready": {
+          "ok": true,
+          "checks": {
+            "db": true,
+            "indexer": true,
+            "worker": true,
+            "ledger": true
+          }
+        },
+        "workerApplicationName": "forge-worker",
+        "migrationVersion": "006_ops.sql"
+      }
+    },
+    {
+      "step": "seed_activity",
+      "status": "PASS",
+      "detail": {
+        "launched": "0x75a6031dbBc1AFf7333e1276B23D6a82cF8ec109",
+        "chainEvents": 32,
+        "ledgerDigest": "5743dca874216a3ffb5d0c9e962b88a1b507608c65aac750786727d3ef53b786"
+      }
+    },
+    {
+      "step": "restart_with_state",
+      "status": "PASS",
+      "detail": {
+        "workerExitCode": 0,
+        "ledgerDigestUnchanged": true,
+        "chainEvents": 32
+      }
+    },
+    {
+      "step": "indexer_recovery",
+      "status": "PASS",
+      "detail": {
+        "lagWhileDown": 3,
+        "readyWhileDown": 503,
+        "caughtUp": true,
+        "ledgerEqualsMaterialized": true,
+        "eventsBefore": 32,
+        "eventsAfter": 35
+      }
+    },
+    {
+      "step": "worker_crash_recovery",
+      "status": "PASS",
+      "detail": {
+        "killSignal": "SIGKILL",
+        "jobStatusWhileDown": "pending",
+        "finalStatus": "done",
+        "attempts": 2
+      }
+    },
+    {
+      "step": "failed_migration_handling",
+      "status": "PASS",
+      "detail": {
+        "halfAppliedTable": false,
+        "badMigrationRecorded": false,
+        "verifyModeRefusesUnmigratedDb": true
+      }
+    },
+    {
+      "step": "backup_restore_and_rollback",
+      "status": "PASS",
+      "detail": {
+        "ledgerDigest": "9a247ea2b965ee933252cbaf34333338c61cfa5d09176d6854bf41049ea416d7",
+        "materializedDigest": "9a247ea2b965ee933252cbaf34333338c61cfa5d09176d6854bf41049ea416d7",
+        "chainEvents": 35,
+        "rollbackToOlderBuild": "restore-snapshot-required",
+        "manifestDigest": "60ebaf7b8ff2c09e9ed0d520d678e3d2f858f4ce67427ca798b72ed0e8283971"
+      }
+    },
+    {
+      "step": "graceful_worker_shutdown",
+      "status": "PASS",
+      "detail": {
+        "exitCode": 0
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@
  * integration tests alike, so acceptance runs the exact production path:
  * cookies, CSRF, sessions, validation, services.
  */
-import { systemHealth } from "../ops/health";
+import { dbHealth, indexerHealth, ledgerHealth, systemHealth, workerHealth } from "../ops/health";
 import { getAddress, isAddress, isHex, type Hex } from "viem";
 import type { AppContext } from "../context";
 import { ForgeError, refuse } from "../errors";
@@ -360,6 +360,23 @@ const claimSubmitted: Handler = async (ctx, req) => {
   return json(r);
 };
 
+/** W06 liveness: the process answers. No dependency is probed (an orchestrator must not restart the web process because PostgreSQL is down). */
+const live: Handler = async () => json({ ok: true });
+
+/**
+ * W06 readiness: 200 only when this instance may receive traffic: schema fully migrated (no pending/drift), indexer
+ * checkpoint present and caught up to the confirmation-safe head, ledger not halted and a live worker heartbeat.
+ * Booleans only (details stay behind /api/ops/health). 503 otherwise, so an orchestrator withholds traffic.
+ */
+const ready: Handler = async (ctx) => {
+  const [db, indexer, worker, ledger] = await Promise.all([dbHealth(ctx), indexerHealth(ctx), workerHealth(ctx), ledgerHealth(ctx)]);
+  const lag = "lagBlocks" in indexer && typeof indexer.lagBlocks === "string" ? BigInt(indexer.lagBlocks) : null;
+  const caughtUp = indexer.ok && lag !== null && lag <= BigInt(ctx.cfg.reorgWindow);
+  const checks = { db: db.ok, indexer: caughtUp, worker: worker.ok, ledger: ledger.ok };
+  const ok = Object.values(checks).every(Boolean);
+  return json({ ok, checks }, { status: ok ? 200 : 503 });
+};
+
 const ROUTES: Array<[string, RegExp, string[], Handler]> = [];
 function route(method: string, pattern: string, h: Handler) {
   const keys: string[] = [];
@@ -369,6 +386,8 @@ function route(method: string, pattern: string, h: Handler) {
 route("GET", "/api/me", me);
 route("GET", "/api/config", publicConfig);
 route("GET", "/api/health", health);
+route("GET", "/api/live", live);
+route("GET", "/api/ready", ready);
 route("GET", "/api/auth/github/start", githubStart);
 route("GET", "/api/auth/github/callback", githubCallback);
 route("GET", "/api/github/setup", githubSetup);
