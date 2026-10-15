@@ -418,8 +418,12 @@ describe("W06 GitHub App: `ops:github-app-check` operator tool exit codes (no re
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     const port = (server.address() as { port: number }).port;
     const pem = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ type: "pkcs8", format: "pem" }).toString();
-    const r = await run({ GITHUB_APP_ID: "1", GITHUB_APP_SLUG: "forge", GITHUB_APP_PRIVATE_KEY: pem, GITHUB_API_URL: `http://127.0.0.1:${port}`, FORGE_PUBLIC_ORIGIN: "https://forge.example" });
-    server.close();
+    let r: Awaited<ReturnType<typeof run>>;
+    try {
+      r = await run({ GITHUB_APP_ID: "1", GITHUB_APP_SLUG: "forge", GITHUB_APP_PRIVATE_KEY: pem, GITHUB_API_URL: `http://127.0.0.1:${port}`, FORGE_PUBLIC_ORIGIN: "https://forge.example" });
+    } finally {
+      server.close();
+    }
     expect(r.status).toBe(4);
     expect(JSON.parse(r.stdout).status).toBe("SANDBOX_NOT_EVIDENCE");
   }, 60_000);

@@ -79,12 +79,13 @@ Expected: exit 0, no output; `SELECT role, engaged FROM signer_kill_switch;` sho
 4. After the delay: Safe executes `executeBatch(...)`. Expected: both `cast call … eligibilityAuthority()` equal `$NEW`. From this block the old key is refused on the next request (log: `authority signing DISABLED: on-chain eligibilityAuthority … ≠ custody address`).
 5. `rotateSignerKey` (§2.0) with `keyRef` = the new ARN. Restart the app with `FORGE_AUTHORITY_KMS_KEY_ID=<new ARN>` and `FORGE_AUTHORITY_EXPECTED_ADDRESS=$NEW`.
 6. Expected: `signer_keys` shows version *n* `retired`, version *n+1* `active`; startup log has no `DISABLED`; the next authorization succeeds; `signer_audit` row has `key_version = n+1`.
+7. If P4 was run first (the kill switch is still engaged), release it explicitly and audibly once steps 4–6 pass: §2.0 `releaseKillSwitch(db,"authority","<operator>","<INC> rotation verified")`. Until then the signing guard keeps denying every authority request even with the new key installed.
 
 ### P4 Emergency authority-key revocation (suspected compromise)
 1. Immediate, off-chain, ≤ 1 min: `pnpm ops:control lockdown on --reason "<INC>" --operator <id>` and §2.0 `engageKillSwitch(db,"authority",…)` then `revokeSignerKey(db,"authority",<addr>,…)`. Expected: next request refused (`kill switch` / `is revoked`) with no custody call; `EMERGENCY_LOCKDOWN_ACTIVE` alert rule fires.
 2. Disable the KMS key (break-glass role + MFA); review the cloud `Sign` events for that key against `signer_audit` — any `Sign` without a matching `allowed` row is a custody breach.
 3. On-chain kill switch (delayed by the Timelock): Safe schedules `setEligibilityAuthority(address(0))` on the **authorizer** (bricks launches, never opens them), then P3 for the replacement; `invalidatePendingOps(repoId)` for affected repositories (W03 runbook §3).
-4. Release lockdown only after P3 completes and P1 passes.
+4. Release the authority kill switch (P3 step 7) and the lockdown (`pnpm ops:control lockdown off …`) only after P3 completes and P1 passes.
 
 ### P5 Revenue-attestor revocation and replacement
 1. §2.0 `revokeSignerKey(db,"revenue",…)` and/or `engageKillSwitch(db,"revenue",…)` — immediate.

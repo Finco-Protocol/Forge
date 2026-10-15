@@ -144,8 +144,17 @@ export function pgBin(): string {
   return process.env.PG_BIN ?? "/usr/lib/postgresql/16/bin";
 }
 
+/** Splits the password out of a connection URL: it travels in PGPASSWORD, never on a command line (visible in `ps`). */
+function pgConn(url: string): { conn: string; env: NodeJS.ProcessEnv } {
+  const u = new URL(url);
+  const pw = decodeURIComponent(u.password);
+  u.password = "";
+  return { conn: u.toString(), env: { ...process.env, ...(pw ? { PGPASSWORD: pw } : {}) } };
+}
+
 export function backupDatabase(url: string, file: string): void {
-  execFileSync(path.join(pgBin(), "pg_dump"), ["--format=custom", "--no-owner", `--file=${file}`, url]);
+  const { conn, env } = pgConn(url);
+  execFileSync(path.join(pgBin(), "pg_dump"), ["--format=custom", "--no-owner", `--file=${file}`, conn], { env });
 }
 
 /** Restores into a NEW database (never over an existing one). */
@@ -157,7 +166,8 @@ export async function restoreDatabase(adminUrl: string, file: string, target: st
   } finally {
     await admin.end();
   }
-  execFileSync(path.join(pgBin(), "pg_restore"), ["--no-owner", "--exit-on-error", `--dbname=${withDb(adminUrl, target)}`, file]);
+  const { conn, env } = pgConn(withDb(adminUrl, target));
+  execFileSync(path.join(pgBin(), "pg_restore"), ["--no-owner", "--exit-on-error", `--dbname=${conn}`, file], { env });
   return withDb(adminUrl, target);
 }
 

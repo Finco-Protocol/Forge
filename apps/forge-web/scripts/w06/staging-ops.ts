@@ -5,6 +5,7 @@
  *   tsx scripts/w06/staging-ops.ts verify <manifest.json>     re-derive and compare (exit 1 on drift/tamper)
  *   tsx scripts/w06/staging-ops.ts check-env                  validate process.env with the staging guard (exit 1 = refused)
  *   tsx scripts/w06/staging-ops.ts snapshot <out.dump>        pg_dump -Fc of DATABASE_URL + sidecar digest JSON
+ *                                                             (stop the worker first: the sidecar digest is taken right after the dump and must describe the same state)
  *   tsx scripts/w06/staging-ops.ts rollback-plan <manifest>   can the DB run the target (older) build? (no down migrations)
  */
 import { readFileSync, writeFileSync } from "node:fs";

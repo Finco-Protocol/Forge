@@ -274,6 +274,7 @@ export class FakeGithub {
     if (req.method === "POST" && p.startsWith("/__control/")) {
       const action = p.slice("/__control/".length);
       const body = JSON.parse((await readBody(req)) || "{}") as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+      if ((action === "transfer" || action === "set-permission") && !this.repos.get(body.repoId)) return send(404, { message: "Not Found" });
       if (action === "transfer") this.transfer(body.repoId, body.owner);
       else if (action === "set-permission") this.setPermission(body.repoId, body.userId, body.perm ?? null);
       else if (action === "uninstall") this.uninstall(body.id);

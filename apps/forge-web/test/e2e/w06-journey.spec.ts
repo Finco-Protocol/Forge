@@ -202,10 +202,14 @@ test("J10 bonding-curve trade is reflected after indexing; a transaction not yet
   await rpc("evm_increaseTime", [30]); // clear the anti-snipe window
   await rpc("evm_mine");
   await rpc("evm_setAutomine", [false]);
-  const hash = await rpc<Hex>("eth_sendTransaction", [{ from: BUYER, to: curve, data: encodeFunctionData({ abi: ponsV2BondingCurveAbi, functionName: "buy", args: [parseEther("10"), 0n, BUYER] }), value: `0x${parseEther("10").toString(16)}` }]);
-  await new Promise((r) => setTimeout(r, 3_000)); // several worker passes while the tx is only pending
-  expect(await buys(), "a pending (unmined) buy must not be indexed").toBe(0);
-  await rpc("evm_setAutomine", [true]);
+  let hash: Hex;
+  try {
+    hash = await rpc<Hex>("eth_sendTransaction", [{ from: BUYER, to: curve, data: encodeFunctionData({ abi: ponsV2BondingCurveAbi, functionName: "buy", args: [parseEther("10"), 0n, BUYER] }), value: `0x${parseEther("10").toString(16)}` }]);
+    await new Promise((r) => setTimeout(r, 3_000)); // several worker passes while the tx is only pending
+    expect(await buys(), "a pending (unmined) buy must not be indexed").toBe(0);
+  } finally {
+    await rpc("evm_setAutomine", [true]); // never leave the shared chain without automine
+  }
   await rpc("evm_mine");
   const t0 = Date.now();
   await expect.poll(buys, { timeout: 60_000 }).toBe(1);
