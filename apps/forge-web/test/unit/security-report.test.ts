@@ -196,7 +196,7 @@ describe("baseline is never independent acceptance by itself", () => {
   it("a high/critical decision cannot match on scope alone (named rule required)", () => {
     const d = JSON.parse(read("security/triage-decisions.json"));
     expect(d.reviewStatus).toBe("PROPOSED_BY_AGENT_PENDING_INDEPENDENT_REVIEW");
-    expect(read("security/make-baseline.mjs")).toMatch(/!high \|\| x\.match\.rule \|\| x\.match\.rules/);
+    expect(read("security/triage.mjs")).toMatch(/m\.fingerprints\.includes\(f\.fingerprint\)/);
     expect(read("security/make-baseline.mjs")).not.toContain("review:");
   });
   it("ordinary CI never regenerates or edits the baseline", () => {

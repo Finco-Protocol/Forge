@@ -11,6 +11,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { collect, validateBaseline } from "./report.mjs";
+import { findDecision, validateDecisions } from "./triage.mjs";
 
 const argv = process.argv.slice(2);
 const arg = (n) => (argv.indexOf(n) >= 0 ? argv[argv.indexOf(n) + 1] : undefined);
@@ -23,23 +24,14 @@ const { findings } = collect({
   files: { slither: arg("--slither"), aderyn: arg("--aderyn"), semgrep: arg("--semgrep") },
   required: ["slither", "aderyn", "semgrep"],
 });
-const dec = JSON.parse(readFileSync(path.join(root, "security", "triage-decisions.json"), "utf8"));
-
-const matches = (m, f) =>
-  (!m.scanner || m.scanner === f.scanner) &&
-  (!m.rule || m.rule === f.rule) &&
-  (!m.rules || m.rules.includes(f.rule)) &&
-  (!m.scope || m.scope === f.scope) &&
-  (!m.scopes || m.scopes.includes(f.scope)) &&
-  (!m.file || m.file === f.file);
+const dec = validateDecisions(JSON.parse(readFileSync(path.join(root, "security", "triage-decisions.json"), "utf8")));
 
 const entries = [];
 const unmatched = [];
 for (const f of findings) {
   if (f.scope === "vendored-dependency") continue;
-  // High/critical findings are only ever matched by decisions that NAME the rule(s) - never by a scope-wide catch-all.
-  const high = f.severity === "high" || f.severity === "critical";
-  const d = dec.decisions.find((x) => matches(x.match, f) && (!high || x.match.rule || x.match.rules));
+  // High/critical findings match only a decision that lists their exact fingerprint (security/triage.mjs).
+  const d = findDecision(dec.decisions, f);
   if (!d) {
     unmatched.push(f);
     continue;
