@@ -39,7 +39,8 @@ WORKDIR /repo
 COPY --from=build /repo /repo
 COPY --from=contracts /repo/out /repo/out
 COPY ops/staging/entrypoint.sh /usr/local/bin/forge-entrypoint
-RUN chmod +x /usr/local/bin/forge-entrypoint && useradd --system --uid 10001 --create-home --home-dir /home/forge forge \n && mkdir -p /sandbox && chown -R forge /sandbox /home/forge /repo/apps/forge-web/.next
+RUN chmod +x /usr/local/bin/forge-entrypoint && useradd --system --uid 10001 --create-home --home-dir /home/forge forge \
+ && mkdir -p /sandbox && chown -R forge /sandbox /home/forge /repo/apps/forge-web/.next
 # The runtime user needs a writable HOME: corepack writes its cache under $HOME/.cache at
 # `pnpm exec` time, and without it every role crashed with EACCES (W07 compose smoke finding).
 ENV HOME=/home/forge
