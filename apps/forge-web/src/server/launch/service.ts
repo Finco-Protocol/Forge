@@ -55,7 +55,9 @@ export const DraftInput = z.object({
   logo: url.default(""),
   socials: z
     .object({ twitter: url.default(""), telegram: url.default(""), discord: url.default(""), website: url.default(""), farcaster: url.default("") })
-    .default({}),
+    // zod 4 types `.default()` against the OUTPUT type; the explicit full object is
+    // equivalent to the previous `default({})` (every field defaults to "" anyway).
+    .default({ twitter: "", telegram: "", discord: "", website: "", farcaster: "" }),
   launchConfigId: z.number().int().min(0).default(0),
   pairToken: addr.default(ZERO_ADDRESS),
   creatorFeeRecipient: addr.optional(),
