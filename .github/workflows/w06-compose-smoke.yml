@@ -77,13 +77,16 @@ jobs:
           EVENTS_BEFORE=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM chain_events")
           docker kill --signal SIGKILL "$WORKER"
           sleep 5
+          # Inspect the SAME container id throughout: `compose ps -q` returns nothing while
+          # the container is between restarts, which made the first drill loop inspect "".
           for _ in $(seq 1 36); do
-            NOW=$(docker compose --env-file ops/staging/.env.staging ps -q worker)
-            START=$(docker inspect --format '{{.State.StartedAt}}' "$NOW" 2>/dev/null || echo gone)
-            if [ "$START" != "$BEFORE_START" ] && curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
-              RESTARTS=$(docker inspect --format '{{.RestartCount}}' "$NOW")
+            STATE=$(docker inspect --format '{{.State.Running}} {{.RestartCount}} {{.State.StartedAt}}' "$WORKER")
+            echo "worker state: $STATE"
+            set -- $STATE
+            RUNNING=$1; RESTARTS=$2; START=$3
+            if [ "$RUNNING" = "true" ] && [ "$START" != "$BEFORE_START" ] && [ "$RESTARTS" -gt "$BEFORE_RESTARTS" ] && curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
               EVENTS_AFTER=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM chain_events")
-              echo "worker container recreated ($BEFORE_START -> $START, restarts $BEFORE_RESTARTS -> $RESTARTS); readiness restored"
+              echo "worker restarted by the policy ($BEFORE_START -> $START, restarts $BEFORE_RESTARTS -> $RESTARTS); readiness restored"
               [ "$EVENTS_AFTER" = "$EVENTS_BEFORE" ] || { echo "::error::chain_events changed across the crash ($EVENTS_BEFORE -> $EVENTS_AFTER)"; exit 1; }
               echo "no duplicate indexing: chain_events stable at $EVENTS_AFTER"
               exit 0
