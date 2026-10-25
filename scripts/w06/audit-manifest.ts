@@ -36,7 +36,18 @@ export const BASELINE_COMMIT = "f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f";
  * Any entry must carry a documented reason and can only be added after review;
  * a modification that is not listed here fails generation and --check.
  */
-export const BASELINE_MODIFICATIONS_ALLOWED: readonly { path: string; reason: string }[] = [];
+export const BASELINE_MODIFICATIONS_ALLOWED: readonly { path: string; reason: string }[] = [
+  {
+    path: "contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol",
+    reason:
+      "W07 D12 reconciliation: natspec-only correction of the false 'permanently revokes' claim on setEligibilityAuthority(0) — zero is owner-reversible (no latch), as the tests and docs already stated. Comments generate no bytecode or ABI change (runtime size and ABI verified unchanged); the claim itself was the defect.",
+  },
+  {
+    path: "test-forge/ForgeLaunchAuth.t.sol",
+    reason:
+      "W07 D12: adds test_W07_zero_authority_is_owner_reversible_and_registry_refuses_zero, the explicit regression that the zero kill switch is owner-reversible and that the registry refuses zero (test-only; no contract change).",
+  },
+];
 
 /**
  * Baseline files deliberately REMOVED from the tree after BASELINE_COMMIT.

@@ -399,6 +399,26 @@ contract ForgeLaunchAuthTest is Test {
         authorizer.requireAuthorizedLaunch(intent, creator, true, consent, goodAtt);
     }
 
+    /// W07 (D12): zero is an OWNER-REVERSIBLE kill switch, not a permanent
+    /// revocation — the same owner restores a non-zero authority immediately,
+    /// with no timelock; the registry refuses zero entirely (its authority can
+    /// never be bricked on chain). Governance decision on a latch/delay stays
+    /// open (docs/audit/KNOWN-DISCREPANCIES.md D12).
+    function test_W07_zero_authority_is_owner_reversible_and_registry_refuses_zero() public {
+        vm.prank(forgeGovernance);
+        authorizer.setEligibilityAuthority(address(0));
+        assertEq(authorizer.eligibilityAuthority(), address(0));
+
+        vm.prank(forgeGovernance);
+        vm.expectRevert();
+        registry.setEligibilityAuthority(address(0));
+        assertEq(registry.eligibilityAuthority(), authority);
+
+        vm.prank(forgeGovernance);
+        authorizer.setEligibilityAuthority(authority);
+        assertEq(authorizer.eligibilityAuthority(), authority);
+    }
+
     function test_b10_unauthorized_wallet_reverts() public {
         IForgeLaunchAuthorizer.LaunchIntent memory intent = _intent();
         intent.creator = attacker;

@@ -21,6 +21,7 @@ const ACCESS = new Set([
   "self",
   "authorized-creator",
   "launch-forwarder",
+  "permitted-launcher",
   "creator-fee-recipient",
   "creator-or-owner-disable",
   "forge-factory",
@@ -50,6 +51,7 @@ describe("W05 contract authority matrix", () => {
         "PonsV2BuybackVault",
         "PonsV2FeeEscrow",
         "PonsV2GraduationExecutor",
+        "PonsV2LaunchAndBuy",
         "PonsV2LaunchDeployer",
         "PonsV2LaunchFactory",
         "PonsV2LaunchLocker",
@@ -91,6 +93,7 @@ describe("W05 contract authority matrix", () => {
         "PonsV2LaunchFactory.rescueCurveFees:owner",
         "PonsV2LaunchFactory.rescueSweptGraduation:owner",
         "PonsV2LaunchFactory.setLaunchEnabled:owner",
+        "PonsV2LaunchAndBuy.rescue:owner",
         "PonsV2MemeHook.rescuePoolFees:owner",
       ].sort(),
     );
@@ -98,7 +101,10 @@ describe("W05 contract authority matrix", () => {
 
   it("renounceOwnership is exposed only where the W05 review recorded it", () => {
     const renounce = contracts.filter(([, e]) => e.functions.some((f) => f.signature === "renounceOwnership()")).map(([c]) => c);
-    expect(renounce.sort()).toEqual(["ForgeBindingRegistry", "ForgeLaunchAuthorizer"]);
+    // W07 (D11 reconciliation): PonsV2LaunchAndBuy is the THIRD renounceable surface.
+    // PonsV2BondingCurve, PonsV2LauncherToken and PonsV2GraduationGuard have no owner
+    // surface at all (no Ownable) and are deliberately out of the matrix.
+    expect(renounce.sort()).toEqual(["ForgeBindingRegistry", "ForgeLaunchAuthorizer", "PonsV2LaunchAndBuy"]);
   });
 
   it("docs/W05-AUTHORITY-MATRIX.md is exactly the rendering of the JSON (no hand edits, no drift)", () => {

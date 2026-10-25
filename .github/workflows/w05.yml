@@ -24,7 +24,7 @@ env:
 
 jobs:
   forge-security:
-    name: "w05: forge security suites (owner powers, attestor compromise)"
+    name: "w05: forge security suites (emergency revocation, owner powers, attestor compromise)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -35,8 +35,8 @@ jobs:
         with:
           version: ${{ env.FOUNDRY_VERSION }}
       - run: forge build --profile forge
-      - name: F-03/F-04 owner powers, compromised attestor, revenue provenance, lifecycle
-        run: forge test --profile forge --match-contract "W05OwnerPowersTest|W05AttestorCompromiseTest|ForgeRevenueSplitterTest|ForgeRevenueSplitterInvariantTest|ForgeRevenueLifecycleTest" -vv
+      - name: W05-06 emergency revocation (D9: mandatory since W07), F-03/F-04 owner powers, compromised attestor, revenue provenance, lifecycle
+        run: forge test --profile forge --match-contract "W05EmergencyRevocationTest|W05OwnerPowersTest|W05AttestorCompromiseTest|ForgeRevenueSplitterTest|ForgeRevenueSplitterInvariantTest|ForgeRevenueLifecycleTest" -vv
 
   v4-local:
     name: "w05: genuine Uniswap V4 integration (local)"

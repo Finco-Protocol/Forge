@@ -41,6 +41,33 @@ jobs:
           done
           docker compose -f ops/staging/docker-compose.staging.yml logs --no-color | tail -200
           exit 1
+      - name: W07 chain-write confinement (local anvil only, chain 31337)
+        run: |
+          grep -q "FORGE_CHAIN_ID: 31337" ops/staging/docker-compose.staging.yml
+          ! grep -qE "rpc.mainnet.chain.robinhood.com|FORK_URL" ops/staging/docker-compose.staging.yml ops/staging/.env.staging
+          echo "stack confined to the local anvil"
+      - name: W07 worker SIGKILL and automatic recovery
+        run: |
+          docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging kill -s SIGKILL worker
+          sleep 5
+          for _ in $(seq 1 24); do
+            UP=$(docker compose -f ops/staging/docker-compose.staging.yml ps --format json | grep -c '"Health":"healthy"\|"running"')
+            if curl -fsS http://127.0.0.1:3000/api/ready && docker compose -f ops/staging/docker-compose.staging.yml ps worker | grep -q running; then
+              echo "worker recovered after SIGKILL"; exit 0
+            fi
+            sleep 5
+          done
+          docker compose -f ops/staging/docker-compose.staging.yml logs --no-color worker | tail -100
+          exit 1
+      - name: W07 PostgreSQL restart (persistence + pool recovery)
+        run: |
+          docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging restart postgres
+          for _ in $(seq 1 36); do
+            if curl -fsS http://127.0.0.1:3000/api/ready; then echo "postgres restarted; web+worker reconnected"; exit 0; fi
+            sleep 5
+          done
+          docker compose -f ops/staging/docker-compose.staging.yml logs --no-color | tail -200
+          exit 1
       - name: down
         if: always()
         run: docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging down -v
