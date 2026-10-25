@@ -6,7 +6,7 @@ Status after W07 (see `docs/W07-OPERATIONAL-RELIABILITY.md` for the full backlog
 
 | ID | Item | Where | Why it remains |
 |---|---|---|---|
-| E1 | Compose-level backup/restore into a NEW database with ledger-digest agreement (brief §5.2 items 10–11) | `w06-compose-smoke.yml` + `apps/forge-web/scripts/w06/staging-ops.ts` | The smoke now proves build/start/readiness/SIGKILL-recovery/Postgres-restart/confined-writes; the restore-into-new-DB leg needs a second database + the `staging-ops` snapshot/restore pair inside the compose network — deferred to keep the smoke minimal; the backup/restore MECHANICS are proven by `db:backup-rehearsal` |
+| E1 | Compose-level backup/restore into a NEW database with ledger-digest agreement | `w06-compose-smoke.yml` (Correction A) + `apps/forge-web/scripts/w06/staging-ops.ts` | CLOSED in Correction A: the smoke now stops the worker, `pg_dump`s the running staging database, restores into a second `forge_restore` database, and asserts identical canonical ledger digests via `staging-ops snapshot` on both. The final smoke run id/SHA is recorded in `docs/W07-OPERATIONAL-RELIABILITY.md` §4. |
 | E2 | Genuine V4 graduation in the browser journey (brief §6.3) | `apps/forge-web/test/e2e/w06-journey.spec.ts` step 11 | Documented W08 integration target; sandbox pool remains the browser evidence; genuine V4 acceptance is `test/v4` (A06) |
 | E3 | W08 real-beta readiness wiring | release/readiness-items.json | A17 now covers operational reliability; W08 adds beta-acceptance items per its own brief |
 

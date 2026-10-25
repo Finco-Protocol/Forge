@@ -6,7 +6,7 @@
  * (status stays EXTERNAL_GITHUB_APP_CONFIGURATION_REQUIRED).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { generateKeyPairSync, randomUUID } from "node:crypto";
+import { generateKeyPairSync, randomUUID , createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
@@ -14,6 +14,7 @@ import path from "node:path";
 import { PgliteDb } from "@/server/db";
 import { migrate } from "@/server/db/migrate";
 import { handleWebhook, signWebhookBody } from "@/server/github/webhooks";
+import { retryDueWebhookDeliveries } from "@/server/github/webhooks";
 import { GithubApp, GithubHttpError } from "@/server/github/client";
 import { evaluateAppConfig, OPERATOR_SETUP, OPTIONAL_READ_PERMISSIONS, REQUIRED_EVENTS, REQUIRED_PERMISSIONS, type AppConfigEvidence } from "@/server/github/app-readiness";
 import type { AppContext } from "@/server/context";
@@ -26,7 +27,12 @@ let allowPrivate = false;
 const ctx = () =>
   ({
     db,
-    cfg: { github: { webhookSecret: SECRET }, policy: { get allowPrivateRepos() { return allowPrivate; } } },
+    cfg: {
+      github: { webhookSecret: SECRET },
+      policy: { get allowPrivateRepos() { return allowPrivate; } },
+      worker: { webhookMaxAttempts: 8, jobLeaseSeconds: 30, heartbeatStaleSeconds: 60 }, // W07 delivery lifecycle
+      revocationSloSeconds: 300,
+    },
     github: { forgetInstallation: (id: number) => void forgotten.push(id) },
   }) as unknown as AppContext;
 
@@ -107,10 +113,14 @@ describe("W06 GitHub: webhook signature (HMAC-SHA256, verified BEFORE parsing)",
     await expect(post("repository", null, { body: "{not json", sigOverride: "sha256=00" })).rejects.toMatchObject({ code: "BAD_SIGNATURE" });
   });
 
-  it("a correctly signed but malformed body is refused without side effects (OBSERVATION: surfaces as a thrown SyntaxError, i.e. HTTP 5xx rather than 400)", async () => {
+  it("W07: a correctly signed but malformed body is a CONTROLLED 400 INVALID_PAYLOAD — signature checked first, no receipt, no state change, no queued work, audited", async () => {
     const before = await deliveries();
-    await expect(post("repository", null, { body: "{not json" })).rejects.toThrow(SyntaxError);
-    expect(await deliveries()).toBe(before);
+    await expect(post("repository", null, { body: "{not json" })).rejects.toMatchObject({ code: "INVALID_PAYLOAD", status: 400 });
+    await expect(post("repository", null, { body: "null" })).rejects.toMatchObject({ code: "INVALID_PAYLOAD", status: 400 });
+    await expect(post("repository", null, { body: "[1,2]" })).rejects.toMatchObject({ code: "INVALID_PAYLOAD", status: 400 });
+    expect(await deliveries()).toBe(before); // no receipt, nothing queued
+    const audited = await db.query("SELECT 1 FROM audit_events WHERE action = 'webhook_invalid_payload'");
+    expect(audited.rows.length).toBeGreaterThanOrEqual(3); // the refusal is immutably audited
   });
 
   it("malformed delivery/event headers and oversize payloads are refused (400/413)", async () => {
@@ -125,31 +135,121 @@ describe("W06 GitHub: webhook signature (HMAC-SHA256, verified BEFORE parsing)",
 // ── 2. replay protection and atomicity ──────────────────────────────────────
 
 describe("W06 GitHub: replay protection and atomic delivery processing", () => {
-  it("a replayed delivery GUID is a no-op even when the replayed BODY is different (no attacker-chosen second effect)", async () => {
+  it("W07: a replayed delivery GUID with a DIFFERENT body is refused (delivery-id/payload binding) — no attacker-chosen second effect; the same body is a duplicate no-op", async () => {
     const s = await seedRepo();
     const delivery = randomUUID();
     const first = await post("repository", { action: "edited", repository: { id: s.repoId, full_name: "x/y", default_branch: "main" } }, { delivery });
     expect(first.body).toMatchObject({ processed: true, outcome: "edited" });
     expect(await active(s.repoId)).toBe("1");
-    const replay = await post("repository", { action: "deleted", repository: { id: s.repoId, full_name: "x/y" } }, { delivery });
-    expect(replay.body).toEqual({ duplicate: true });
+    // a different body under the same GUID: REFUSED, not a misleading 200
+    await expect(
+      post("repository", { action: "deleted", repository: { id: s.repoId, full_name: "x/y" } }, { delivery, body: JSON.stringify({ action: "deleted", repository: { id: s.repoId, full_name: "x/y" } }) + " " }),
+    ).rejects.toMatchObject({ code: "PAYLOAD_MISMATCH", status: 409 });
     expect(await active(s.repoId)).toBe("1");
     expect(await jobs(s.repoId, "registry_revoke")).toBe(0);
     const row = (await db.query<{ action: string }>("SELECT action FROM webhook_deliveries WHERE delivery_id = $1", [delivery])).rows[0]!;
     expect(row.action).toBe("edited"); // the first body is what was recorded
   });
 
-  it("a delivery whose processing fails is rolled back entirely, so GitHub's redelivery of the SAME GUID is processed exactly once", async () => {
+  it("W07: a delivery whose processing fails leaves a DURABLE receipt (attempts, error, retry) with NO side effects, and the SAME-GUID replay of a processed delivery is a no-op", async () => {
     const s = await seedRepo();
     const delivery = randomUUID();
     // A non-numeric repo id makes the first SQL statement of the transferred handler throw inside the transaction.
     await expect(post("repository", { action: "transferred", repository: { id: "not-a-number", full_name: "a/b" } }, { delivery })).rejects.toThrow();
-    expect((await db.query("SELECT 1 FROM webhook_deliveries WHERE delivery_id = $1", [delivery])).rows.length).toBe(0);
-    const ok = await post("repository", { action: "archived", repository: { id: s.repoId, full_name: "a/b" } }, { delivery });
-    expect(ok.body).toMatchObject({ processed: true, outcome: "archived" });
-    const again = await post("repository", { action: "archived", repository: { id: s.repoId, full_name: "a/b" } }, { delivery });
-    expect(again.body).toEqual({ duplicate: true });
+    // W07 lifecycle: the failure is durably RECEIPTED (attempts, last_error, retry scheduled) —
+    // monitoring can observe it and the worker can retry it — while the failed side effects
+    // (invalidation, queued revocations) are fully rolled back.
+    const row = (await db.query<{ status: string; attempts: string; last_error: string; signature_verified: boolean }>(
+      "SELECT status, attempts::text, last_error, signature_verified FROM webhook_deliveries WHERE delivery_id = $1",
+      [delivery],
+    )).rows[0]!;
+    expect(row.status).toBe("received");
+    expect(Number(row.attempts)).toBe(1);
+    expect(row.last_error).toBeTruthy();
+    expect(row.signature_verified).toBe(true);
+    expect(await ineligible(s.repoId)).toBeNull(); // no partial application effects
+    expect(await jobs(s.repoId, "registry_revoke")).toBe(0); // no unauthorized queued work
+    // A different payload under the same GUID is REFUSED (delivery-id/payload binding).
+    await expect(post("repository", { action: "archived", repository: { id: s.repoId, full_name: "a/b" } }, { delivery })).rejects.toMatchObject({
+      code: "PAYLOAD_MISMATCH",
+      status: 409,
+    });
+    // The stored receipt still describes the ORIGINAL authenticated payload.
+    const stored = (await db.query<{ action: string }>("SELECT action FROM webhook_deliveries WHERE delivery_id = $1", [delivery])).rows[0]!;
+    expect(stored.action).toBe("transferred");
+    // And the reactivated failed delivery is retried by the worker with bounded attempts (proven in the incident drills).
+  });
+});
+
+// ── 2b. W07 exactly-once and concurrent delivery safety ─────────────────────
+
+describe("W07 GitHub: exactly-once processing under concurrency and delivery-id/payload binding", () => {
+  it("two SIMULTANEOUS requests with the same delivery GUID process exactly once: one applies, the other is a duplicate no-op (no double audit, no double jobs, no double invalidation)", async () => {
+    const s = await seedRepo();
+    const delivery = randomUUID();
+    const payload = { action: "deleted", repository: { id: s.repoId, full_name: "x/y" } };
+    const [r1, r2] = await Promise.allSettled([post("repository", payload, { delivery }), post("repository", payload, { delivery })]);
+    if (r1.status === "rejected" && r2.status === "rejected") throw new Error(`both requests failed: ${r1.reason} / ${r2.reason}`);
+    const ok = r1.status === "fulfilled" ? r1 : r2.status === "fulfilled" ? r2 : null;
+    if (!ok) throw new Error("neither request fulfilled");
+    const fulfilled = ok.value;
+    expect(fulfilled.body).toMatchObject({ processed: true });
+    const audits = await db.query<{ n: string }>("SELECT count(*)::text n FROM audit_events WHERE action = 'webhook_repository' AND subject = $1", [`repo:${s.repoId}`]);
+    expect(Number(audits.rows[0]!.n)).toBe(1); // exactly one processing audit event
+    expect(await jobs(s.repoId, "registry_revoke")).toBe(1); // exactly one revocation queued
+    expect(await ineligible(s.repoId)).toBe("deleted");
+    expect(await active(s.repoId)).toBe("0");
+  });
+
+  it("a worker retry racing an HTTP redelivery of the SAME delivery serializes on the row lock: exactly one apply", async () => {
+    const s = await seedRepo();
+    const delivery = randomUUID();
+    // Simulate a durably received, due-for-retry receipt (as the crash window would leave it).
+    const body = JSON.stringify({ action: "deleted", repository: { id: s.repoId, full_name: "x/y" } });
+    await db.query(
+      "INSERT INTO webhook_deliveries(delivery_id, event, action, payload_sha256, body, signature_verified, status, attempts, next_retry_at, received_at) VALUES ($1,'repository','deleted',$2,$3,true,'received',1, now(), now() - interval '1 hour')",
+      [delivery, createHash("sha256").update(body).digest("hex"), body],
+    );
+    const [worker, http] = await Promise.allSettled([
+      retryDueWebhookDeliveries(ctx(), 5),
+      post("repository", JSON.parse(body), { delivery }),
+    ]);
+    if (worker.status === "rejected" && http.status === "rejected") throw new Error(`both failed: ${worker.reason} / ${http.reason}`);
+    const audits = await db.query<{ n: string }>("SELECT count(*)::text n FROM audit_events WHERE action = 'webhook_repository' AND subject = $1", [`repo:${s.repoId}`]);
+    expect(Number(audits.rows[0]!.n)).toBe(1); // serialized: exactly one apply
+    const row = (await db.query<{ status: string }>("SELECT status FROM webhook_deliveries WHERE delivery_id = $1", [delivery])).rows[0]!;
+    expect(row.status).toBe("processed");
     expect(await jobs(s.repoId, "registry_revoke")).toBe(1);
+  });
+
+  it("delivery-id/payload binding: same ID + same payload re-activates a failed delivery; same ID + different EVENT or payload is refused; processed stays a no-op", async () => {
+    const s = await seedRepo();
+    const delivery = randomUUID();
+    // A TRANSIENT failure seeded as a received receipt; the same authenticated payload is
+    // redelivered via HTTP and must be re-activated and processed.
+    const body = JSON.stringify({ action: "transferred", repository: { id: s.repoId, full_name: "new-owner/x", owner: { id: 424242, login: "new-owner" } } });
+    const sha = createHash("sha256").update(body).digest("hex");
+    await db.query(
+      "INSERT INTO webhook_deliveries(delivery_id, event, action, payload_sha256, body, signature_verified, status, attempts, last_error, next_retry_at, received_at) VALUES ($1,'repository','transferred',$2,$3,true,'received',1,'seeded transient failure', now(), now() - interval '1 hour')",
+      [delivery, sha, body],
+    );
+    const r = await post("repository", JSON.parse(body), { delivery });
+    expect(r.body).toMatchObject({ processed: true, outcome: "transferred" });
+    expect(await ineligible(s.repoId)).toBe("transferred");
+    // processed + same GUID + different body: REFUSED (the binding is checked before any status shortcut)
+    await expect(post("repository", { action: "archived", repository: { id: s.repoId, full_name: "x/y" } }, { delivery })).rejects.toMatchObject({ code: "PAYLOAD_MISMATCH", status: 409 });
+    // processed + different EVENT under the same GUID: refused (binding checked even on processed rows)
+    await expect(post("installation", { action: "deleted", installation: { id: s.inst } }, { delivery })).rejects.toMatchObject({ code: "PAYLOAD_MISMATCH", status: 409 });
+    // a FAILED delivery + different payload: refused (no silent substitution)
+    const failed = randomUUID();
+    await db.query(
+      "INSERT INTO webhook_deliveries(delivery_id, event, action, payload_sha256, body, signature_verified, status, attempts, last_error) VALUES ($1,'repository','archived',$2,$3,true,'failed',8,'seeded terminal failure')",
+      [failed, sha, body],
+    );
+    await expect(post("repository", { action: "deleted", repository: { id: s.repoId, full_name: "x/y" } }, { delivery: failed })).rejects.toMatchObject({ code: "PAYLOAD_MISMATCH", status: 409 });
+    const still = (await db.query<{ status: string; attempts: string }>("SELECT status, attempts::text FROM webhook_deliveries WHERE delivery_id = $1", [failed])).rows[0]!;
+    expect(still.status).toBe("failed");
+    expect(Number(still.attempts)).toBe(8);
   });
 });
 

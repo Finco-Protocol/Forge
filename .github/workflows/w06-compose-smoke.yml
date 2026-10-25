@@ -1,9 +1,9 @@
 name: W06 Staging Compose Smoke (manual)
 
 # MANUAL ONLY. Builds and starts ops/staging/docker-compose.staging.yml on a GitHub runner (which has Docker) and
-# waits for readiness. It is deliberately NOT part of the required exact-head checks: the compose file could not be
-# executed where it was written (no Docker daemon), and a manual smoke must never silently gate a merge. Run it
-# once from the Actions tab and attach the result to the readiness evidence.
+# exercises startup, confinement, crash recovery, persistence and backup/restore. It is deliberately NOT part of the
+# required exact-head checks (a manual smoke must never silently gate a merge): run it from the Actions tab and
+# attach the result (run id + SHA) to the readiness evidence.
 
 on:
   workflow_dispatch:
@@ -11,9 +11,12 @@ on:
 permissions:
   contents: read
 
+env:
+  COMPOSE_FILE: ops/staging/docker-compose.staging.yml
+
 jobs:
   compose-smoke:
-    name: "w06: staging compose smoke"
+    name: "w06/w07: staging compose smoke + recovery + backup/restore"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -31,44 +34,104 @@ jobs:
           } > /tmp/secrets.env
           grep -v -E '^(POSTGRES_PASSWORD|SESSION_SECRET|FORGE_OPS_TOKEN|GITHUB_WEBHOOK_SECRET)=' ops/staging/.env.staging > /tmp/keys.env
           cat /tmp/secrets.env /tmp/keys.env > ops/staging/.env.staging
+      # Correction A 4.1: confinement is decided from the PARSED compose config, before any
+      # application container starts. A textual grep missed the quoted "31337".
+      - name: W07 chain-write confinement (parsed config, BEFORE startup)
+        run: |
+          docker compose --env-file ops/staging/.env.staging config >/tmp/resolved.yaml
+          FORGE_CHAIN_ID=$(grep -m1 'FORGE_CHAIN_ID:' /tmp/resolved.yaml | tr -d '" ' | cut -d: -f2)
+          RPC=$(grep -m1 'FORGE_RPC_URL:' /tmp/resolved.yaml | tr -d '" ' | cut -d: -f2-)
+          [ "$FORGE_CHAIN_ID" = "31337" ] || { echo "::error::compose resolves FORGE_CHAIN_ID=$FORGE_CHAIN_ID (expected 31337)"; exit 1; }
+          case "$RPC" in
+            http://anvil:8545) ;;
+            *) echo "::error::compose resolves FORGE_RPC_URL=$RPC (expected the internal anvil)"; exit 1;;
+          esac
+          if grep -qE 'rpc\.mainnet\.chain\.robinhood\.com|FORK_URL|chainlist|infura|alchemy' /tmp/resolved.yaml ops/staging/.env.staging; then
+            echo "::error::an external chain endpoint appears in the resolved config"; exit 1
+          fi
+          echo "confinement OK: chain 31337 via the internal anvil only, no external chain endpoint"
       - name: up
         run: |
-          docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging up --build -d             || { docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging logs --no-color | tail -300; exit 1; }
+          docker compose --env-file ops/staging/.env.staging up --build -d \
+            || { docker compose --env-file ops/staging/.env.staging logs --no-color | tail -300; exit 1; }
       - name: wait for readiness (web + worker + indexer + ledger)
         run: |
           for _ in $(seq 1 90); do
             if curl -fsS http://127.0.0.1:3000/api/ready; then echo; exit 0; fi
             sleep 5
           done
-          docker compose -f ops/staging/docker-compose.staging.yml logs --no-color | tail -200
+          docker compose --env-file ops/staging/.env.staging logs --no-color | tail -200
           exit 1
-      - name: W07 chain-write confinement (local anvil only, chain 31337)
+      # Correction A 4.2: a REAL unexpected termination — SIGKILL to PID 1 inside the
+      # worker container (tini dies, the container exits non-zero). `docker compose kill`
+      # from outside is an operator-initiated stop and is treated differently by the
+      # restart policy. Recovery evidence: a NEW container start time, an increased
+      # restart count, readiness restored, and no duplicate ledger state.
+      - name: W07 worker crash drill (in-container SIGKILL to PID 1) and automatic recovery
         run: |
-          grep -q "FORGE_CHAIN_ID: 31337" ops/staging/docker-compose.staging.yml
-          ! grep -qE "rpc.mainnet.chain.robinhood.com|FORK_URL" ops/staging/docker-compose.staging.yml ops/staging/.env.staging
-          echo "stack confined to the local anvil"
-      - name: W07 worker SIGKILL and automatic recovery
-        run: |
-          docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging kill -s SIGKILL worker
+          WORKER=$(docker compose --env-file ops/staging/.env.staging ps -q worker)
+          BEFORE_START=$(docker inspect --format '{{.State.StartedAt}}' "$WORKER")
+          BEFORE_RESTARTS=$(docker inspect --format '{{.RestartCount}}' "$WORKER")
+          EVENTS_BEFORE=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM chain_events")
+          docker compose --env-file ops/staging/.env.staging exec -T worker sh -c "kill -9 1"
           sleep 5
-          for _ in $(seq 1 24); do
-            UP=$(docker compose -f ops/staging/docker-compose.staging.yml ps --format json | grep -c '"Health":"healthy"\|"running"')
-            if curl -fsS http://127.0.0.1:3000/api/ready && docker compose -f ops/staging/docker-compose.staging.yml ps worker | grep -q running; then
-              echo "worker recovered after SIGKILL"; exit 0
+          for _ in $(seq 1 36); do
+            NOW=$(docker compose --env-file ops/staging/.env.staging ps -q worker)
+            START=$(docker inspect --format '{{.State.StartedAt}}' "$NOW" 2>/dev/null || echo gone)
+            if [ "$START" != "$BEFORE_START" ] && curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
+              RESTARTS=$(docker inspect --format '{{.RestartCount}}' "$NOW")
+              EVENTS_AFTER=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM chain_events")
+              echo "worker container recreated ($BEFORE_START -> $START, restarts $BEFORE_RESTARTS -> $RESTARTS); readiness restored"
+              [ "$EVENTS_AFTER" = "$EVENTS_BEFORE" ] || { echo "::error::chain_events changed across the crash ($EVENTS_BEFORE -> $EVENTS_AFTER)"; exit 1; }
+              echo "no duplicate indexing: chain_events stable at $EVENTS_AFTER"
+              exit 0
             fi
             sleep 5
           done
-          docker compose -f ops/staging/docker-compose.staging.yml logs --no-color worker | tail -100
+          docker compose --env-file ops/staging/.env.staging logs --no-color worker | tail -100
           exit 1
-      - name: W07 PostgreSQL restart (persistence + pool recovery)
+      # Correction A 4.3: persistence is proven by DATA, not by a 200 — key tables and
+      # the indexer checkpoint must be identical across the restart.
+      - name: W07 PostgreSQL restart (persistence proven by data equality)
         run: |
-          docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging restart postgres
+          SNAPSHOT() {
+            docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc \
+              "SELECT (SELECT count(*) FROM chain_events) || ':' || (SELECT count(*) FROM indexer_checkpoints) || ':' || (SELECT count(*) FROM ledger_snapshots) || ':' || coalesce((SELECT max(last_block::text) FROM indexer_checkpoints),'0')"
+          }
+          BEFORE=$(SNAPSHOT)
+          [ "$BEFORE" != "0:0:0:0" ] || { echo "::error::nothing persisted before the restart"; exit 1; }
+          docker compose --env-file ops/staging/.env.staging restart postgres
           for _ in $(seq 1 36); do
-            if curl -fsS http://127.0.0.1:3000/api/ready; then echo "postgres restarted; web+worker reconnected"; exit 0; fi
+            if curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
+              AFTER=$(SNAPSHOT)
+              [ "$AFTER" = "$BEFORE" ] || { echo "::error::data changed across the postgres restart ($BEFORE -> $AFTER)"; exit 1; }
+              echo "postgres restarted; persistence proven ($AFTER); web+worker reconnected"
+              exit 0
+            fi
             sleep 5
           done
-          docker compose -f ops/staging/docker-compose.staging.yml logs --no-color | tail -200
+          docker compose --env-file ops/staging/.env.staging logs --no-color | tail -200
           exit 1
+      # Correction A 4.4: REAL compose-level backup -> restore into a SECOND database ->
+      # canonical ledger digest agreement (closes the W07 handover E1 carryover).
+      - name: W07 backup -> restore into a second database -> ledger digest agreement
+        run: |
+          PG_PW=$(grep '^POSTGRES_PASSWORD=' ops/staging/.env.staging | head -1 | cut -d= -f2)
+          # snapshot wants a quiet database (the sidecar digest must describe the dump)
+          docker compose --env-file ops/staging/.env.staging stop worker
+          docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge -Fc forge_staging > backup.dump
+          docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_restore
+          docker compose --env-file ops/staging/.env.staging exec -T postgres pg_restore -U forge -d forge_restore --no-owner < backup.dump
+          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps web pnpm exec tsx scripts/w06/staging-ops.ts snapshot /tmp/o.dump | tail -1)
+          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web pnpm exec tsx scripts/w06/staging-ops.ts snapshot /tmp/r.dump | tail -1)
+          echo "original: $ORIG"
+          echo "restored: $REST"
+          OD=$(echo "$ORIG" | grep -o '"ledgerDigest":"[^"]*"' | cut -d'"' -f4)
+          RD=$(echo "$REST" | grep -o '"ledgerDigest":"[^"]*"' | cut -d'"' -f4)
+          [ -n "$OD" ] || { echo "::error::no ledger digest from the original database"; exit 1; }
+          [ "$OD" = "$RD" ] || { echo "::error::ledger digest mismatch after restore ($OD vs $RD)"; exit 1; }
+          echo "ledger digest agreement proven: $OD"
+          docker compose --env-file ops/staging/.env.staging start worker
       - name: down
         if: always()
-        run: docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging down -v
+        run: docker compose --env-file ops/staging/.env.staging down -v

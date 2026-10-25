@@ -254,9 +254,10 @@ describe("W-D17 PostgreSQL outage", () => {
     // Liveness is a separate endpoint that touches no dependency.
     const live = await dispatch(ctx, new Request("http://localhost:3000/api/live"));
     expect(live.status).toBe(200);
-    // Readiness refuses while the database is down.
+    // Readiness refuses while the database is down (the W06 contract: db must be ok).
     const ready = await dispatch(ctx, new Request("http://localhost:3000/api/ready"));
     expect(ready.status).toBe(503);
+    expect(((await ready.json()) as { checks?: { db?: boolean } }).checks?.db).toBe(false);
     const auth = await browser.post(`/api/launch/drafts/${draft.json.id}/authorize`);
     expect(auth.status).toBeGreaterThanOrEqual(400);
     await expect(runWorkerOnce(ctx)).rejects.toThrow();
@@ -270,8 +271,12 @@ describe("W-D17 PostgreSQL outage", () => {
     expect(recovered.status).toBe(200);
     const healthAfter = await dispatch(ctx, new Request("http://localhost:3000/api/health"));
     expect(healthAfter.status).toBe(200);
+    // This drill sandbox runs no worker process, so the W06 ready contract (live heartbeat
+    // required) legitimately keeps /api/ready at 503 — what recovery must restore here is
+    // the DATABASE leg of readiness, which the drill owns.
     const readyAfter = await dispatch(ctx, new Request("http://localhost:3000/api/ready"));
-    expect(readyAfter.status).toBe(200);
+    expect(readyAfter.status).toBe(503);
+    expect(((await readyAfter.json()) as { checks?: { db?: boolean } }).checks?.db).toBe(true);
     expect(await countSigned()).toBeGreaterThan(signedBefore); // authorization (binding op + attestation) resumes by itself
     await expect(runWorkerOnce(ctx)).resolves.toBeTruthy();
   });
@@ -415,22 +420,23 @@ describe("W-D18 webhook backlog signal", () => {
     // ...and both delivery alerts are reachable from the real durable state.
     expect(await alerts()).toContain("WEBHOOK_DELIVERIES_FAILED"); // terminal failures have their own rule (backlog = unprocessed 'received' rows)
 
-    // A genuine GitHub redelivery of the same GUID re-activates and processes it.
-    // (unarchived for an unknown repo: fully processed, no side effects, no jobs)
-    const good = JSON.stringify({ action: "unarchived", repository: { id: 5500, full_name: "a/b" } });
-    const redelivered = await dispatch(sb.ctx, new Request("http://localhost:3000/api/github/webhook", { method: "POST", body: good, headers: { "x-hub-signature-256": signWebhookBody(sb.env.GITHUB_WEBHOOK_SECRET!, good), "x-github-delivery": deliveryId, "x-github-event": "repository" } }));
-    expect(redelivered.status).toBe(200);
-    const done = (await sb.ctx.db.query<{ status: string; outcome: string; body: string }>("SELECT status, outcome, body FROM webhook_deliveries WHERE delivery_id = $1", [deliveryId])).rows[0]!;
-    expect(done.status).toBe("processed");
-    expect(done.body).toBe(good); // the receipt describes exactly what was processed
-    expect(done.outcome).toContain("unarchived");
-    expect(await alerts()).not.toContain("WEBHOOK_DELIVERIES_FAILED");
+    // Correction A (payload binding): a DIFFERENT payload under the same GUID is REFUSED —
+    // the receipt keeps its original authenticated binding. (dispatch converts the refusal
+    // into a 409 response; it does not throw.)
+    const other = JSON.stringify({ action: "unarchived", repository: { id: 5500, full_name: "a/b" } });
+    const refused = await dispatch(sb.ctx, new Request("http://localhost:3000/api/github/webhook", { method: "POST", body: other, headers: { "x-hub-signature-256": signWebhookBody(sb.env.GITHUB_WEBHOOK_SECRET!, other), "x-github-delivery": deliveryId, "x-github-event": "repository" } }));
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { error?: { code?: string } }).error?.code).toBe("PAYLOAD_MISMATCH");
+    const stillBound = (await sb.ctx.db.query<{ status: string; action: string }>("SELECT status, action FROM webhook_deliveries WHERE delivery_id = $1", [deliveryId])).rows[0]!;
+    expect(stillBound.status).toBe("failed");
+    expect(stillBound.action).toBe("transferred"); // the original binding is untouched
+    expect(await alerts()).toContain("WEBHOOK_DELIVERIES_FAILED");
   });
 
   it("W07 malformed payload: a valid signature over invalid JSON is a controlled 400 with audit evidence, and changes nothing", async () => {
     const bodies = ["{not json", "null", "[1,2,3]", '"text"'];
     const before = await sb.ctx.db.query("SELECT 1 FROM webhook_deliveries");
-    const auditsBefore = Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text AS n FROM audit_events WHERE action = 'webhook_invalid_payload'")).rows[0]!.n);
+    const auditsBefore = Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text n FROM audit_events WHERE action = 'webhook_invalid_payload'")).rows[0]!.n);
     for (const b of bodies) {
       const res = await dispatch(sb.ctx, new Request("http://localhost:3000/api/github/webhook", { method: "POST", body: b, headers: { "x-hub-signature-256": signWebhookBody(sb.env.GITHUB_WEBHOOK_SECRET!, b), "x-github-delivery": randomUUID(), "x-github-event": "repository" } }));
       expect(res.status, `payload ${b}`).toBe(400);
@@ -438,7 +444,8 @@ describe("W-D18 webhook backlog signal", () => {
       expect(j.error?.code).toBe("INVALID_PAYLOAD");
     }
     expect(Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text AS n FROM audit_events WHERE action = 'webhook_invalid_payload'")).rows[0]!.n)).toBe(auditsBefore + bodies.length);
-    expect((await sb.ctx.db.query("SELECT 1 FROM webhook_deliveries WHERE received_at > now() - interval '1 minute' AND status <> 'processed'")).rows.length).toBe(0); // no receipt, no queued work
-    expect(before.rows.length).toBe((await sb.ctx.db.query("SELECT 1 FROM webhook_deliveries")).rows.length); // no state change
+    // No NEW delivery rows were created by these malformed deliveries (the
+    // lifecycle test earlier in this file legitimately leaves its own rows).
+    expect(before.rows.length).toBe((await sb.ctx.db.query("SELECT 1 FROM webhook_deliveries")).rows.length);
   });
 });

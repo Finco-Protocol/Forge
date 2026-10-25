@@ -35,7 +35,7 @@ jobs:
         with:
           version: ${{ env.FOUNDRY_VERSION }}
       - run: forge build --profile forge
-      - name: W05-06 emergency revocation (D9: mandatory since W07), F-03/F-04 owner powers, compromised attestor, revenue provenance, lifecycle
+      - name: "W05-06 emergency revocation (D9 mandatory since W07), F-03/F-04 owner powers, compromised attestor, revenue provenance, lifecycle"
         run: forge test --profile forge --match-contract "W05EmergencyRevocationTest|W05OwnerPowersTest|W05AttestorCompromiseTest|ForgeRevenueSplitterTest|ForgeRevenueSplitterInvariantTest|ForgeRevenueLifecycleTest" -vv
 
   v4-local:

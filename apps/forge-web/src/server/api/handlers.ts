@@ -3,7 +3,7 @@
  * integration tests alike, so acceptance runs the exact production path:
  * cookies, CSRF, sessions, validation, services.
  */
-import { dbHealth, indexerHealth, ledgerHealth, liveness, readiness, systemHealth, workerHealth } from "../ops/health";
+import { dbHealth, indexerHealth, ledgerHealth, systemHealth, workerHealth } from "../ops/health";
 import { getAddress, isAddress, isHex, type Hex } from "viem";
 import type { AppContext } from "../context";
 import { ForgeError, refuse } from "../errors";
@@ -320,15 +320,21 @@ const health: Handler = async (ctx) => {
   // per-probe guards, so a database outage turned /api/health into an
   // unstructured HTTP 500. It is now guarded like every other probe and the
   // endpoint answers with a structured 503 while a critical dependency is down.
-  const revocations = await revocationHealth(ctx).catch((e: unknown) => ({
-    pending: 0,
-    oldestPendingSeconds: 0,
-    retrying: 0,
-    lastLatencySeconds: null as number | null,
-    sloSeconds: ctx.cfg.revocationSloSeconds,
-    breached: false,
-    error: (e as Error).message.split("\n")[0]!,
-  }));
+  const revocations = await revocationHealth(ctx).catch((e: unknown) => {
+    // W07 Correction A (public disclosure): the raw probe error can name hosts or
+    // identifiers — it goes to the server log only. The public body carries the
+    // structured `unavailable` indicator (and failing[] below), never the message.
+    console.error("[forge] /api/health revocation probe failed:", (e as Error).message.split("\n")[0]);
+    return {
+      pending: 0,
+      oldestPendingSeconds: 0,
+      retrying: 0,
+      lastLatencySeconds: null as number | null,
+      sloSeconds: ctx.cfg.revocationSloSeconds,
+      breached: false,
+      unavailable: true,
+    };
+  });
   // W05: db latency/pool/migration version, indexer lag, worker heartbeats, ledger integrity.
   const system = await systemHealth(ctx);
   // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO),
@@ -352,13 +358,6 @@ const health: Handler = async (ctx) => {
     },
     { status: ok ? 200 : 503 },
   );
-};
-
-const liveProbe: Handler = async () => json(liveness());
-
-const readyProbe: Handler = async (ctx) => {
-  const r = await readiness(ctx);
-  return json(r, { status: r.ready ? 200 : 503 });
 };
 
 // ── W04 economics & treasury ─────────────────────────────────────────────
@@ -413,8 +412,6 @@ function route(method: string, pattern: string, h: Handler) {
 route("GET", "/api/me", me);
 route("GET", "/api/config", publicConfig);
 route("GET", "/api/health", health);
-route("GET", "/api/live", liveProbe);
-route("GET", "/api/ready", readyProbe);
 route("GET", "/api/live", live);
 route("GET", "/api/ready", ready);
 route("GET", "/api/auth/github/start", githubStart);

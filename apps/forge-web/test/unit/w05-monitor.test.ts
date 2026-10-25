@@ -60,6 +60,7 @@ describe("W05 monitoring rules", () => {
       signerAlerts24h: { keyRevoked: 1, roleDisabled: 1 },
       signerKillSwitch: "authority",
       lockdown: true,
+      collectionFault: "test fault",
     };
     const fired = evaluateAlerts(loud).map((a) => a.id).sort();
     expect(fired).toEqual(ALERT_RULES.map((r) => r.id).sort());
@@ -84,6 +85,12 @@ describe("W05 monitoring rules", () => {
   it("worker silence is only an alert when a worker was expected (heartbeats exist)", () => {
     expect(evaluateAlerts({ ...quiet(), liveWorkers: null }).map((a) => a.id)).not.toContain("WORKER_UNHEALTHY");
     expect(evaluateAlerts({ ...quiet(), liveWorkers: 0 }).map((a) => a.id)).toContain("WORKER_UNHEALTHY");
+  });
+
+  it("a monitoring fault fires MONITORING_FAULT without firing DB_UNAVAILABLE (classification)", () => {
+    const f = evaluateAlerts({ ...quiet(), collectionFault: "boom" }).map((a) => a.id);
+    expect(f).toContain("MONITORING_FAULT");
+    expect(f).not.toContain("DB_UNAVAILABLE");
   });
 
   it("prometheus exposition carries no addresses or secrets, one series per rule", () => {

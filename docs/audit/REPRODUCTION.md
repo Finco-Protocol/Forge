@@ -36,6 +36,8 @@ git show f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f:contractsV2-forge/src/v2/forge
 
 If you build a later commit, expect `--check` to fail until the manifest is regenerated (`tsx scripts/w06/audit-manifest.ts`) and re-reviewed.
 
+W07+: run the manifest commands from a checkout of the CURRENT head (the W07 tree carries `scripts/w06/audit-manifest.ts` itself, including the schema-2 baseline binding and the sha-pinned `BASELINE_MODIFICATIONS_ALLOWED`); the pinned commit `f4fa5e8a…` is only the comparison baseline, fetched from git when a shallow checkout lacks it.
+
 ## 10.3 Foundry builds
 
 ```bash

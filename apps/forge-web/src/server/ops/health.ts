@@ -91,36 +91,3 @@ export async function systemHealth(ctx: AppContext) {
   return { db, indexer, worker, ledger };
 }
 
-/**
- * W07 liveness/readiness split:
- *  - `/api/live` is process liveness only: it touches no dependency at all and
- *    answers 200 as long as the event loop serves requests.
- *  - `/api/ready` refuses readiness (HTTP 503) while a CRITICAL dependency is
- *    unavailable: the database (incl. migration drift), the primary RPC and the
- *    ledger integrity flag. A halted ledger means the financial projection is
- *    not trustworthy; an unreachable RPC means nothing can be signed or read.
- *    Indexer/worker degradation is reported by /api/health and alerts (they
- *    catch up by design and are covered by their own rules), so they do not
- *    flip readiness by themselves.
- */
-export function liveness() {
-  return { ok: true as const, live: true as const, at: new Date().toISOString() };
-}
-
-export async function readiness(ctx: AppContext) {
-  const [db, ledger] = await Promise.all([dbHealth(ctx), ledgerHealth(ctx)]);
-  const block = await ctx.client.getBlockNumber({ cacheTime: 0 }).catch(() => null);
-  const failing: string[] = [];
-  if (!db.ok) failing.push("db");
-  if (block === null) failing.push("rpc");
-  if (!ledger.ok) failing.push("ledger");
-  return {
-    ok: failing.length === 0,
-    ready: failing.length === 0,
-    failing,
-    // Booleans only — no connection strings, no error bodies (see /api/ops/health).
-    db: { ok: db.ok },
-    rpc: { ok: block !== null },
-    ledger: { ok: ledger.ok, halted: ledger.halted },
-  };
-}

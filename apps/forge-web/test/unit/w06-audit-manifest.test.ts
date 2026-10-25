@@ -199,6 +199,19 @@ describe.skipIf(!gitAvailable)("baseline binding (schema 2): the manifest proves
     expect(() => generateManifest()).not.toThrow();
   });
 
+  it("an allow-listed modification is sha-pinned: a FUTURE change under an existing entry fails the gate", () => {
+    const target = "test-forge/ForgeLaunchAuth.t.sol";
+    const original = readFileSync(path.join(REPO_ROOT, target));
+    const tampered = Buffer.concat([original, Buffer.from("\n// future change riding an old approval\n")]);
+    try {
+      writeFileSync(path.join(REPO_ROOT, target), tampered);
+      expect(() => generateManifest()).toThrow(/changed again after its reviewed modification/);
+    } finally {
+      writeFileSync(path.join(REPO_ROOT, target), original);
+    }
+    expect(() => generateManifest()).not.toThrow();
+  });
+
   it("flags a committed manifest that still associates old baseline bytes with modified source (no silent regeneration)", () => {
     const fresh = generateManifest();
     const stale = JSON.parse(JSON.stringify(fresh)) as Manifest;

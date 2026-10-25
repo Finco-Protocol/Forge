@@ -64,6 +64,7 @@ export const ALERT_RULES: AlertRule[] = [
   rule("OWNER_RESCUE", "high", "Owner rescue / force operation executed", "§D14", "observe"),
   rule("FEE_POLICY_CHANGE", "high", "Fee-policy parameter changed", "§D6", "observe"),
   rule("FAILED_WORKER_JOBS", "high", "Worker jobs failed permanently", "§D9", "immediate-offchain"),
+  rule("MONITORING_FAULT", "medium", "Signal collection itself failed (monitoring-system fault, not an outage)", "§D11", "observe"),
   rule("WORKER_UNHEALTHY", "high", "A previously running worker stopped beating", "§D9", "immediate-offchain"),
   rule("DB_UNAVAILABLE", "critical", "PostgreSQL unreachable", "§D7", "immediate-offchain"),
   rule("RPC_UNAVAILABLE", "critical", "Primary RPC unreachable", "§D11", "immediate-offchain"),
@@ -99,6 +100,8 @@ export interface Signals {
   signerAlerts24h: { keyRevoked: number; roleDisabled: number };
   signerKillSwitch: string | null;
   lockdown: boolean;
+  /** Set when signal collection itself failed for a NON-connectivity reason (a monitoring fault, not an outage). */
+  collectionFault?: string;
 }
 
 export interface FiringAlert extends AlertRule {
@@ -112,6 +115,7 @@ export function evaluateAlerts(s: Signals): FiringAlert[] {
     const r = ALERT_RULES.find((x) => x.id === id)!;
     out.push({ ...r, value });
   };
+  if (s.collectionFault !== undefined) fire("MONITORING_FAULT", `signal collection failed: ${s.collectionFault}`);
   if (!s.dbOk) fire("DB_UNAVAILABLE", "database queries failed");
   if (!s.rpcOk) fire("RPC_UNAVAILABLE", "eth_blockNumber failed");
   if (s.webhookBacklog > 0 && s.oldestWebhookBacklogSeconds > 300) fire("WEBHOOK_BACKLOG", `${s.webhookBacklog} unprocessed, oldest ${s.oldestWebhookBacklogSeconds}s`);
@@ -285,8 +289,18 @@ export async function collectSignals(ctx: AppContext, opts: { finance?: boolean 
       signerKillSwitch: ks.rows[0]?.role ?? null,
       lockdown: lockdown.active,
     };
-  } catch {
-    return empty;
+  } catch (e) {
+    // W07 Correction A: not every collection failure is a database outage. True
+    // connectivity failures (connection refused/reset/terminated, server shutdown)
+    // classify as DB_UNAVAILABLE; anything else is a monitoring-system fault and is
+    // reported as such — never as healthy-looking zeros, never as a false outage page.
+    const msg = ((e as Error)?.message ?? String(e)).toLowerCase();
+    const connectivity =
+      /econnrefused|econnreset|etimedout|ehostunreach|enetunreach|connection terminated|connection refused|server closed|the session was terminated|too many clients|shut down/.test(msg) ||
+      ((e as { code?: string })?.code ?? "").startsWith("E");
+    if (connectivity) return { ...empty, dbOk: false };
+    console.error("[forge-monitor] signal collection fault (not connectivity):", (e as Error)?.message?.split("\n")[0]);
+    return { ...empty, collectionFault: (e as Error)?.message?.split("\n")[0]?.slice(0, 160) ?? "unknown" };
   }
 }
 

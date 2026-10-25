@@ -166,16 +166,21 @@ function freshScenario() {
   });
 }
 
-describe("W07 alert reachability: emergency key revocation (runs LAST — it disables authority signing)", () => {
+describe("W07 alert reachability: emergency key revocation (isolated fixture — the revocation is irreversible)", () => {
+  let own: Sandbox;
+  beforeAll(async () => {
+    own = await startSandbox({ FORGE_OPS_TOKEN: "ops-token-for-w07-revocation-fixture-0123456789" });
+  }, 180_000);
+  afterAll(async () => own?.stop());
   it("revoking a signer key raises SIGNER_KEY_REVOKED and every later signing request stays refused (fail closed)", async () => {
-    const address = sb.ctx.authority.address;
+    const address = own.ctx.authority.address;
     expect(await firing()).not.toContain("SIGNER_KEY_REVOKED");
-    await revokeSignerKey(sb.ctx.db, "authority", address, "w07-drill", "reachability drill: suspected compromise");
-    expect(await firing()).toContain("SIGNER_KEY_REVOKED");
+    await revokeSignerKey(own.ctx.db, "authority", address, "w07-drill", "reachability drill: suspected compromise");
+    expect(await firing(own.ctx)).toContain("SIGNER_KEY_REVOKED");
     // the revoked key never signs again (guard, fail closed, no custody call)
     await expect(
-      sb.ctx.signers.guarded("authority")!.signTypedData(
-        { domain: registryDomain(31337, sb.deployment.registry), types: bindingOpTypes, primaryType: "BindingOp", message: { githubRepoId: BigInt(++n), creator: zeroAddress, bindingExpiresAt: 4_000_000_000n, opDeadline: 4_000_000_000n, opNonce: BigInt(n), parentOpDigest: `0x${"00".repeat(32)}`, repoFullName: "o/r", revoke: false } },
+      own.ctx.signers.guarded("authority")!.signTypedData(
+        { domain: registryDomain(31337, own.deployment.registry), types: bindingOpTypes, primaryType: "BindingOp", message: { githubRepoId: BigInt(++n), creator: zeroAddress, bindingExpiresAt: 4_000_000_000n, opDeadline: 4_000_000_000n, opNonce: BigInt(n), parentOpDigest: `0x${"00".repeat(32)}`, repoFullName: "o/r", revoke: false } },
         { requestedBy: "w07-monitoring", correlationId: `w07-revoked-${++n}` },
       ),
     ).rejects.toThrow(/is revoked/);

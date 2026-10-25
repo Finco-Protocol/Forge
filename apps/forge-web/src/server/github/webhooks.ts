@@ -105,42 +105,77 @@ export async function handleWebhook(ctx: AppContext, req: Request): Promise<{ st
     ]),
   );
   if (!ins.rows.length) {
-    const prior = await ctx.db.query<{ status: string }>("SELECT status FROM webhook_deliveries WHERE delivery_id = $1", [delivery]);
-    if (prior.rows[0]?.status === "processed") return { status: 200, body: { duplicate: true } };
-    // A terminal-failed (or otherwise unprocessed) delivery is re-activated by
-    // a genuine GitHub redelivery: a fresh bounded processing chance. The
-    // receipt is refreshed to the redelivered (signature-verified) body, so
-    // the durable record always describes what is actually processed.
-    await ctx.db.tx((q) =>
-      q.query(
-        `UPDATE webhook_deliveries SET status = 'received', attempts = 0, last_error = NULL, next_retry_at = NULL,
-           body = $2, payload_sha256 = $3, action = $4, received_at = now(), signature_verified = true, processed_at = NULL, outcome = NULL
-         WHERE delivery_id = $1 AND status <> 'processed'`,
-        [delivery, body, sha256Hex(body), payload.action ?? null],
-      ),
-    );
+    // Duplicate delivery GUID. Three cases (W07 Correction A §2.3):
+    //   processed            → idempotent no-op (no audit insert, no mutations);
+    //   same authenticated payload, not yet processed → re-activation for a
+    //     fresh bounded processing chance (genuine GitHub redelivery);
+    //   DIFFERENT payload or event under the same GUID → refused: a delivery
+    //     id permanently binds the payload it was authenticated with; it must
+    //     never silently substitute a different event.
+    const prior = await ctx.db.tx(async (q) => {
+      const r = await q.query<{ status: string; payload_sha256: string; event: string }>(
+        "SELECT status, payload_sha256, event FROM webhook_deliveries WHERE delivery_id = $1 FOR UPDATE",
+        [delivery],
+      );
+      const p = r.rows[0];
+      if (!p) return null;
+      // The delivery-id/payload binding is checked BEFORE any status shortcut:
+      // a repeated GUID with a different payload or event is refused even when
+      // the original was already processed (the caller is told, not misled).
+      if (p.payload_sha256 !== sha256Hex(body) || p.event !== event) return { kind: "mismatch" as const, status: p.status };
+      if (p.status === "processed") return { kind: "duplicate" as const };
+      await q.query(
+        "UPDATE webhook_deliveries SET status = 'received', attempts = 0, last_error = NULL, next_retry_at = NULL, received_at = now(), processed_at = NULL, outcome = NULL WHERE delivery_id = $1 AND status <> 'processed'",
+        [delivery],
+      );
+      return { kind: "reactivated" as const };
+    });
+    if (prior !== null && prior.kind === "duplicate") return { status: 200, body: { duplicate: true } };
+    if (prior !== null && prior.kind === "mismatch") {
+      await audit(ctx.db, "github:webhook", "webhook_payload_mismatch", `delivery:${delivery}`, { event, currentStatus: prior.status });
+      throw new ForgeError("PAYLOAD_MISMATCH", "Delivery ID already bound to a different authenticated payload.", 409);
+    }
+    // null (row vanished; phase 2 surfaces it) or "reactivated" (failed delivery
+    // re-activated for a fresh bounded processing chance) — fall through to phase 2.
   }
 
-  // Phase 2 (own transaction): all side effects + the processed marker commit
-  // atomically; a failure rolls the effects back but NOT the receipt.
+  // Phase 2 (own transaction): lock the delivery row, verify it is still
+  // eligible, then run all side effects + the processed marker atomically. The
+  // row lock serializes this path against the worker retry loop and a second
+  // simultaneous request: whoever commits first wins, the loser sees
+  // status='processed' and returns a duplicate no-op WITHOUT running apply()
+  // again (no duplicate audit events, no repository mutations, no extra jobs).
   try {
     const outcome = await ctx.db.tx(async (q) => {
+      const locked = await q.query<{ status: string; body: string; payload_sha256: string; event: string }>(
+        "SELECT status, body, payload_sha256, event FROM webhook_deliveries WHERE delivery_id = $1 FOR UPDATE",
+        [delivery],
+      );
+      const d = locked.rows[0];
+      if (!d) throw new ForgeError("BAD_DELIVERY", "Delivery receipt vanished before processing.", 409);
+      if (d.status === "processed") return { duplicate: true as const };
+      if (d.status === "failed") throw new ForgeError("DELIVERY_TERMINAL", "Delivery already exhausted its retries; redeliver from GitHub.", 409);
+      if (sha256Hex(d.body) !== d.payload_sha256) throw new ForgeError("PAYLOAD_MISMATCH", "Receipt does not match its committed payload hash.", 409);
       const o = await apply(ctx, q, event, payload, delivery);
       await q.query("UPDATE webhook_deliveries SET status = 'processed', processed_at = now(), outcome = $2, attempts = attempts + 1, last_error = NULL, next_retry_at = NULL WHERE delivery_id = $1", [delivery, o]);
       await audit(q, "github:webhook", `webhook_${event}`, payload.repository ? `repo:${payload.repository.id}` : null, { action: payload.action ?? null, delivery, outcome: o });
-      return o;
+      return { duplicate: false as const, outcome: o };
     });
-    return { status: 200, body: { processed: true, outcome } };
+    if (outcome.duplicate) return { status: 200, body: { duplicate: true } };
+    return { status: 200, body: { processed: true, outcome: outcome.outcome } };
   } catch (e) {
     // Phase 3 (own transaction): durably record the failed attempt. GitHub
     // still sees a 5xx (it retries too), and the worker retry loop takes over.
+    // The guard `AND status <> 'processed'` makes the bookkeeping unable to
+    // downgrade a delivery another processor successfully committed (W07
+    // Correction A §2.2) — a lost race produces no false terminal alert.
     const msg = (e as Error).message.split("\n")[0]!;
     const max = ctx.cfg.worker.webhookMaxAttempts;
     const row = await ctx.db.tx(async (q) => {
       const r = await q.query<{ status: string; attempts: string }>(
         `UPDATE webhook_deliveries SET attempts = attempts + 1, last_error = $2, next_retry_at = now() + ($3 || ' seconds')::interval,
            status = CASE WHEN attempts + 1 >= $4 THEN 'failed' ELSE 'received' END
-         WHERE delivery_id = $1 AND signature_verified
+         WHERE delivery_id = $1 AND signature_verified AND status <> 'processed'
          RETURNING status, attempts::text`,
         [delivery, msg, String(webhookRetryBackoffSeconds(1)), max],
       );

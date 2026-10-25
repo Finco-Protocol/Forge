@@ -410,7 +410,7 @@ contract ForgeLaunchAuthTest is Test {
         assertEq(authorizer.eligibilityAuthority(), address(0));
 
         vm.prank(forgeGovernance);
-        vm.expectRevert();
+        vm.expectRevert(ForgeBindingRegistry.ZeroAddress.selector);
         registry.setEligibilityAuthority(address(0));
         assertEq(registry.eligibilityAuthority(), authority);
 

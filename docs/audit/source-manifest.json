@@ -1579,7 +1579,7 @@
     },
     {
       "path": "test-forge/ForgeLaunchAuth.t.sol",
-      "sha256": "930036056147467c6df6446d0e131c1738ff98393acccda48c03e184900f7204",
+      "sha256": "c4f5776458bfa06204ba442ab6ccfedc53860b1b0deee036c8034fcfb3cb9975",
       "lines": 833,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
