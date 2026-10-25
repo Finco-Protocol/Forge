@@ -85,7 +85,7 @@ Expected: exit 0, no output; `SELECT role, engaged FROM signer_kill_switch;` sho
 1. Immediate, off-chain, ≤ 1 min: `pnpm ops:control lockdown on --reason "<INC>" --operator <id>` and §2.0 `engageKillSwitch(db,"authority",…)` then `revokeSignerKey(db,"authority",<addr>,…)`. Expected: next request refused (`kill switch` / `is revoked`) with no custody call; `EMERGENCY_LOCKDOWN_ACTIVE` alert rule fires.
 2. Disable the KMS key (break-glass role + MFA); review the cloud `Sign` events for that key against `signer_audit` — any `Sign` without a matching `allowed` row is a custody breach.
 3. On-chain kill switch (delayed by the Timelock): Safe schedules `setEligibilityAuthority(address(0))` on the **authorizer** (bricks launches, never opens them), then P3 for the replacement; `invalidatePendingOps(repoId)` for affected repositories (W03 runbook §3).
-4. Release the authority kill switch (P3 step 7) and the lockdown (`pnpm ops:control lockdown off …`) only after P3 completes and P1 passes.
+4. Release the LOCKDOWN first (`pnpm ops:control lockdown off …`): the authorization handler calls `requireNotLockedDown`, so while the lockdown is engaged P3 step 7's authorization check would be refused with `EMERGENCY_LOCKDOWN` no matter what the signing guard does. Do this only after P3 steps 4–6 complete and P1 passes, then complete P3 step 7 (release the authority kill switch and run the authorization check).
 
 ### P5 Revenue-attestor revocation and replacement
 1. §2.0 `revokeSignerKey(db,"revenue",…)` and/or `engageKillSwitch(db,"revenue",…)` — immediate.

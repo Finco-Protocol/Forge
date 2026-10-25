@@ -14,6 +14,7 @@ import {
   AUDIT_ROOTS,
   BASELINE_COMMIT,
   MANIFEST_RELATIVE_PATH,
+  baselineRemovals,
   byteCompare,
   classify,
   countLines,
@@ -232,5 +233,17 @@ describe("drift reporting", () => {
     const withRoots: Manifest = JSON.parse(JSON.stringify(base));
     withRoots.roots = [...withRoots.roots, "extra"];
     expect(diffManifests(base, withRoots).some((x) => x.startsWith("ROOTS "))).toBe(true);
+  });
+
+  it("detects a deleted baseline file (pure wiring: generateManifest throws on any unapproved removal)", () => {
+    const m = committed();
+    const baselinePaths = m.files.filter((f) => f.baseline.status !== "added").map((f) => f.path);
+    const tracked = baselinePaths.slice(1); // the first baseline file has been deleted
+    expect(baselineRemovals(baselinePaths, tracked)).toEqual([baselinePaths[0]]);
+    // ...and the current tree has NO removals at all (nothing disappeared since the baseline).
+    const fresh = generateManifest();
+    const trackedNow = fresh.files.map((f) => f.path);
+    const baselineNow = baselinePaths;
+    expect(baselineRemovals(baselineNow, trackedNow)).toEqual([]);
   });
 });

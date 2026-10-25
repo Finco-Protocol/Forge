@@ -38,6 +38,20 @@ export const BASELINE_COMMIT = "f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f";
  */
 export const BASELINE_MODIFICATIONS_ALLOWED: readonly { path: string; reason: string }[] = [];
 
+/**
+ * Baseline files deliberately REMOVED from the tree after BASELINE_COMMIT.
+ * Empty today: every baseline file is still tracked. A staged deletion would
+ * otherwise silently shrink the manifest; any entry needs a documented,
+ * reviewed reason.
+ */
+export const BASELINE_REMOVALS_ALLOWED: readonly { path: string; reason: string }[] = [];
+
+/** Baseline paths that are no longer tracked (pure; unit-tested). */
+export function baselineRemovals(baseline: Iterable<string>, tracked: Iterable<string>): string[] {
+  const t = new Set(tracked);
+  return [...baseline].filter((p) => !t.has(p)).sort(byteCompare);
+}
+
 /** Audit roots (tracked *.sol under these are listed). */
 export const AUDIT_ROOTS = [
   "contractsV2-forge/src",
@@ -227,6 +241,17 @@ export function generateManifest(): Manifest {
   assertBaselineCommitExists();
   const tracked = listTracked(AUDIT_ROOTS);
   const baselineFiles = listBaselineSolFiles(BASELINE_COMMIT, AUDIT_ROOTS);
+  // A baseline file that is no longer tracked must not silently shrink the manifest.
+  const allowedRemovals = new Map(BASELINE_REMOVALS_ALLOWED.map((r) => [r.path, r.reason]));
+  for (const p of baselineRemovals(baselineFiles, tracked)) {
+    if (!allowedRemovals.has(p)) {
+      throw new Error(
+        `audit-manifest: ${p} exists at the recorded baseline ${BASELINE_COMMIT} but is no longer tracked in this tree. ` +
+          `Either restore the file, or — only after review — record the removal in BASELINE_REMOVALS_ALLOWED ` +
+          `(scripts/w06/audit-manifest.ts) with a reason and update the provenance claims.`,
+      );
+    }
+  }
   const allowedModifications = new Map(BASELINE_MODIFICATIONS_ALLOWED.map((m) => [m.path, m.reason]));
   const hashes = new Map<string, string>();
   const byBaseline: Record<BaselineStatus, { files: number; lines: number }> = { identical: { files: 0, lines: 0 }, added: { files: 0, lines: 0 }, modified: { files: 0, lines: 0 } };
