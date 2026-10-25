@@ -9,8 +9,8 @@
  *   W-D12 failed launch transaction  -> LAUNCH_TX_FAILURES, no retry loop
  *   W-D16 stuck / dropped launch transaction -> no duplicate, no false confirmation
  *   W-D17 PostgreSQL outage -> fail closed (no signature), health reports, recovery
- *   W-D8  chain reorg -> rollback executed; DEEP_REORG alert signal (KNOWN_GAP, see test)
- *   W-D18 webhook backlog signal (KNOWN_GAP: the handler can never produce a backlog)
+ *   W-D8  chain reorg -> rollback executed; durable reorg evidence; DEEP_REORG by depth (W07)
+ *   W-D18 webhook delivery lifecycle (W07): durable receipts, bounded retries, terminal alerts
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
@@ -244,21 +244,34 @@ describe("W-D17 PostgreSQL outage", () => {
 
     down = true;
     const health = await dispatch(ctx, new Request("http://localhost:3000/api/health"));
-    const hb = (await health.json()) as { db?: { ok?: boolean }; ok?: boolean };
-    // OBSERVATION (product, not fixed here): src/server/ops/health.ts promises 'one failing probe is reported, never thrown',
-    // but the handler also awaits revocationHealth() outside those guards, so a DB outage turns /api/health into HTTP 500 with
-    // no diagnostic body. It is still a clear 'unhealthy' signal for an external probe; the body is the gap.
-    expect(health.status === 500 || hb.db?.ok === false || hb.ok === false).toBe(true);
+    const hb = (await health.json()) as { db?: { ok?: boolean }; ok?: boolean; failing?: string[] };
+    // W07 fix: the outage is now a CONTROLLED, structured 503 (the W06 defect was an
+    // unstructured 500: revocationHealth() threw outside the per-probe guards).
+    expect(health.status).toBe(503);
+    expect(hb.ok).toBe(false);
+    expect(hb.db?.ok).toBe(false);
+    expect(Array.isArray(hb.failing) && hb.failing.includes("db")).toBe(true);
+    // Liveness is a separate endpoint that touches no dependency.
+    const live = await dispatch(ctx, new Request("http://localhost:3000/api/live"));
+    expect(live.status).toBe(200);
+    // Readiness refuses while the database is down.
+    const ready = await dispatch(ctx, new Request("http://localhost:3000/api/ready"));
+    expect(ready.status).toBe(503);
     const auth = await browser.post(`/api/launch/drafts/${draft.json.id}/authorize`);
     expect(auth.status).toBeGreaterThanOrEqual(400);
     await expect(runWorkerOnce(ctx)).rejects.toThrow();
     down = false;
 
+    // Automatic recovery: health, readiness and authorization all resume by themselves.
     expect(await countSigned()).toBe(signedBefore); // no signature was issued while the DB was down
     expect(await sb.ctx.client.getTransactionCount({ address: sb.ctx.relayer.account.address })).toBe(relayerNonce);
 
     const recovered = await browser.post(`/api/launch/drafts/${draft.json.id}/authorize`);
     expect(recovered.status).toBe(200);
+    const healthAfter = await dispatch(ctx, new Request("http://localhost:3000/api/health"));
+    expect(healthAfter.status).toBe(200);
+    const readyAfter = await dispatch(ctx, new Request("http://localhost:3000/api/ready"));
+    expect(readyAfter.status).toBe(200);
     expect(await countSigned()).toBeGreaterThan(signedBefore); // authorization (binding op + attestation) resumes by itself
     await expect(runWorkerOnce(ctx)).resolves.toBeTruthy();
   });
@@ -286,30 +299,146 @@ describe("W-D8 chain reorg", () => {
     expect((await sb.ctx.db.query("SELECT 1 FROM tokens WHERE token = $1", [token])).rows.length).toBe(0);
   });
 
-  // KNOWN_GAP (product defect, NOT fixed here): the DEEP_REORG rule reads audit_events rows whose action LIKE 'ALERT:reorg%',
-  // but no production code path ever writes such a row, so the alert cannot fire after a real reorg. This test states the
-  // DESIRED behaviour and is marked `fails`: it passes while the gap exists and will FAIL (loudly) once the indexer starts
-  // emitting the alert, at which point the marker must be removed and docs/W06-DRILL-COVERAGE.md updated.
-  it.fails("KNOWN_GAP DEEP_REORG: after a real reorg the DEEP_REORG alert should be firing", async () => {
-    await reorg();
+  // W07: the DEEP_REORG KNOWN_GAP is fixed. The indexer now writes durable reorg evidence
+  // (ALERT:reorg, with depth and affected range) atomically with its rollback, and the alert
+  // fires only when the recorded depth crosses the configured threshold (default 2 blocks).
+  // Construction: the checkpoint is advanced onto blocks that carry real transactions (an
+  // empty re-mined block can be hash-identical on Anvil, so orphans must contain txs), then
+  // the snapshot is reverted: the canonical re-mined blocks are empty and diverge.
+  const ANVIL_RICH = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"; // anvil dev account #0 (unlocked)
+  const sendPlainTx = async (box: Sandbox = sb) => {
+    const hash = await rpc<Hex>(box.anvil.url, "eth_sendTransaction", [{ from: ANVIL_RICH, to: "0x000000000000000000000000000000000000dEaD", value: "0x1" }]);
+    for (let i = 0; i < 50; i++) {
+      const r = await rpc<{ status: string } | null>(box.anvil.url, "eth_getTransactionReceipt", [hash]);
+      if (r) return;
+      await new Promise((x) => setTimeout(x, 50));
+    }
+    throw new Error("plain tx not mined");
+  };
+
+  it("W07 DEEP_REORG: a shallow (1-block) reorg stays evidence-only below the alert threshold", async () => {
+    // Its own sandbox: the 24h alert window is global per database, so evidence from the
+    // other drills (a depth-2 reorg legitimately fired above) must not leak into this assertion.
+    const own = await startSandbox();
+    try {
+      await freshScenario(own);
+      await runWorkerOnce(own.ctx);
+      const snap = await rpc<string>(own.anvil.url, "evm_snapshot");
+      await sendPlainTx(own); // block snap+1
+      await runWorkerOnce(own.ctx); // checkpoint = snapshot + 1
+      await rpc(own.anvil.url, "evm_revert", [snap]);
+      for (let i = 0; i < 6; i++) await rpc(own.anvil.url, "evm_mine");
+      const pass = await runWorkerOnce(own.ctx);
+      expect(pass.reorgedTo).not.toBeNull();
+      const row = (await own.ctx.db.query<{ detail: { depth: string } }>(
+        "SELECT detail FROM audit_events WHERE action = 'ALERT:reorg' ORDER BY id DESC LIMIT 1",
+      )).rows[0]!;
+      expect(Number(row.detail.depth)).toBe(1); // evidence is still recorded...
+      const shallowAlerts = evaluateAlerts(await collectSignals(own.ctx)).map((a) => a.id);
+      expect(shallowAlerts).not.toContain("DEEP_REORG"); // ...but 1 block is below the alert threshold
+    } finally {
+      await own.stop();
+    }
+  });
+  it("W07 DEEP_REORG: a real reorg is durably recorded exactly once with depth and range, and the alert fires past the threshold", async () => {
+    await freshScenario(sb); // realistic indexed history
+    await runWorkerOnce(sb.ctx);
+    const snap = await rpc<string>(sb.anvil.url, "evm_snapshot");
+    await sendPlainTx(); // block snap+1 (real tx content)
+    await sendPlainTx(); // block snap+2
+    await runWorkerOnce(sb.ctx); // checkpoint = snapshot + 2
+    await rpc(sb.anvil.url, "evm_revert", [snap]);
+    for (let i = 0; i < 6; i++) await rpc(sb.anvil.url, "evm_mine");
+    const pass = await runWorkerOnce(sb.ctx);
+    expect(pass.reorgedTo).not.toBeNull();
+    const row = (await sb.ctx.db.query<{ detail: { depth: string; affectedFrom: string; affectedTo: string } }>(
+      "SELECT detail FROM audit_events WHERE action = 'ALERT:reorg' ORDER BY id DESC LIMIT 1",
+    )).rows[0]!;
+    expect(Number(row.detail.depth)).toBe(2); // exactly the two orphaned blocks
+    expect(Number(row.detail.affectedFrom)).toBeLessThan(Number(row.detail.affectedTo)); // the affected indexed range is recorded
+    expect(await alerts()).toContain("DEEP_REORG");
+    // Exactly once: further worker passes must not re-record the same reorg...
+    const n = Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text AS n FROM audit_events WHERE action = 'ALERT:reorg'")).rows[0]!.n);
+    await runWorkerOnce(sb.ctx);
+    expect(Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text AS n FROM audit_events WHERE action = 'ALERT:reorg'")).rows[0]!.n)).toBe(n);
+    // ...and the evidence is durable DB state, so it stays discoverable (e.g. after a worker restart).
     expect(await alerts()).toContain("DEEP_REORG");
   });
+
 });
 
 describe("W-D18 webhook backlog signal", () => {
-  it("the WEBHOOK_BACKLOG rule itself works on an unprocessed delivery row, but the real handler can never leave one (KNOWN_GAP: failed deliveries are invisible to monitoring)", async () => {
+  it("the WEBHOOK_BACKLOG rule fires on unprocessed delivery rows and clears with them", async () => {
     const id = randomUUID();
     await sb.ctx.db.query("INSERT INTO webhook_deliveries(delivery_id, event, action, payload_sha256, received_at) VALUES ($1,'repository','archived','x', now() - interval '1 hour')", [id]);
     expect(await alerts()).toContain("WEBHOOK_BACKLOG");
     await sb.ctx.db.query("DELETE FROM webhook_deliveries WHERE delivery_id = $1", [id]);
     expect(await alerts()).not.toContain("WEBHOOK_BACKLOG");
+  });
 
-    // A delivery that fails mid-processing is rolled back with its record (so GitHub's redelivery works) -> no row, no backlog, no alert.
-    const body = JSON.stringify({ action: "transferred", repository: { id: "not-a-number", full_name: "a/b" } });
-    const res = await dispatch(sb.ctx, new Request("http://localhost:3000/api/github/webhook", { method: "POST", body, headers: { "x-hub-signature-256": signWebhookBody(sb.env.GITHUB_WEBHOOK_SECRET!, body), "x-github-delivery": randomUUID(), "x-github-event": "repository" } }));
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    const backlog = await sb.ctx.db.query("SELECT 1 FROM webhook_deliveries WHERE processed_at IS NULL");
-    expect(backlog.rows.length).toBe(0);
-    expect(await alerts()).not.toContain("WEBHOOK_BACKLOG");
+  // W07: the WEBHOOK_BACKLOG KNOWN_GAP is fixed. A delivery is durably RECEIVED (its own
+  // transaction, after constant-time signature verification) BEFORE processing; a processing
+  // failure leaves the receipt behind with its attempt count and retry schedule, the worker
+  // retries it with capped backoff to a terminal `failed` state (audited), and a genuine
+  // GitHub redelivery re-activates it. Failed deliveries are observable and recoverable.
+  it("W07 lifecycle: a failing delivery is durably recorded, retried to terminal, alerted, and redelivery re-activates it", async () => {
+    // A validly signed payload the processor cannot handle (invalid repo id): the old code
+    // rolled the delivery record back entirely; the new code keeps the durable receipt.
+    const bad = JSON.stringify({ action: "transferred", repository: { id: "not-a-number", full_name: "a/b" } });
+    const deliveryId = randomUUID();
+    const res = await dispatch(sb.ctx, new Request("http://localhost:3000/api/github/webhook", { method: "POST", body: bad, headers: { "x-hub-signature-256": signWebhookBody(sb.env.GITHUB_WEBHOOK_SECRET!, bad), "x-github-delivery": deliveryId, "x-github-event": "repository" } }));
+    expect(res.status).toBeGreaterThanOrEqual(500); // GitHub is told it failed, too
+    const row = (await sb.ctx.db.query<{ status: string; attempts: string; last_error: string; signature_verified: boolean; body: string }>(
+      "SELECT status, attempts::text, last_error, signature_verified, body FROM webhook_deliveries WHERE delivery_id = $1",
+      [deliveryId],
+    )).rows[0]!;
+    expect(row.status).toBe("received");
+    expect(Number(row.attempts)).toBe(1);
+    expect(row.last_error).toBeTruthy();
+    expect(row.signature_verified).toBe(true);
+    expect(row.body).toBe(bad); // the durable receipt holds the verified body for retries
+
+    // The worker retries with capped backoff until the terminal state...
+    let pass: Awaited<ReturnType<typeof runWorkerOnce>> | null = null;
+    for (let i = 0; i < 12; i++) {
+      const st = (await sb.ctx.db.query<{ status: string; attempts: string }>("SELECT status, attempts::text FROM webhook_deliveries WHERE delivery_id = $1", [deliveryId])).rows[0]!;
+      if (st.status === "failed") break;
+      await sb.ctx.db.query("UPDATE webhook_deliveries SET next_retry_at = now() WHERE delivery_id = $1", [deliveryId]); // skip the backoff wait
+      pass = await runWorkerOnce(sb.ctx);
+    }
+    const terminal = (await sb.ctx.db.query<{ status: string; attempts: string }>("SELECT status, attempts::text FROM webhook_deliveries WHERE delivery_id = $1", [deliveryId])).rows[0]!;
+    expect(terminal.status).toBe("failed");
+    expect(Number(terminal.attempts)).toBe(sb.ctx.cfg.worker.webhookMaxAttempts);
+    expect(pass?.webhookRetries ?? 0).toBeGreaterThan(0);
+    expect((await sb.ctx.db.query("SELECT 1 FROM audit_events WHERE action = 'ALERT:webhook_delivery_failed'")).rows.length).toBeGreaterThan(0);
+
+    // ...and both delivery alerts are reachable from the real durable state.
+    expect(await alerts()).toContain("WEBHOOK_DELIVERIES_FAILED"); // terminal failures have their own rule (backlog = unprocessed 'received' rows)
+
+    // A genuine GitHub redelivery of the same GUID re-activates and processes it.
+    // (unarchived for an unknown repo: fully processed, no side effects, no jobs)
+    const good = JSON.stringify({ action: "unarchived", repository: { id: 5500, full_name: "a/b" } });
+    const redelivered = await dispatch(sb.ctx, new Request("http://localhost:3000/api/github/webhook", { method: "POST", body: good, headers: { "x-hub-signature-256": signWebhookBody(sb.env.GITHUB_WEBHOOK_SECRET!, good), "x-github-delivery": deliveryId, "x-github-event": "repository" } }));
+    expect(redelivered.status).toBe(200);
+    const done = (await sb.ctx.db.query<{ status: string; outcome: string; body: string }>("SELECT status, outcome, body FROM webhook_deliveries WHERE delivery_id = $1", [deliveryId])).rows[0]!;
+    expect(done.status).toBe("processed");
+    expect(done.body).toBe(good); // the receipt describes exactly what was processed
+    expect(done.outcome).toContain("unarchived");
+    expect(await alerts()).not.toContain("WEBHOOK_DELIVERIES_FAILED");
+  });
+
+  it("W07 malformed payload: a valid signature over invalid JSON is a controlled 400 with audit evidence, and changes nothing", async () => {
+    const bodies = ["{not json", "null", "[1,2,3]", '"text"'];
+    const before = await sb.ctx.db.query("SELECT 1 FROM webhook_deliveries");
+    const auditsBefore = Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text AS n FROM audit_events WHERE action = 'webhook_invalid_payload'")).rows[0]!.n);
+    for (const b of bodies) {
+      const res = await dispatch(sb.ctx, new Request("http://localhost:3000/api/github/webhook", { method: "POST", body: b, headers: { "x-hub-signature-256": signWebhookBody(sb.env.GITHUB_WEBHOOK_SECRET!, b), "x-github-delivery": randomUUID(), "x-github-event": "repository" } }));
+      expect(res.status, `payload ${b}`).toBe(400);
+      const j = (await res.json()) as { error?: { code?: string } };
+      expect(j.error?.code).toBe("INVALID_PAYLOAD");
+    }
+    expect(Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text AS n FROM audit_events WHERE action = 'webhook_invalid_payload'")).rows[0]!.n)).toBe(auditsBefore + bodies.length);
+    expect((await sb.ctx.db.query("SELECT 1 FROM webhook_deliveries WHERE received_at > now() - interval '1 minute' AND status <> 'processed'")).rows.length).toBe(0); // no receipt, no queued work
+    expect(before.rows.length).toBe((await sb.ctx.db.query("SELECT 1 FROM webhook_deliveries")).rows.length); // no state change
   });
 });

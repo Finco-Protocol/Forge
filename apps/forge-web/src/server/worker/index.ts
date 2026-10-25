@@ -10,6 +10,7 @@ import { issueLaunchReceipt, retractOrphanedReceipts } from "../proof/ledger";
 import { refreshIntent } from "../launch/service";
 import { revokeOnChain } from "../eligibility/registry-ops";
 import { reconcileAll, reconcileRepository } from "../github/reconcile";
+import { retryDueWebhookDeliveries } from "../github/webhooks";
 import { audit } from "../audit";
 import { readRegistryState } from "../chain/forge";
 import { hostname } from "node:os";
@@ -171,6 +172,7 @@ export interface WorkerPass {
   receipts: string[];
   retractions: string[];
   jobs: number;
+  webhookRetries: number;
   attestations: AttestationOutcome[];
 }
 
@@ -178,6 +180,8 @@ export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean
   // Revocations first: they narrow eligibility and must not wait behind routine indexing.
   const firstJobs = await runJobs(ctx);
   await ensureRevocationsFinal(ctx);
+  // W07: retry webhook deliveries whose processing failed (bounded, then terminal).
+  const webhookRetries = await retryDueWebhookDeliveries(ctx);
   const indexer = new ForgeIndexer(ctx);
   let indexed = 0;
   let reorgedTo: bigint | null = null;
@@ -223,7 +227,7 @@ export async function runWorkerOnce(ctx: AppContext, opts: { reconcile?: boolean
   for (const i of live.rows) await refreshIntent(ctx, i.id).catch(() => undefined);
   const jobs = await runJobs(ctx);
   if (opts.reconcile) await reconcileAll(ctx);
-  return { indexed, reorgedTo, receipts, retractions, jobs: firstJobs.length + jobs.length, attestations };
+  return { indexed, reorgedTo, receipts, retractions, jobs: firstJobs.length + jobs.length, webhookRetries, attestations };
 }
 
 export type WorkerState = "starting" | "running" | "stopping" | "stopped";

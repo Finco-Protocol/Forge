@@ -41,6 +41,7 @@ import type { Queryable } from "../db";
 import { readLaunchedToken, readLockState } from "../chain/forge";
 import { rebuildTokenProjection, projectionPhaseMatchesOnchain } from "./projection";
 import { ledgerContextFor, materializeInTx, rollbackSnapshots } from "../finance/materialized";
+import { audit } from "../audit";
 
 export const checkpointName = (ctx: AppContext) => `forge:${ctx.cfg.chainId}:${ctx.cfg.addresses.factory.toLowerCase()}`;
 
@@ -123,7 +124,7 @@ export class ForgeIndexer {
     } else {
       // No checkpoint hash: verify the most recent stored event block instead.
       const { rows } = await this.ctx.db.query<{ block_number: string; block_hash: string }>(
-        "SELECT block_number::text, block_hash FROM indexed_blocks WHERE chain_id = $1 ORDER BY block_number DESC LIMIT 1",
+        "SELECT block_number::text, block_hash FROM indexed_blocks WHERE chain_id = $1 ORDER BY indexed_blocks.block_number DESC LIMIT 1",
         [this.ctx.cfg.chainId],
       );
       if (!rows[0]) return null;
@@ -131,7 +132,7 @@ export class ForgeIndexer {
       if (b && b.hash === rows[0].block_hash) return null;
     }
     const { rows } = await this.ctx.db.query<{ block_number: string; block_hash: string }>(
-      "SELECT block_number::text, block_hash FROM indexed_blocks WHERE chain_id = $1 AND block_number <= $2 ORDER BY block_number DESC LIMIT $3",
+      "SELECT block_number::text, block_hash FROM indexed_blocks WHERE chain_id = $1 AND block_number <= $2 ORDER BY indexed_blocks.block_number DESC LIMIT $3",
       [this.ctx.cfg.chainId, lastBlock.toString(), this.ctx.cfg.reorgWindow],
     );
     for (const r of rows) {
@@ -162,6 +163,19 @@ export class ForgeIndexer {
       for (const t of touched) await rebuildTokenProjection(q, cfg.chainId, cfg.addresses, t);
       // Launches whose confirmation was reorged out go back to tracking.
       await q.query("UPDATE launch_intents SET status = 'submitted', updated_at = now() WHERE status = 'confirmed' AND token_address = ANY($1::text[]) AND NOT EXISTS (SELECT 1 FROM tokens WHERE tokens.token = launch_intents.token_address)", [touched]);
+      // W07: durable reorg evidence, committed atomically with the rollback so it
+      // is written exactly once per reorg and survives a worker restart. The
+      // monitor records the depth and the affected indexed range; DEEP_REORG
+      // pages only when the depth crosses the configured threshold.
+      const lastBefore = expect?.lastBlock ?? ancestor;
+      await audit(q, "forge:indexer", "ALERT:reorg", `chain:${cfg.chainId}`, {
+        depth: (lastBefore - ancestor).toString(),
+        affectedFrom: (ancestor + 1n).toString(),
+        affectedTo: lastBefore.toString(),
+        ancestorBlock: ancestor.toString(),
+        ancestorHash: anc.rows[0]?.block_hash ?? null,
+        affectedTokens: touched.length,
+      });
       return touched;
     });
   }

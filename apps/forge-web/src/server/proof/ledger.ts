@@ -32,7 +32,7 @@ export const receiptHash = (seq: number, prevHash: string, kind: string, receipt
 async function append(ctx: AppContext, kind: "launch" | "retraction", token: string, receipt: Record<string, unknown>) {
   // Sign outside the transaction (custody may be remote); the chain head is re-checked inside it.
   for (let attempt = 0; attempt < 5; attempt++) {
-    const head = (await ctx.db.query<{ seq: string; receipt_hash: string }>("SELECT seq::text, receipt_hash FROM evidence_receipts ORDER BY seq DESC LIMIT 1")).rows[0];
+    const head = (await ctx.db.query<{ seq: string; receipt_hash: string }>("SELECT seq::text, receipt_hash FROM evidence_receipts ORDER BY evidence_receipts.seq DESC LIMIT 1")).rows[0];
     const seq = head ? Number(head.seq) + 1 : 1;
     const prevHash = head?.receipt_hash ?? GENESIS_HASH;
     const hash = receiptHash(seq, prevHash, kind, receipt);
@@ -58,7 +58,7 @@ interface Row {
 /** Issues the launch receipt once the launch is indexed at confirmed depth. Idempotent. */
 export async function issueLaunchReceipt(ctx: AppContext, token: string) {
   const t = getAddress(token);
-  const existing = await ctx.db.query<{ kind: string }>("SELECT kind FROM evidence_receipts WHERE token = $1 ORDER BY seq DESC LIMIT 1", [t]);
+  const existing = await ctx.db.query<{ kind: string }>("SELECT kind FROM evidence_receipts WHERE token = $1 ORDER BY evidence_receipts.seq DESC LIMIT 1", [t]);
   if (existing.rows[0]?.kind === "launch") return null;
   const tok = (await ctx.db.query<Row>("SELECT token, curve, creator, github_repo_id::text, launch_tx, launch_block::text, launched_at::text, factory FROM tokens WHERE token = $1", [t])).rows[0];
   if (!tok || !tok.github_repo_id) return null;
@@ -83,7 +83,7 @@ export async function issueLaunchReceipt(ctx: AppContext, token: string) {
     : undefined;
   const bindOp = (
     await ctx.db.query<Row>(
-      "SELECT op_digest, tx_hash, binding_epoch::text, block_number::text FROM registry_ops WHERE repo_id = $1 AND creator = $2 AND revoke = false AND status = 'confirmed' AND block_number <= $3 ORDER BY block_number DESC LIMIT 1",
+      "SELECT op_digest, tx_hash, binding_epoch::text, block_number::text FROM registry_ops WHERE repo_id = $1 AND creator = $2 AND revoke = false AND status = 'confirmed' AND block_number <= $3 ORDER BY registry_ops.block_number DESC LIMIT 1",
       [tok.github_repo_id, tok.creator, tok.launch_block],
     )
   ).rows[0];
@@ -158,7 +158,7 @@ export interface LedgerCheck {
 /** Recomputes every hash link and signature. */
 export async function verifyLedger(ctx: AppContext): Promise<LedgerCheck> {
   const { rows } = await ctx.db.query<{ seq: string; prev_hash: string; kind: string; receipt: unknown; receipt_hash: string; signer: string; signature: Hex }>(
-    "SELECT seq::text, prev_hash, kind, receipt, receipt_hash, signer, signature FROM evidence_receipts ORDER BY seq",
+    "SELECT seq::text, prev_hash, kind, receipt, receipt_hash, signer, signature FROM evidence_receipts ORDER BY evidence_receipts.seq",
   );
   let prev: string = GENESIS_HASH;
   let expectedSeq = 1;
