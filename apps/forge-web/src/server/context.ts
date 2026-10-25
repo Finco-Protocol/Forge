@@ -5,6 +5,7 @@ import { GithubApp } from "./github/client";
 import { makePublicClient, makeRelayer, type ForgePublicClient, type ForgeWalletClient } from "./chain/clients";
 import { AuthoritySigner } from "./signer/policy";
 import type { GuardedSigner } from "./signer/guard";
+import { assertStagingChain, assertStagingEnv } from "./staging/guard";
 import { buildDigestSigners, SignerRegistry, type KmsBackendFactory } from "./signer/registry";
 
 export interface AppContext {
@@ -31,6 +32,12 @@ export async function createAppContext(
   env: Record<string, string | undefined> = process.env,
   opts: { db?: Db; fetchImpl?: typeof fetch; /** W05: KMS backends (only used when FORGE_SIGNER_PROVIDER=kms). */ kms?: KmsBackendFactory } = {},
 ): Promise<AppContext> {
+  // W06: a staging stack (FORGE_STAGING=true) is refused before ANY state is touched unless it is wholly
+  // sandboxed: local dev chain, loopback/allow-listed hosts, test-only keys, simulated GitHub, safe flags.
+  if (env.FORGE_STAGING === "true") {
+    assertStagingEnv(env);
+    await assertStagingChain(env.FORGE_RPC_URL ?? "http://127.0.0.1:8545");
+  }
   const cfg = buildConfig(env);
   const db = opts.db ?? (await openDb(cfg.db));
   // W05: migrations run under a cluster-wide advisory lock and refuse drift /

@@ -1,0 +1,141 @@
+name: W06 Controlled Beta Readiness
+
+# Exact-head CI for W06. W01-W05 workflows are untouched; the W06 unit/integration/e2e specs also ride on w03.yml's
+# jobs (pnpm test, test:integration, test:e2e). This workflow adds the evidence that needs its own infrastructure:
+# separate web + worker processes against PostgreSQL, the W06 Foundry financial suite and the audit-dossier drift gate.
+# No continue-on-error, no `|| true` on a gate. A green run NEVER enables production (release gate: ENGINEERING_PASS at most).
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FOUNDRY_VERSION: v1.8.5
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.28.0"
+
+jobs:
+  staging-acceptance:
+    name: "w06: staging acceptance (separate web + worker processes, PostgreSQL)"
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+        env:
+          POSTGRES_USER: forge
+          POSTGRES_PASSWORD: forge
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U forge"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      FORGE_STAGING_ADMIN_URL: postgres://forge:forge@localhost:5432/postgres
+      W06_EVIDENCE_FILE: ${{ github.workspace }}/w06-evidence/staging-acceptance.json
+    defaults:
+      run:
+        working-directory: apps/forge-web
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge build --profile forge
+        working-directory: .
+      - run: git checkout -q foundry.lock
+        working-directory: .
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
+        working-directory: .
+      - name: production build (the staging web process runs `next start`)
+        run: pnpm build
+      - name: staging acceptance (config refusal, migrations, cold start, restart, indexer recovery, worker SIGKILL, failed migration, backup/restore digest, rollback plan)
+        run: pnpm test:staging
+        env:
+          PG_BIN: /usr/lib/postgresql/16/bin
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: w06-staging-acceptance
+          path: w06-evidence/
+          retention-days: 30
+
+  financial-acceptance:
+    name: "w06: financial, governance and GitHub App acceptance"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - run: forge build --profile forge
+      - name: W06 Foundry financial acceptance (sequence fuzz + directed invariants)
+        run: forge test --profile forge --match-path test-forge/W06FinancialAcceptance.t.sol -vv
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/forge-web
+      - name: W06 ledger/finance invariants + GitHub App acceptance (unit)
+        working-directory: apps/forge-web
+        run: pnpm exec vitest run --project unit test/unit/w06-financial-invariants.test.ts test/unit/w06-github-acceptance.test.ts
+      - name: W06 governance, GitHub recovery and incident drills (integration, real W02 contracts on Anvil)
+        working-directory: apps/forge-web
+        run: pnpm exec vitest run --project integration test/integration/w06-github-recovery.test.ts test/integration/w06-governance-acceptance.test.ts test/integration/w06-incident-drills.test.ts
+
+  audit-dossier:
+    name: "w06: audit dossier integrity (source manifest drift)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/forge-web
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          # The schema-2 manifest binds every in-scope source to BASELINE_COMMIT by
+          # reading its bytes from git; a provenance gate gets full history.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: source manifest matches the tree (fails on any in-scope Solidity drift)
+        working-directory: .
+        run: apps/forge-web/node_modules/.bin/tsx scripts/w06/audit-manifest.ts --check
+      - name: manifest tests
+        run: pnpm exec vitest run --project unit test/unit/w06-audit-manifest.test.ts
+      - name: staging package static checks + build manifest
+        run: pnpm exec vitest run --project unit test/unit/w06-staging-guard.test.ts test/unit/w06-staging-package.test.ts

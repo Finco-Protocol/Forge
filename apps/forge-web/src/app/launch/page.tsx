@@ -14,13 +14,23 @@ import { TxLink, VerificationDisclosure } from "@/components/shell";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const STEPS = ["Connect", "Configure", "Economics", "Authorize", "Launch"];
 
+/** Wallet/library errors carry library internals ("Version: viem@…", "Details: …"): show the cause, not the plumbing. */
+function describeError(err: ApiError): { code: string; message: string } {
+  const raw = String(err.message ?? "");
+  if ((err.code as unknown) === 4001 || /user rejected|rejected the request|denied (transaction|message) signature/i.test(raw)) {
+    return { code: "WALLET_REQUEST_DECLINED", message: "The request was declined in your wallet. Nothing was signed or sent." };
+  }
+  return { code: String(err.code ?? "Error"), message: raw.split(/\s*(?:Details:|Version:|Request Arguments:|Contract Call:|Docs:)/)[0]!.trim() || raw };
+}
+
 function ErrorBox({ e }: { e: unknown }) {
   if (!e) return null;
   const err = e as ApiError;
+  const shown = describeError(err);
   const reasons = err.detail && typeof err.detail === "object" ? (err.detail as any).reasons : null;
   return (
     <div className="alert error" role="alert" data-testid="error">
-      <b>{err.code ?? "Error"}</b> — {err.message}
+      <b>{shown.code}</b> — {shown.message}
       {reasons && <div>Reasons: {reasons.join(", ")}</div>}
     </div>
   );

@@ -1,0 +1,155 @@
+# W06 controlled-beta STAGING stack (non-production, no real money, no real GitHub, no real chain).
+#
+#   cp ops/staging/.env.staging.example ops/staging/.env.staging     # review; test-only values
+#   docker compose -f ops/staging/docker-compose.staging.yml --env-file ops/staging/.env.staging up --build
+#
+# Safety properties (checked statically by apps/forge-web/test/unit/w06-staging-package.test.ts):
+#   * every service except `web` and `fake-github` is on the `backend` network only, which is `internal: true` (no route to the Internet);
+#   * only `web` (3000) and the simulated GitHub (8787, for the browser OAuth hop) publish a port, both bound to 127.0.0.1;
+#   * FORGE_STAGING=true makes every process run the staging guard: chain 4663 / public RPC / real GitHub /
+#     non-test keys / production flags / production-looking database names are REFUSED before any state is touched;
+#   * no secret value is committed: the env file holds only well-known test keys and local-only passwords.
+# This file was linted and statically checked but NOT executed where it was written (no Docker daemon there).
+name: forge-staging
+
+x-forge-env: &forge-env
+  FORGE_STAGING: "true"
+  FORGE_NETWORK: sandbox
+  FORGE_CHAIN_ID: "31337"
+  FORGE_RPC_URL: http://anvil:8545
+  FORGE_STAGING_HOST_ALLOWLIST: anvil,postgres,fake-github,web,localhost
+  FORGE_PUBLIC_ORIGIN: http://localhost:3000
+  FORGE_DEPLOYMENT_FILE: /sandbox/deployment.json
+  STAGING_GITHUB_API_URL: http://fake-github:8787
+  STAGING_GITHUB_WEB_URL: http://localhost:8787
+  DATABASE_URL: postgres://forge:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/forge_staging
+  SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+  FORGE_OPS_TOKEN: ${FORGE_OPS_TOKEN:?set FORGE_OPS_TOKEN}
+  GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?set GITHUB_WEBHOOK_SECRET}
+  FORGE_AUTHORITY_PRIVATE_KEY: ${FORGE_AUTHORITY_PRIVATE_KEY:?}
+  FORGE_EVIDENCE_PRIVATE_KEY: ${FORGE_EVIDENCE_PRIVATE_KEY:?}
+  FORGE_RELAYER_PRIVATE_KEY: ${FORGE_RELAYER_PRIVATE_KEY:?}
+  FORGE_REVENUE_ATTESTOR_PRIVATE_KEY: ${FORGE_REVENUE_ATTESTOR_PRIVATE_KEY:?}
+  FORGE_SIGNER_PROVIDER: local-test
+  FORGE_EMBEDDED_WORKER: "false"
+  FINCO_BURN_ENABLED: "false"
+  PRODUCTION_SIGNING_ENABLED: "false"
+  REVENUE_ATTESTATION_PRODUCTION_SIGNING_ENABLED: "false"
+  DEPLOY_WRITE_ENABLED: "false"
+  PRODUCTION_BLOCKED: "true"
+
+x-forge-image: &forge-image
+  image: forge-staging:local
+  build:
+    context: ../..
+    dockerfile: ops/staging/Dockerfile
+  restart: unless-stopped
+  read_only: false
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  networks: [backend]
+  volumes: ["sandbox:/sandbox"]
+
+services:
+  postgres:
+    image: postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: forge_staging
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge -d forge_staging"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:v1.8.5
+    restart: unless-stopped
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337", "--block-time", "1"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain-id --rpc-url http://127.0.0.1:8545 | grep -qx 31337"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  fake-github:
+    <<: *forge-image
+    command: ["fake-github"]
+    environment:
+      FAKE_GITHUB_PORT: "8787"
+      FAKE_GITHUB_HOST: 0.0.0.0
+      FAKE_GITHUB_PUBLIC_URL: http://fake-github:8787
+    ports: ["127.0.0.1:8787:8787"]
+    networks: [backend, edge]
+    depends_on:
+      anvil: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /sandbox/github.env"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  deploy:
+    <<: *forge-image
+    restart: "no"
+    command: ["deploy"]
+    environment:
+      <<: *forge-env
+    depends_on:
+      anvil: { condition: service_healthy }
+      fake-github: { condition: service_healthy }
+
+  migrate:
+    <<: *forge-image
+    restart: "no"
+    command: ["migrate"]
+    environment:
+      <<: *forge-env
+      FORGE_PROCESS_ROLE: cli
+      FORGE_DB_MIGRATE: apply
+    depends_on:
+      postgres: { condition: service_healthy }
+      deploy: { condition: service_completed_successfully }
+
+  web:
+    <<: *forge-image
+    command: ["web"]
+    environment:
+      <<: *forge-env
+      NODE_ENV: production
+      FORGE_PROCESS_ROLE: web
+      FORGE_DB_MIGRATE: verify
+    ports: ["127.0.0.1:3000:3000"]
+    networks: [backend, edge]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/live').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    <<: *forge-image
+    command: ["worker"]
+    environment:
+      <<: *forge-env
+      FORGE_PROCESS_ROLE: worker
+      FORGE_DB_MIGRATE: verify
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    stop_grace_period: 70s
+
+networks:
+  backend:
+    internal: true
+  edge: {}
+
+volumes:
+  pgdata: {}
+  sandbox: {}
