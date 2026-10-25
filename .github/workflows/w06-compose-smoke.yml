@@ -62,18 +62,20 @@ jobs:
           done
           docker compose --env-file ops/staging/.env.staging logs --no-color | tail -200
           exit 1
-      # Correction A 4.2: a REAL unexpected termination — SIGKILL to PID 1 inside the
-      # worker container (tini dies, the container exits non-zero). `docker compose kill`
-      # from outside is an operator-initiated stop and is treated differently by the
-      # restart policy. Recovery evidence: a NEW container start time, an increased
-      # restart count, readiness restored, and no duplicate ledger state.
-      - name: W07 worker crash drill (in-container SIGKILL to PID 1) and automatic recovery
+      # Correction A 4.2: a REAL unexpected termination. An in-container SIGKILL to PID 1
+      # cannot work (the kernel drops unhandled signals to init from unprivileged
+      # processes), so the drill SIGKILLs the whole container from the host — identical to
+      # an OOM/host crash from the app's perspective: exit 137, no cleanup. This is NOT
+      # `docker stop`, which is the operator stop that disables the restart policy.
+      # Recovery evidence: a NEW container start time, an increased restart count,
+      # readiness restored, and no duplicate ledger state.
+      - name: W07 worker crash drill (container SIGKILL, exit 137) and automatic recovery
         run: |
           WORKER=$(docker compose --env-file ops/staging/.env.staging ps -q worker)
           BEFORE_START=$(docker inspect --format '{{.State.StartedAt}}' "$WORKER")
           BEFORE_RESTARTS=$(docker inspect --format '{{.RestartCount}}' "$WORKER")
           EVENTS_BEFORE=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM chain_events")
-          docker compose --env-file ops/staging/.env.staging exec -T worker sh -c "kill -9 1"
+          docker kill --signal SIGKILL "$WORKER"
           sleep 5
           for _ in $(seq 1 36); do
             NOW=$(docker compose --env-file ops/staging/.env.staging ps -q worker)
