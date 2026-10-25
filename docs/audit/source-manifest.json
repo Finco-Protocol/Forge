@@ -1,8 +1,9 @@
 {
-  "schema": 1,
+  "schema": 2,
   "baselineCommit": "f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f",
   "hashAlgorithm": "sha256",
   "lineCountDefinition": "count of LF-terminated lines, plus one when the file does not end with LF; 0 for an empty file",
+  "baselineDefinition": "per file: sha256 of the raw bytes at baselineCommit read from git (`git show baselineCommit:path`); `identical` when equal to the current tracked bytes, `added` when the file does not exist at the commit, `modified` only for entries listed in BASELINE_MODIFICATIONS_ALLOWED with a documented reason",
   "generator": "scripts/w06/audit-manifest.ts",
   "roots": [
     "contractsV2-forge/src",
@@ -26,7 +27,7 @@
   ],
   "summary": {
     "totalFiles": 157,
-    "totalLines": 30014,
+    "totalLines": 30110,
     "byClass": {
       "forge-owned": {
         "files": 5,
@@ -50,11 +51,25 @@
       },
       "test": {
         "files": 19,
-        "lines": 6714
+        "lines": 6810
       },
       "third-party-vendored": {
         "files": 88,
         "lines": 9996
+      }
+    },
+    "byBaseline": {
+      "identical": {
+        "files": 156,
+        "lines": 29735
+      },
+      "added": {
+        "files": 1,
+        "lines": 375
+      },
+      "modified": {
+        "files": 0,
+        "lines": 0
       }
     }
   },
@@ -65,7 +80,11 @@
       "lines": 100,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "38578bd71c0a909840e67202db527cc6b4e6b437e0f39f0c909da32c1e30cb81"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/access/Ownable2Step.sol",
@@ -73,7 +92,11 @@
       "lines": 67,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c75345d7b9feef17ae29f2a800ca2f65f8021cf80436a41d6ec00f57f5180f36"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/interfaces/IERC1363.sol",
@@ -81,7 +104,11 @@
       "lines": 86,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9c3a75a925a6dac9e88b03cddc58d42fe3131b0aaaad84408521f3f7af2f991b"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/interfaces/IERC165.sol",
@@ -89,7 +116,11 @@
       "lines": 6,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "dfb3f56fa928a7c6cae41a7ce2c86b9210fa18d33fa26389099d66a0fa790368"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/interfaces/IERC1967.sol",
@@ -97,7 +128,11 @@
       "lines": 24,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "886b093d8f7c41f73af42b8e183314b3654531a9d5e11f07c41a5a7f11d3e006"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol",
@@ -105,7 +140,11 @@
       "lines": 6,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "0158e2d3e0e28bedd99eec13dcf1a8aa3a70a5b7e4bb2ad709609c95fcc740d1"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol",
@@ -113,7 +152,11 @@
       "lines": 6,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "0ef8d844d8e066abd5c0d8cc1c550c89f2628a4ea9c9bb16c7593d4207800ca8"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/interfaces/IERC5267.sol",
@@ -121,7 +164,11 @@
       "lines": 28,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "efd1ebd1e04b6ef9c3b8781a097588f83da954323f438d54a71dc06508e6c7b8"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/interfaces/draft-IERC6093.sol",
@@ -129,7 +176,11 @@
       "lines": 162,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "fa7068f56bc180571a6095be6eaef06d51dbe81e30cb128397d993c9599ecc30"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol",
@@ -137,7 +188,11 @@
       "lines": 305,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "50f34ae16a067a41c2c1091445d11d63788e54c717677cb6d6b0e4cdea2ad21d"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
@@ -145,7 +200,11 @@
       "lines": 79,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "01b6f5c4fa45fd38822b286ecef6daf983d27306dd6362496fa71b3e4600b72c"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Burnable.sol",
@@ -153,7 +212,11 @@
       "lines": 39,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "2e6108a11184dd0caab3f3ef31bd15fed1bc7e4c781a55bc867ccedd8474565c"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol",
@@ -161,7 +224,11 @@
       "lines": 26,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "0b7132f17d14d1d84b41b0bb429be62dafdff00fd3470f68724d8018eb07f57a"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol",
@@ -169,7 +236,11 @@
       "lines": 292,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "2a29d6f5e9789cd48c1630fa7fa9b870316bf88e53f0a5af7882fe09610ca1eb"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol",
@@ -177,7 +248,11 @@
       "lines": 483,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "94f07f843e2f541a5a000a6375a41345412c6d6da9316c547f39e0fe1f2447f7"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol",
@@ -185,7 +260,11 @@
       "lines": 135,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "ff0eb9902bf0ac099205615fac90eacf34fae637571b05aab3ea35dea53d5f17"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol",
@@ -193,7 +272,11 @@
       "lines": 28,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "ad84633afd30a71a888403875e2ca7db9e97499d258ccdd98f48dd7cea8229f5"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Metadata.sol",
@@ -201,7 +284,11 @@
       "lines": 27,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "63d104c065c281e8d8e1fabe0eda19ff83d4660ce1378f9dad2471226d2bf34f"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/Address.sol",
@@ -209,7 +296,11 @@
       "lines": 159,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "b3710b1712637eb8c0df81912da3450da6ff67b0b3ed18146b033ed15b1aa3b9"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/Context.sol",
@@ -217,7 +308,11 @@
       "lines": 28,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "847fda5460fee70f56f4200f59b82ae622bb03c79c77e67af010e31b7e2cc5b6"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/Create2.sol",
@@ -225,7 +320,11 @@
       "lines": 91,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9623aa59745a23a72f313adc5adbf583968bf366a7cbf3fc43c1148d7d2c3c86"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/Errors.sol",
@@ -233,7 +332,11 @@
       "lines": 34,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "0704b9d6c032cca8512a3bc3f30f49f86f1f03102d2896a3d23e794b82efea66"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/LowLevelCall.sol",
@@ -241,7 +344,11 @@
       "lines": 127,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "e128cbe9c6c406d5a42c26e4079c0a95b369ce552f2d0c3dfd2fcb836c5708f2"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/Multicall.sol",
@@ -249,7 +356,11 @@
       "lines": 23,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "5651c25e7f532f616cd6f9a772c58f1bf57ed748d5654bfd67d515a3d7741706"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/Panic.sol",
@@ -257,7 +368,11 @@
       "lines": 57,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "270fc8401c1a13fae6a7a4a2dd6e381b95d658896701e51f0d3e2688acab3dec"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol",
@@ -265,7 +380,11 @@
       "lines": 119,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "94e409e8f6e3184236651a6cc2b1a6a3ea0f0a25eb85b71e524ad5791bb2fbc8"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/ShortStrings.sol",
@@ -273,7 +392,11 @@
       "lines": 123,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "ddd52921d2996abf2e3d9c1c4f6d00194a3e3b278a164948f995862371444a55"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/StorageSlot.sol",
@@ -281,7 +404,11 @@
       "lines": 143,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "75704538dcb223239280c6726d9a31cf769a7816718517c997fc7d63bdb70778"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/Strings.sol",
@@ -289,7 +416,11 @@
       "lines": 94,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "0519199dbc635f98ce2e4537986604ee618bca665c65e9a1738702dfacf72010"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol",
@@ -297,7 +428,11 @@
       "lines": 174,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "37828cb50b47bcc51c7b770bde15d5885d871ef1e67028057a0b788c3568726e"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol",
@@ -305,7 +440,11 @@
       "lines": 160,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "27dac0732a0154f432c0a7a1d1f067ab51116105e157d0e5d68d040fd83954d5"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol",
@@ -313,7 +452,11 @@
       "lines": 86,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "2fd5c641cf452efd15f784827cb2835664970d7fbc166bf80824ed27011cc374"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol",
@@ -321,7 +464,11 @@
       "lines": 27,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "99348354365cbdeb90157e2903334b861a00d69faab7720ae542d911d5c70d87"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol",
@@ -329,7 +476,11 @@
       "lines": 25,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9055c2994b37dea1a41b7b7926dcb510f05dbe2540b0aafc5fbee9558fffd0ca"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/math/Math.sol",
@@ -337,7 +488,11 @@
       "lines": 763,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "bdfdbe133991c0c78042957ff5cd97167926fcaf6d15664f3835a076cb066457"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol",
@@ -345,7 +500,11 @@
       "lines": 1162,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "5779bc848bde39f1ad7bc02b4f708a0040888e0083b1a33f119cd94639350134"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/openzeppelin-contracts/contracts/utils/math/SignedMath.sol",
@@ -353,7 +512,11 @@
       "lines": 43,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "768c28e3a33c3312e57ae8a1caaec2893bc89ac6e386621de018f85e9a2d6e99"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/interfaces/IExtsload.sol",
@@ -361,7 +524,11 @@
       "lines": 21,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9421ef4ba198d94058cd9a4c9fd2d663c61fc682f7dafa449a873456853f0025"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/interfaces/IExttload.sol",
@@ -369,7 +536,11 @@
       "lines": 15,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c21643d2c7f48d2d2407438a64a3ff0f376324cf6a0c62608977713652308c9e"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/interfaces/IHooks.sol",
@@ -377,7 +548,11 @@
       "lines": 152,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "6eb35c9c598eb932e963219f1ff180748bc4c30ac6a02d924893b3c29abb1d73"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/interfaces/IPoolManager.sol",
@@ -385,7 +560,11 @@
       "lines": 217,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "a98405333567e4ab344489728014795721cf0071c151536377d2fcc986e0600c"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/interfaces/IProtocolFees.sol",
@@ -393,7 +572,11 @@
       "lines": 52,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "807d68adea106ec2aa51a8009155de09ebfe09e1ee7053d5a5ae448d7e840654"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/interfaces/callback/IUnlockCallback.sol",
@@ -401,7 +584,11 @@
       "lines": 10,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "2e4a514730654da2e08a82eff5b3eabae12dc1c6198951396e1d466d4c0e223e"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/interfaces/external/IERC20Minimal.sol",
@@ -409,7 +596,11 @@
       "lines": 48,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "5e966a2d22b3b234a56af4b17e36bf7be90f9b29b1ddb6a15bfefc0b6dab4282"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/interfaces/external/IERC6909Claims.sol",
@@ -417,7 +608,11 @@
       "lines": 66,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "1cd65496c829036bc6aee67bc71363ab5fb6989c65e793087d0e1e2379f7d7d8"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/BitMath.sol",
@@ -425,7 +620,11 @@
       "lines": 49,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "e8a45eb3d57f9427fc47bbb2543c1a6a5f394113b378123ac7ca9f113a7502b4"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/CustomRevert.sol",
@@ -433,7 +632,11 @@
       "lines": 120,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9d3dbe6b742cb1ac30f57df89d879ade9649389de1165fc637114bd062d39fca"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/FixedPoint128.sol",
@@ -441,7 +644,11 @@
       "lines": 8,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "1ca2f55160697b73bd66fd27c8724d79a57108121ce1e8a0ab8b79f38bb58fbb"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/FixedPoint96.sol",
@@ -449,7 +656,11 @@
       "lines": 10,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "66ee26d4fb3ac639124bdfa27d3256d196970997fa127c09e9bf7154e30d4590"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/FullMath.sol",
@@ -457,7 +668,11 @@
       "lines": 117,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "a9607255a6fd604d9c92f6b7416811c38b9d86e5dfdb0c345a494ebd35f7a4a3"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/Hooks.sol",
@@ -465,7 +680,11 @@
       "lines": 340,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "297d577998cdede64d48b47b12f15e4f442eea032fbb9676bb3c2f89da89b83c"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/LPFeeLibrary.sol",
@@ -473,7 +692,11 @@
       "lines": 79,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "e96c3fa7deac991dc09b6c5e560a340d01d6c68ccba483d4b29f8a66e5aa44e0"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/LiquidityMath.sol",
@@ -481,7 +704,11 @@
       "lines": 20,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "67a39e58732340af4870342ba9230691f35501d89ed8725ca1b338deaa0eb26a"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/ParseBytes.sol",
@@ -489,7 +716,11 @@
       "lines": 29,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "6a6f3d1cec0143fd70ea68c34e6dce3bde72f368b213f1a225ada23dbfd99bb8"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/Pool.sol",
@@ -497,7 +728,11 @@
       "lines": 613,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "BUSL-1.1"
+      "spdx": "BUSL-1.1",
+      "baseline": {
+        "status": "identical",
+        "sha256": "59c493035ad25d56f24a457e8b40d9d1e3784504b8ff13d171db1eb25c6f128e"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/Position.sol",
@@ -505,7 +740,11 @@
       "lines": 103,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "BUSL-1.1"
+      "spdx": "BUSL-1.1",
+      "baseline": {
+        "status": "identical",
+        "sha256": "3dc4e2ad1564fa94eddf3ff06ce9ac592c9d578ea64ca194050382da454c8fcb"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol",
@@ -513,7 +752,11 @@
       "lines": 47,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "f8d96d9c8b5d12ab927b34551699bd7086750475f70254c9505e636f2cafe56a"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/SafeCast.sol",
@@ -521,7 +764,11 @@
       "lines": 60,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c1a815a41607be5b4c86ca588a951f368156da8ee21bdfc18b5d51b58a0f27be"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/SqrtPriceMath.sol",
@@ -529,7 +776,11 @@
       "lines": 289,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "42440c21bbab86c7eed4716b281ed5ca281cf14af8b5e06dc6dc3bc6864bcfdf"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/StateLibrary.sol",
@@ -537,7 +788,11 @@
       "lines": 349,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "eebdbc1b6e431072ce5521b9e1b603d43831e3b6e062743e6665e070d5cf8a1a"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/SwapMath.sol",
@@ -545,7 +800,11 @@
       "lines": 108,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "eb3971ea0ba84ff0a01f2fbe43f62f9c393121ef1724774ed3f3ab7760780e4a"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/TickBitmap.sol",
@@ -553,7 +812,11 @@
       "lines": 122,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "19b25dccfac8bd90f9d615fb182547eb7b5908a5cbf21a1c5920b92c47383cb6"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/TickMath.sol",
@@ -561,7 +824,11 @@
       "lines": 238,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "272d4f6d3ff9ae33596ebcdb84a71a3c2d4542ae8fb5c88ddf1aca8043f5d06b"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/libraries/UnsafeMath.sol",
@@ -569,7 +836,11 @@
       "lines": 29,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "2de236e7ca0b9572a6b0184557565b6fd54e177224e202c727fe248785ede427"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/types/BalanceDelta.sol",
@@ -577,7 +848,11 @@
       "lines": 72,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "320d9c13dec135c3903729e66d3a1040fe86d537a7ee53728915012ca183af32"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/types/BeforeSwapDelta.sol",
@@ -585,7 +860,11 @@
       "lines": 38,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "6aee06f1553e879f5909e8f4c0eac26ec23dd4821a7e56e4d5077db39a227e12"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/types/Currency.sol",
@@ -593,7 +872,11 @@
       "lines": 119,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "ba6726fd24fbc66848208dfbb2899116c10729c505e6e5552316ac2444f1dfc3"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/types/PoolId.sol",
@@ -601,7 +884,11 @@
       "lines": 17,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "548424ac50ad58212545da70207283fb8990731578c115c85d5acbcb0e1d3c9f"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/types/PoolKey.sol",
@@ -609,7 +896,11 @@
       "lines": 22,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "99e1afe285b5c614ebc9586ab5196db9d24a63fd924a449f5d99f490a6a6d6a9"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/types/PoolOperation.sol",
@@ -617,7 +908,11 @@
       "lines": 26,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "cf72ad0c3e5e91662029e862acd841fabce8753040b0d4e802dee64ef1157232"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-core/src/types/Slot0.sol",
@@ -625,7 +920,11 @@
       "lines": 94,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "378b45486644dc7e49726358e83d0e2fffdaee088d18cac1a3df00d02c3635b4"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-hooks-public/src/base/BaseHook.sol",
@@ -633,7 +932,11 @@
       "lines": 216,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "f8c2c11468e23d3d31adc0428980b395d6898b08e74e55a132602bc6b6649438"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/lib/permit2/src/interfaces/IAllowanceTransfer.sol",
@@ -641,7 +944,11 @@
       "lines": 165,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "a31c712c5cc8d171818a4225c09011f9ba86b2d5edf6045ac812bab93b6bbb87"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/lib/permit2/src/interfaces/IEIP712.sol",
@@ -649,7 +956,11 @@
       "lines": 6,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "e386407da496dbe874c10a81801c55744fb2922a51389a51c79001422e81e0cd"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/base/ImmutableState.sol",
@@ -657,7 +968,11 @@
       "lines": 25,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "d3ef34f9c00fae08ec1eb24aa341d5d916c4d6d62e6c2118ef4afe9c7470fde5"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/IEIP712_v4.sol",
@@ -665,7 +980,11 @@
       "lines": 10,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "ee4cc46349cc7f1f894197f368ddea0f71f2564c2962822eead755714f3ba57d"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/IERC721Permit_v4.sol",
@@ -673,7 +992,11 @@
       "lines": 38,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "80680771bccd7bf47641417d5a656f950746072766e24703f354e58c2ee0875c"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/IImmutableState.sol",
@@ -681,7 +1004,11 @@
       "lines": 11,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "86f06a1f388f91ee0185495cb5d2912d564f73fabb163b3767e9c292c5069276"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/IMulticall_v4.sol",
@@ -689,7 +1016,11 @@
       "lines": 13,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "0c0f4f1cccb7cf63c1ee3dc53e8d48cf867cbff08f5a8f85dd820873277e9481"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/INotifier.sol",
@@ -697,7 +1028,11 @@
       "lines": 54,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "7fadc8550f73d9ae57925bb27f5ab3a134d4c020972a13683e1121fc11691249"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/IPermit2Forwarder.sol",
@@ -705,7 +1040,11 @@
       "lines": 30,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "3b28167d65673e7de2bbed1e6f3508350cf889f8439e8680da23ad7586f4cc57"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/IPoolInitializer_v4.sol",
@@ -713,7 +1052,11 @@
       "lines": 15,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "ca6ecf95cfbc647d49b774801d84c49c8213010771b44555b056118102d644fc"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/IPositionManager.sol",
@@ -721,7 +1064,11 @@
       "lines": 75,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "439bcd1310f47092a15fa1cc98971898a536eaaff91ac397d8b12eee3c7d79c1"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/ISubscriber.sol",
@@ -729,7 +1076,11 @@
       "lines": 38,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9672e03c964da7cd484df290ad3395b6beacd90adcdd8ea2236f835407fb8e2e"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/interfaces/IUnorderedNonce.sol",
@@ -737,7 +1088,11 @@
       "lines": 17,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "12e02d4e7e03a668fc1d493840315b4f2aaee2f366ca677574d37d3811d45701"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/libraries/Actions.sol",
@@ -745,7 +1100,11 @@
       "lines": 66,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c5f2579951a1d7ca38b6f417db330965875f02efa812a5a487773a51b116e33d"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/libraries/LiquidityAmounts.sol",
@@ -753,7 +1112,11 @@
       "lines": 77,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "02d6eaaa62d45ac8170b3668e92a31808d2003b0f8eb821581cb4a028b175b45"
+      }
     },
     {
       "path": "contractsV2-deployed/lib/v4-periphery/src/libraries/PositionInfoLibrary.sol",
@@ -761,7 +1124,11 @@
       "lines": 104,
       "class": "third-party-vendored",
       "basis": "Vendored OpenZeppelin / Uniswap v4 / Permit2 dependency tree compiled by profile `forge` (provenance/forge-additions.txt, provenance/tree-integrity-gate.sh)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "6abfa1c06d62753d177df1a4ce7af8028ea3724943ca8673f7083c1cf09bc4d9"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2BondingCurve.sol",
@@ -769,7 +1136,11 @@
       "lines": 872,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9e19cebed3b4ac659b9e3406fe3f8139ff8d59eb1da6e76bd9cbab915cd12684"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2BuybackVault.sol",
@@ -777,7 +1148,11 @@
       "lines": 357,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "4f7dbac2094a0482796ef732ee3b1d75b472fff45aa98c803b72028a022bab76"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2FeeEscrow.sol",
@@ -785,7 +1160,11 @@
       "lines": 148,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "dafb50350e0ee423e4bb57feda1af82a3bb388e76b2315788959e6ec429eea31"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2GraduationExecutor.sol",
@@ -793,7 +1172,11 @@
       "lines": 209,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c9d9a2585fd5dfb6afbce051a7966388ee304fc19e102593f413250e1be8ee75"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2GraduationGuard.sol",
@@ -801,7 +1184,11 @@
       "lines": 125,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "d8f622ab113fd6d4319f09d6e053523bf6cd2a5dd2341446825edb05be60aaa2"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2LaunchAndBuy.sol",
@@ -809,7 +1196,11 @@
       "lines": 222,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "24cefae1063a33d0c5027b116e317f98a0f3c4416ef3b6a1ea5a72170cfc86d3"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2LaunchDeployer.sol",
@@ -817,7 +1208,11 @@
       "lines": 210,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "4d87005e44e9f377e3199b3c289511ac3017ab3dffe9e146d7fd5d403a387825"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2LaunchFactory.sol",
@@ -825,7 +1220,11 @@
       "lines": 1526,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "3813f2ad7dcc9d10c5f2e448c898e4dc7d6f1d4858785fdf15e1b98a91c73259"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2LaunchLocker.sol",
@@ -833,7 +1232,11 @@
       "lines": 123,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "a3a105b93193d7de1a7194e9d05c0e66007b718f8b1a321cd25b86d523b371d9"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/PonsV2LauncherToken.sol",
@@ -841,7 +1244,11 @@
       "lines": 106,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "f3642bd24ecbcd902d7a09e9fa91100b0ac93723f0bfa41b66241c091b094c3e"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/hooks/PonsV2MemeHook.sol",
@@ -849,7 +1256,11 @@
       "lines": 887,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "07c4a6adcf20272729a32802c7b856fda994b0b791b1593220e4ba7a5d3f2cc5"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/interfaces/ILaunchpadV2.sol",
@@ -857,7 +1268,11 @@
       "lines": 154,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "65f1dbd93808dedfd77c4a1f5e03ccd2e1b0a14e96d6265fadd60d6cea202f08"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/interfaces/ILaunchpadV2Graduation.sol",
@@ -865,7 +1280,11 @@
       "lines": 12,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "52e366d698eee7810321c92d8bdfa584caea0a6252afecb988edce5e0b96635a"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/libraries/PonsV2BondingCurveMath.sol",
@@ -873,7 +1292,11 @@
       "lines": 88,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "e4486d95391daf7b3925219766307d3c7c78db80304bd824241f379146e59e58"
+      }
     },
     {
       "path": "contractsV2-deployed/src/v2/libraries/PonsV2GraduationMath.sol",
@@ -881,7 +1304,11 @@
       "lines": 63,
       "class": "pons-vendored",
       "basis": "Deploy-time PONS V2 source recovered from Sourcify; runtime parity evidence in provenance/ (docs/W02-SOURCE-RECOVERY.md)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "f4b1f3f590817d82701f1001ba4e5df486cdd698e89adcab787dff6e1607839e"
+      }
     },
     {
       "path": "contractsV2-forge/src/v2/PonsV2BondingCurve.sol",
@@ -890,6 +1317,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9e19cebed3b4ac659b9e3406fe3f8139ff8d59eb1da6e76bd9cbab915cd12684"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -899,6 +1330,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "4f7dbac2094a0482796ef732ee3b1d75b472fff45aa98c803b72028a022bab76"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -908,6 +1343,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "dafb50350e0ee423e4bb57feda1af82a3bb388e76b2315788959e6ec429eea31"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -917,6 +1356,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c9d9a2585fd5dfb6afbce051a7966388ee304fc19e102593f413250e1be8ee75"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -926,6 +1369,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "d8f622ab113fd6d4319f09d6e053523bf6cd2a5dd2341446825edb05be60aaa2"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -935,6 +1382,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "24cefae1063a33d0c5027b116e317f98a0f3c4416ef3b6a1ea5a72170cfc86d3"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -944,6 +1395,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "4d87005e44e9f377e3199b3c289511ac3017ab3dffe9e146d7fd5d403a387825"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -953,6 +1408,10 @@
       "class": "pons-vendored-modified",
       "basis": "Deploy-time PONS factory plus the M-ELIG change (docs/MODIFICATION-REGISTER.md section 2 and 7); only PONS file that differs from contractsV2-deployed",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "5d407d8b146002c0a8dc63cc777cd6088c83ddbb95e8125eba29e41de11f898f"
+      },
       "deployedCounterpart": "differs"
     },
     {
@@ -962,6 +1421,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "a3a105b93193d7de1a7194e9d05c0e66007b718f8b1a321cd25b86d523b371d9"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -971,6 +1434,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "f3642bd24ecbcd902d7a09e9fa91100b0ac93723f0bfa41b66241c091b094c3e"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -979,7 +1446,11 @@
       "lines": 322,
       "class": "forge-owned",
       "basis": "Forge-authored additive contracts (docs/MODIFICATION-REGISTER.md section 3 and 8)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "098b1d961f570643a5b5c704850acddbdffa8d46dc8de8a12e7e61dfaa41109b"
+      }
     },
     {
       "path": "contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol",
@@ -987,7 +1458,11 @@
       "lines": 458,
       "class": "forge-owned",
       "basis": "Forge-authored additive contracts (docs/MODIFICATION-REGISTER.md section 3 and 8)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "aefea65156cb86454a1b18cef82fbb905148ef9e8abc5a5631e34554fc3387a3"
+      }
     },
     {
       "path": "contractsV2-forge/src/v2/forge/ForgeProtocolRevenueSplitter.sol",
@@ -995,7 +1470,11 @@
       "lines": 685,
       "class": "forge-owned",
       "basis": "Forge-authored additive contracts (docs/MODIFICATION-REGISTER.md section 3 and 8)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c2da7457717ed22dbb17469f424af783dc564d9a5d392dc8ffadcf33af19c92b"
+      }
     },
     {
       "path": "contractsV2-forge/src/v2/forge/IFincoBurnReserveExecutor.sol",
@@ -1003,7 +1482,11 @@
       "lines": 33,
       "class": "forge-owned",
       "basis": "Forge-authored additive contracts (docs/MODIFICATION-REGISTER.md section 3 and 8)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "f9ffa31943c7e2e066813fe8ef80a8675df2e0b27cf9cfa962e5d6529127afeb"
+      }
     },
     {
       "path": "contractsV2-forge/src/v2/forge/IForgeLaunchAuthorizer.sol",
@@ -1011,7 +1494,11 @@
       "lines": 93,
       "class": "forge-owned",
       "basis": "Forge-authored additive contracts (docs/MODIFICATION-REGISTER.md section 3 and 8)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "d22fcb604b74829535689bcf5dbb799fd18e873c4982561f4ab0166d84fa2d58"
+      }
     },
     {
       "path": "contractsV2-forge/src/v2/hooks/PonsV2MemeHook.sol",
@@ -1020,6 +1507,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "07c4a6adcf20272729a32802c7b856fda994b0b791b1593220e4ba7a5d3f2cc5"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -1029,6 +1520,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "65f1dbd93808dedfd77c4a1f5e03ccd2e1b0a14e96d6265fadd60d6cea202f08"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -1038,6 +1533,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "52e366d698eee7810321c92d8bdfa584caea0a6252afecb988edce5e0b96635a"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -1047,6 +1546,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "e4486d95391daf7b3925219766307d3c7c78db80304bd824241f379146e59e58"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -1056,6 +1559,10 @@
       "class": "pons-vendored",
       "basis": "Byte-identical to the Sourcify-recovered deploy-time PONS source in contractsV2-deployed/src when deployedCounterpart is `identical` (docs/MODIFICATION-REGISTER.md section 1)",
       "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "f4b1f3f590817d82701f1001ba4e5df486cdd698e89adcab787dff6e1607839e"
+      },
       "deployedCounterpart": "identical"
     },
     {
@@ -1064,7 +1571,11 @@
       "lines": 143,
       "class": "script",
       "basis": "Local/test deployment script; never pointed at chain 4663",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "bec8115f367947e60a37c72f48ed6d43938d04805f0fdb919197dfa1cf8acc64"
+      }
     },
     {
       "path": "test-forge/ForgeLaunchAuth.t.sol",
@@ -1072,7 +1583,11 @@
       "lines": 813,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "96871c0863d32745b115d3f4485dd524810bdae37d20a98fca4764599cc8b606"
+      }
     },
     {
       "path": "test-forge/ForgeLaunchCall.t.sol",
@@ -1080,7 +1595,11 @@
       "lines": 158,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "84696c0a5d60eb08c2dfee9ada9f3fd4ff2b41bad808b0f36a8143682ca31694"
+      }
     },
     {
       "path": "test-forge/ForgeLifecycle.t.sol",
@@ -1088,7 +1607,11 @@
       "lines": 473,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "75839ddbb38d7b50c86d7dd7574d792257b2fb5427ca2c8ee4197e25d8d58154"
+      }
     },
     {
       "path": "test-forge/ForgeRevenueLifecycle.t.sol",
@@ -1096,7 +1619,11 @@
       "lines": 615,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "8dc8609f8e60fd26d04bb9dcb9df6cab1331d9b6f50fc16d3a81f0143fbb811f"
+      }
     },
     {
       "path": "test-forge/ForgeRevenueSplitter.t.sol",
@@ -1104,7 +1631,11 @@
       "lines": 1173,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "cca97aa83307330d94382333ace52fa79630860a1bd4ebb88ab80c40dd6becc8"
+      }
     },
     {
       "path": "test-forge/ForgeSnipeTax.t.sol",
@@ -1112,7 +1643,11 @@
       "lines": 240,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "05744fac09b6befdde74d16db4acf8e2006b8032e921b64ae16d430fa6683254"
+      }
     },
     {
       "path": "test-forge/W05AttestorCompromise.t.sol",
@@ -1120,7 +1655,11 @@
       "lines": 198,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "71274a0c3a0954cbfbf2467deb18bcc6163891a7b6b9a0bf51c2df1af775d7d0"
+      }
     },
     {
       "path": "test-forge/W05EmergencyRevocation.t.sol",
@@ -1128,7 +1667,11 @@
       "lines": 285,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "6815ac692dfd0d93c682c15fb5a71616d68b79dd448e1e4be4e3ae1ebdbd8a30"
+      }
     },
     {
       "path": "test-forge/W05OwnerPowers.t.sol",
@@ -1136,15 +1679,22 @@
       "lines": 375,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c4c5d844eb3c1ea96c39e21677acff792fe9ce49d64cc3e69260231aa4465e20"
+      }
     },
     {
       "path": "test-forge/W06FinancialAcceptance.t.sol",
-      "sha256": "dc867a17547e718c2d3da5dc06d8c37ae98ab2646523abeaffe4cd38ee84f55e",
-      "lines": 279,
+      "sha256": "bb493754d3af746e51b055f37a28347dbab830d0e0b97183e13b0bd326efd46e",
+      "lines": 375,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "added"
+      }
     },
     {
       "path": "test-forge/mocks/FeeOnTransferToken.sol",
@@ -1152,7 +1702,11 @@
       "lines": 28,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "06068804374f4017fe47155d2a78b88d133c601e44c7113eb7758e75933c8a79"
+      }
     },
     {
       "path": "test-forge/mocks/ForgeTestToken.sol",
@@ -1160,7 +1714,11 @@
       "lines": 14,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "91b3b4f0f6a2293922a2703af9ccb6edb9cdb55cac230aba694fe5201a8a267c"
+      }
     },
     {
       "path": "test-forge/mocks/HookDeployer.sol",
@@ -1168,7 +1726,11 @@
       "lines": 17,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c2ea64f8c4b4277834f1ea7a2aad4b61a23df13170313b6d2efb654632298aa9"
+      }
     },
     {
       "path": "test-forge/mocks/MiniPoolManager.sol",
@@ -1176,7 +1738,11 @@
       "lines": 237,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "aa268a82f46658c5c665d6cae8c6e9536a93439d3cee59f1db8d3153fa69f0d6"
+      }
     },
     {
       "path": "test-forge/mocks/MiniPoolManagerW02.sol",
@@ -1184,7 +1750,11 @@
       "lines": 51,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c0cfa2698accae57b2577a06212f50e576fe0abcc99ec1c2a81784b751d40b78"
+      }
     },
     {
       "path": "test-forge/mocks/MiniPositionManager.sol",
@@ -1192,7 +1762,11 @@
       "lines": 156,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9b43205b95c96344a6fd55e023dfd29cbf5c16529dcc0a63ab67200356ba73b4"
+      }
     },
     {
       "path": "test-forge/mocks/MockFeeEscrow.sol",
@@ -1200,7 +1774,11 @@
       "lines": 182,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "612b115e96efba98d6240e17898e120fb9c26696a08310003d59b5c3c0758c2e"
+      }
     },
     {
       "path": "test-forge/mocks/MockPermit2.sol",
@@ -1208,7 +1786,11 @@
       "lines": 37,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "632df9f26f7e6e05e12b3afbee138c8367341ccc21e5f00d9ca1bc3bf461dbc1"
+      }
     },
     {
       "path": "test-forge/mocks/MockQuotePolicyFactory.sol",
@@ -1216,7 +1798,11 @@
       "lines": 43,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "0e731488e03fcaf6376717419f78a8ff194d2b5518f106beef0d893682f6f8bf"
+      }
     },
     {
       "path": "test-forge/mocks/SandboxSwapRouter.sol",
@@ -1224,7 +1810,11 @@
       "lines": 71,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "06d197ea6f84ef4f00691c8a28ca74938d4c0375edb03ad2fdc01988e17e46b8"
+      }
     },
     {
       "path": "test/CurveInvariants.t.sol",
@@ -1232,7 +1822,11 @@
       "lines": 175,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "2dc49a9cec6e5c0ad0600c36cb27de3483f02f56ede9ce57f0b7ccb252104706"
+      }
     },
     {
       "path": "test/PonsV2BondingCurve.t.sol",
@@ -1240,7 +1834,11 @@
       "lines": 660,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "ad131cb6ddc8d9db9a2fff9ac5fa2fadb7bda949e734c8f667a151baf4e1d781"
+      }
     },
     {
       "path": "test/PonsV2BuybackVault.t.sol",
@@ -1248,7 +1846,11 @@
       "lines": 222,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "e5390e5289ace6059993eb5ef83a10d85378dd8195759eb218b4547d5fa9b062"
+      }
     },
     {
       "path": "test/PonsV2GraduationGuard.t.sol",
@@ -1256,7 +1858,11 @@
       "lines": 58,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "f8ddd50ba89454e7681000472a0b1ef8333ebda327a6adb8c3cdd90acd53606b"
+      }
     },
     {
       "path": "test/PonsV2LaunchLocker.t.sol",
@@ -1264,7 +1870,11 @@
       "lines": 116,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "8a1b053159ff3e6c10c02f26ba963894879bcbf6e948a64d56be31675d7d6a4d"
+      }
     },
     {
       "path": "test/PonsV2LauncherToken.t.sol",
@@ -1272,7 +1882,11 @@
       "lines": 98,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "9be0fb07bdee3a7c2ba5c1a1d95bf5c70d02d3320bc641d8458425f786ae2905"
+      }
     },
     {
       "path": "test/PonsV2MemeHook.t.sol",
@@ -1280,7 +1894,11 @@
       "lines": 565,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "19f467a13de57b92ebaa546f2228e8418d8b4eadce75074054a380a60344b4ef"
+      }
     },
     {
       "path": "test/libraries/PonsV2BondingCurveMath.t.sol",
@@ -1288,7 +1906,11 @@
       "lines": 110,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "26067ff9d745c72bfd1e60202d893657243ca7f811d799eb528541df3852c83d"
+      }
     },
     {
       "path": "test/libraries/PonsV2GraduationMath.t.sol",
@@ -1296,7 +1918,11 @@
       "lines": 101,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "1e4c29b3c14e98d64d886dd18b65eb58188d8498d2917a9c72015266b261aba6"
+      }
     },
     {
       "path": "test/mocks/HookDeployer.sol",
@@ -1304,7 +1930,11 @@
       "lines": 17,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "c2ea64f8c4b4277834f1ea7a2aad4b61a23df13170313b6d2efb654632298aa9"
+      }
     },
     {
       "path": "test/mocks/MiniPoolManager.sol",
@@ -1312,7 +1942,11 @@
       "lines": 237,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "aa268a82f46658c5c665d6cae8c6e9536a93439d3cee59f1db8d3153fa69f0d6"
+      }
     },
     {
       "path": "test/mocks/MockERC20.sol",
@@ -1320,7 +1954,11 @@
       "lines": 47,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "b8806a173d7f4d919d9f00ddf89a4d90ca49a5288eb68ce697ccc1e2d3eb30dc"
+      }
     },
     {
       "path": "test/mocks/MockFeeEscrow.sol",
@@ -1328,7 +1966,11 @@
       "lines": 182,
       "class": "mock",
       "basis": "Test-only mock; never part of a deployable stack",
-      "spdx": "MIT"
+      "spdx": "MIT",
+      "baseline": {
+        "status": "identical",
+        "sha256": "62fc80269e3a1bcfd4a574e32cd3eb5bda35a912d8aa73eb60264de71ad0b635"
+      }
     }
   ]
 }

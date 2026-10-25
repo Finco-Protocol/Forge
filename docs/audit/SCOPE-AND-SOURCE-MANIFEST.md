@@ -33,10 +33,10 @@ The manifest is bound to that commit by a **one-time verification, not by the ge
 | `pons-vendored-modified` | 1 | 1573 |
 | `pons-vendored` | 29 | 8678 |
 | `third-party-vendored` | 88 | 9996 |
-| `test` | 19 | 6714 |
+| `test` | 19 | 6810 |
 | `mock` | 14 | 1319 |
 | `script` | 1 | 143 |
-| **All** | **157** | **30014** |
+| **All** | **157** | **30110** |
 
 ## 1.3 Classification (how each class is decided)
 

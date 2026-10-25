@@ -83,6 +83,12 @@ async function injectWallet(page: Page, account: string, opts: WalletOpts = {}) 
       (window as unknown as { ethereum: unknown }).ethereum = {
         isForgeTestWallet: true,
         request: async ({ method, params }: { method: string; params?: unknown[] }) => {
+          // Count every transaction the page asks the wallet to submit (attempted or not):
+          // the double-submission guard is proven by this counter, not by token counts.
+          if (method === "eth_sendTransaction") {
+            const w = window as unknown as { __ethSendTxCount?: number };
+            w.__ethSendTxCount = (w.__ethSendTxCount ?? 0) + 1;
+          }
           if (method === "eth_requestAccounts" || method === "eth_accounts") return [account];
           if (method === "eth_chainId" && opts.chainIdHex) return opts.chainIdHex;
           if (method === "net_version" && opts.chainIdHex) return String(parseInt(opts.chainIdHex, 16));
@@ -349,10 +355,10 @@ test("N02-N04 wrong wallet, invalid signature, failed transaction, double submis
   await page.getByTestId("authorize").click();
   await expect(page.getByTestId("authorization")).toContainText("epoch");
   await page.getByTestId("sign").click();
-  await expect(page.getByTestId("error")).toBeVisible();
+  await expect(page.getByTestId("error")).toContainText("BAD_SIGNATURE"); // the server's specific refusal, not any error
   await expect(page.getByTestId("launch")).toHaveCount(0);
   await shot(page, "N03-invalid-signature");
-  note("N03 invalid signature", "server rejects the signature; launch never offered", `error: ${(await page.getByTestId("error").innerText()).replace(/\s+/g, " ").slice(0, 140)}`);
+  note("N03 invalid signature", "server rejects the signature with BAD_SIGNATURE; launch never offered", `error: ${(await page.getByTestId("error").innerText()).replace(/\s+/g, " ").slice(0, 140)}`);
   void baseURL;
 });
 
@@ -385,9 +391,11 @@ test("N05-N07 failed transaction, double submission and refresh/reconnect recove
   // double submission: two rapid clicks must produce exactly one launch transaction
   await p2.getByTestId("launch").dblclick();
   await expect(p2.getByTestId("launch-state")).toHaveText("confirmed", { timeout: 60_000 });
+  const sentTx = await p2.evaluate(() => (window as unknown as { __ethSendTxCount?: number }).__ethSendTxCount ?? 0);
+  expect(sentTx, "the wallet received EXACTLY ONE transaction submission despite the double click").toBe(1);
   expect(await count(), "double click launched exactly one token").toBe(2);
   await shot(p2, "N06-double-submit-single-launch");
-  note("N06 double submission", "double click => exactly one token", "creator has exactly 2 tokens (J09 + this one)");
+  note("N06 double submission", "double click => exactly one wallet transaction submission and one token", `eth_sendTransaction calls = ${sentTx}; creator has exactly 2 tokens (J09 + this one)`);
 });
 
 test("N08 stale repository proof: administration removed after verification => authorization refused", async ({ page, baseURL }) => {
@@ -395,12 +403,16 @@ test("N08 stale repository proof: administration removed after verification => a
   await injectWallet(page, CREATOR);
   await signInAndVerify(page, 5005, "journey-stale");
   await configure(page, "Stale Proof", "STAL");
-  await ghControl("set-permission", { repoId: 5005, userId: 1003, perm: "write" });
-  await webhook(baseURL!, "member", { action: "edited", repository: { id: 5005, full_name: "finco-labs/journey-stale" }, member: { id: 1003, login: "carol-admin" } });
+  // The prerequisite GitHub-side changes must actually succeed before the refusal can be attributed
+  // to the stale proof (a silently failing control or webhook would make this test pass for nothing).
+  const perm = await ghControl("set-permission", { repoId: 5005, userId: 1003, perm: "write" });
+  expect(perm.status, "fake-GitHub control: downgrade to write").toBe(200);
+  const wh = await webhook(baseURL!, "member", { action: "edited", repository: { id: 5005, full_name: "finco-labs/journey-stale" }, member: { id: 1003, login: "carol-admin" } });
+  expect(wh.status, "signed member.edited webhook accepted").toBe(200);
   await page.getByTestId("authorize").click();
-  await expect(page.getByTestId("error")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("error")).toContainText("NOT_ADMIN", { timeout: 30_000 }); // the specific refusal the doc reports
   await shot(page, "N08-stale-proof-refused");
-  note("N08 stale proof", "authorization refused after administration is removed", `error: ${(await page.getByTestId("error").innerText()).replace(/\s+/g, " ").slice(0, 140)}`, "FakeGithub permission change + signed webhook");
+  note("N08 stale proof", "authorization refused with NOT_ADMIN after administration is removed", `error: ${(await page.getByTestId("error").innerText()).replace(/\s+/g, " ").slice(0, 140)}`, "FakeGithub permission change + signed webhook");
 });
 
 test("J18-J19 repository authority revoked (transfer) => on-chain binding revoked and new authorization refused", async ({ page, baseURL }) => {
@@ -429,8 +441,9 @@ test("J18-J19 repository authority revoked (transfer) => on-chain binding revoke
     const r = await fetch("/api/launch/drafts", { method: "POST", headers: { "content-type": "application/json", "x-forge-csrf": decodeURIComponent(csrf) }, body: JSON.stringify({ repoId: 5003, installationId: 7001, name: "Revoked", symbol: "RVKD", description: "should be refused", logo: "https://example.org/l.png", socials: {}, launchConfigId: 0, creatorTaxBps: 100, buybackEnabled: false, snipeTaxExemptions: [] }) });
     return { status: r.status, body: await r.text() };
   });
-  expect(draft.status).toBeGreaterThanOrEqual(400);
-  note("J19 refuse revoked authorization", "a launch draft for the revoked repository is refused", `HTTP ${draft.status}: ${draft.body.slice(0, 140)}`);
+  expect(draft.status, "the revoked repository's verification is gone: draft refused with 403").toBe(403);
+  expect(JSON.parse(draft.body).error?.code ?? draft.body, "refusal is specifically NOT_VERIFIED").toContain("NOT_VERIFIED");
+  note("J19 refuse revoked authorization", "a launch draft for the revoked repository is refused with 403 NOT_VERIFIED", `HTTP ${draft.status}: ${draft.body.slice(0, 140)}`);
 });
 
 test("U01-U03 mobile viewport, keyboard accessibility and no horizontal overflow", async ({ page, baseURL }) => {

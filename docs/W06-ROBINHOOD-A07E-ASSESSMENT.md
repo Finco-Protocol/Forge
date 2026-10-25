@@ -41,7 +41,7 @@ Commands are reproducible: `anvil --port <p> --fork-url https://rpc.mainnet.chai
 | `eth_call 0x64 arbBlockNumber()` (`0xa3b1b31d`) | answers; returns the fork's **L2** head, and after `anvil_mine 5` returns head+5 | the head half of `_evidenceView` works |
 | `eth_call 0x64 arbBlockHash(uint256)` (`0x2b407a82`, selector confirmed with `cast sig`) for fork-origin blocks (N-1, N-100) and for locally mined blocks | **`-32003 EVM error PrecompileError`** every time | the hash half is **not implemented** by this Anvil |
 | `eth_call 0x64 arbChainID()` / `arbOSVersion()` | `PrecompileError` | emulation is minimal (`arbBlockNumber` only) |
-| In-EVM probe — bytecode that `STATICCALL`s `0x64.arbBlockHash(N-1)` and returns `(ok, ret)` | `ok = 0` (first word `0x00…00`) | from inside a contract the call **returns false** (does not halt) — exactly the `ok2 == false → h = 0` branch of `_evidenceView` |
+| In-EVM probe — bytecode that `STATICCALL`s `0x64.arbBlockHash(N-1)` and returns `(ok, ret)` | `ok = 0` (first word `0x00…00`) | from inside a contract the call **returns false** (does not halt) — exactly the `ok2 == false → h = 0` branch of `_evidenceView`. The calldata this bytecode puts on the wire is proven byte-identical to canonical ABI encoding in §6 (review round 2) |
 | `anvil_setCode(0x64, <code returning 42>)` then `arbBlockNumber()` | `setCode` returns `null` but the call **still returns the real L2 head**, `eth_getCode` shows the new code | the precompile wins; a code double **cannot replace** it (confirms the W05 observation) |
 | EVM `block.number` inside `eth_call` | `0x18fbefa` = parent-chain number ≈ 26.2 M vs RPC `0x5512…` ≈ 89.2 M | confirms finding W05-05: opcode-based evidence cannot match RPC evidence, so the ArbSys path is mandatory |
 
@@ -89,8 +89,58 @@ N=$(( $(cast block-number --rpc-url http://127.0.0.1:18603) - 1 ))
 CODE="0x7f2b407a8200000000000000000000000000000000000000000000000000000000600052""7f$(printf '%064x' $N)""600452602060406024600060645afa60005260606000f3"
 curl -s localhost:18603 -H 'content-type: application/json' --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_call\",\"params\":[{\"data\":\"$CODE\"},\"latest\"]}"
 # today: first 32-byte word is 0 (ok=false).  Required: 1, followed by the RPC block hash.
-# (The calldata above is correct: 0x2b407a82 is the arbBlockHash(uint256) selector, stored as the high bytes of a PUSH32 word at offset 0, with N stored at offset 4.)
 # Independent re-check with ordinary ABI encoding (Foundry 1.8.5, re-run after review):
 cast call 0x0000000000000000000000000000000000000064 "arbBlockHash(uint256)(bytes32)" $N --rpc-url http://127.0.0.1:18603          # fork: "EVM error PrecompileError"
 cast call 0x0000000000000000000000000000000000000064 "arbBlockHash(uint256)(bytes32)" $N --rpc-url https://rpc.mainnet.chain.robinhood.com   # live RPC: returns the block hash
+```
+
+### 6.1 Probe calldata layout — proven, not asserted (review round 2)
+
+A review finding claimed the probe bytecode never writes the `arbBlockHash(uint256)` selector at offset 0
+(`7f` read as a malformed PUSH, "the only MSTORE writes N at offset 4"). That claim is wrong, and because the
+documented `ok = 0` result rests on this probe, the layout is now PROVEN at byte level instead of explained:
+
+Disassembly of `CODE` (exact, 92 bytes; the first PUSH32 word is `0x2b407a82` left-aligned to 32 bytes):
+
+```
+ 0 PUSH32 0x2b407a82 00…00     ; the selector as the HIGH bytes of a 32-byte word
+33 PUSH1 0x00 ; 35 MSTORE      ; memory[0..32)  = selector ‖ 28 zero bytes
+36 PUSH32 N    ; 69 PUSH1 0x04 ; 71 MSTORE
+                               ; memory[4..36)  = N as a full 32-byte big-endian word
+                               ; (overwrites bytes 4..32 of the selector word: net calldata image = selector(4) + N(32))
+72 PUSH1 0x20 ; 74 PUSH1 0x40  ; out: memory[0x40..0x60), 32 bytes
+76 PUSH1 0x24 ; 78 PUSH1 0x00  ; in:  memory[0x00..0x24), 36 bytes
+80 PUSH1 0x64 ; 82 GAS ; 83 STATICCALL
+84 PUSH1 0x00 ; 86 MSTORE      ; memory[0..32) = ok flag (returned as word 0)
+87 PUSH1 0x60 ; 89 PUSH1 0x00 ; 91 RETURN   ; 96 bytes: [ok, pad, hash]
+```
+
+The overlapping MSTOREs are the point: `MSTORE(0, selector<<224)` writes bytes 0–3 (selector) and zeros 4–31;
+`MSTORE(4, N)` then writes bytes 4–35. Net memory `0..36` = `selector(4) ‖ uint256(N)(32)` — exactly the ABI
+encoding of `arbBlockHash(uint256)`. Byte-level confirmation on the fork (review round 2, Foundry 1.8.5):
+
+1. `debug_traceCall` (callTracer) of the probe on the 4663 fork, with `N = 97372837` (`0x5cdcaa5`): the
+   STATICCALL frame's actual wire input to `0x64` is
+   `0x2b407a820000000000000000000000000000000000000000000000000000000005cdcaa5`, **byte-identical** to
+   `cast calldata "arbBlockHash(uint256)" 97372837` = `0x2b407a82 ‖ 0x…05cdcaa5`. The precompile answer:
+   `precompiled failed` (in-EVM `ok = false`; the probe's returned word 0 is `0x0`).
+2. Direct canonical `eth_call` of the same calldata to `0x64` on the fork: `-32003 EVM error PrecompileError`
+   — the same refusal from outside the EVM. Both the probe and the canonical call fail identically.
+3. Return-data interpretation: the probe returns 96 bytes `[ok @ 0, memory-pad @ 32, hash @ 64]`; with
+   `ok = false` the out buffer is never written by the precompile, so words 1–2 are zero — the `h = 0`
+   branch of `_evidenceView`. On the LIVE RPC (read-only), the same canonical calldata returns
+   `arbBlockHash(N) == eth_getBlockByNumber(N).hash` exactly (`0xad1766b4…` for N = 97373690), and for a
+   block outside the live 256-window it reverts `InvalidBlockNumber(N, head)` — confirming both the calldata
+   encoding and the 32-byte-hash interpretation against the genuine precompile.
+4. Side observation recorded while falsifying the review claim: on a PLAIN (non-fork) Anvil,
+   `anvil_setCode(0x64, echoMock)` stores code that `eth_getCode` returns, but calls to `0x64` are still
+   intercepted before it executes (the echo mock receives no calldata, `eth_call` returns empty) — the
+   precompile slot wins even without a fork, independently corroborating §3's `setCode` row.
+
+```
+# byte-level proof (fork running as above):
+cast calldata "arbBlockHash(uint256)" $N                                                    # canonical ABI
+curl -s localhost:18603 -H 'content-type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"debug_traceCall","params":[{"data":"'"$CODE"'"},"latest",{"tracer":"callTracer"}]}'
+# → the STATICCALL frame's "input" equals the canonical encoding above, and the frame fails ("precompiled failed")
 ```

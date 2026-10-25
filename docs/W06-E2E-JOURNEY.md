@@ -27,14 +27,14 @@
 | 18–19 | revoke authority (repository transfer) → on-chain binding revoked → new draft refused | PASS (`registry.isActive` false; HTTP 403 `NOT_VERIFIED`) |
 | 20 | interrupted operations | failed tx, page replacement and reconnect recovered without a duplicate token (below) |
 
-| Negative case | Observed |
+| Negative case | Observed (asserted by the spec — the specific codes below are checked, not just "some error") |
 |---|---|
 | Wrong network | "wrong network" chip; switch refused by wallet → `WALLET_REQUEST_DECLINED — … Nothing was signed or sent.` |
 | Wrong wallet | "The connected account differs from your bound wallet …"; signing blocked |
-| Invalid signature | server `BAD_SIGNATURE`; launch step never offered |
+| Invalid signature | server refuses with `BAD_SIGNATURE` (asserted); launch step never offered |
 | Failed transaction | error shown, no token created |
-| Double submission | double click → exactly one launch |
-| Stale repository proof | administration removed after verification → `NOT_ADMIN` at authorization |
+| Double submission | double click → the injected wallet counted **exactly one** `eth_sendTransaction` (asserted against the wallet-side counter, not inferred from tokens) and exactly one token |
+| Stale repository proof | the fake-GitHub permission change and the signed `member.edited` webhook are asserted to succeed first; authorization then refuses with `NOT_ADMIN` (asserted) |
 | Indexer lag | pending tx not reflected; reflected after mining + indexing |
 | Incomplete claim | prepared but unsent claim → claimable unchanged after refresh |
 | Refresh/reconnect | session and wallet binding survive a new page |

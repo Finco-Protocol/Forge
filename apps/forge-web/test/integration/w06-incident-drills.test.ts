@@ -88,18 +88,55 @@ describe("W-D1 GitHub App compromise: leaked webhook secret / stolen App key", (
     const live = await sb.ctx.db.query("SELECT 1 FROM verifications WHERE repo_id = $1 AND revoked_at IS NULL AND expires_at > now()", [s.repoId]);
     expect(live.rows.length).toBe(0);
 
-    // 3. Recovery step: rotate the webhook secret (new process config). The old secret is now rejected and audited.
-    const rotated = await createAppContext({ ...sb.env, GITHUB_WEBHOOK_SECRET: "rotated-webhook-secret-0123456789abcdef-new" }, { db: sb.ctx.db });
-    const before = Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text n FROM audit_events WHERE action = 'webhook_signature_rejected'")).rows[0]!.n);
-    expect((await post(rotated, "repository", { action: "deleted", repository: { id: s.repoId, full_name: "x/y" } }, leaked)).status).toBe(401);
-    const after = Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text n FROM audit_events WHERE action = 'webhook_signature_rejected'")).rows[0]!.n);
-    expect(after).toBe(before + 1);
+    // 3. Recovery step: rotate the webhook secret (new process config) and make the rotated context the
+    //    ACTIVE application context. The TestBrowser and every dispatch below read sb.ctx per request, so
+    //    from here on the sandbox and its browser genuinely run on the rotated secret — a deliberately
+    //    reverted active context would accept the old signature and fail this drill at 3a/3b.
+    const rotatedSecret = "rotated-webhook-secret-0123456789abcdef-new";
+    const rotated = await createAppContext({ ...sb.env, GITHUB_WEBHOOK_SECRET: rotatedSecret }, { db: sb.ctx.db });
+    sb.ctx = rotated;
+    sb.env.GITHUB_WEBHOOK_SECRET = rotatedSecret;
+    const rejections = async () =>
+      Number((await sb.ctx.db.query<{ n: string }>("SELECT count(*)::text n FROM audit_events WHERE action = 'webhook_signature_rejected'")).rows[0]!.n);
+    const before = await rejections();
 
-    // 4. Release lockdown; a legitimate user must re-verify from scratch (the repository was marked ineligible by the forged event).
+    // 3a. The leaked secret is rejected by the ACTIVE route, and the rejection is audited.
+    expect((await post(sb.ctx, "repository", { action: "deleted", repository: { id: s.repoId, full_name: "x/y" } }, leaked)).status).toBe(401);
+    expect(await rejections()).toBe(before + 1);
+
+    // 3b. The new secret is accepted by the ACTIVE route (a legitimately signed benign event is processed) —
+    //     and even a validly signed good-news event cannot restore eligibility without a fresh verification.
+    const withNew = await post(sb.ctx, "repository", { action: "unarchived", repository: { id: s.repoId, full_name: "x/y" } }, rotatedSecret);
+    expect(withNew.status).toBe(200);
+    expect(((await withNew.json()) as { processed?: boolean }).processed).toBe(true);
+    await runWorkerOnce(sb.ctx);
+    expect(await isActive(s.repoId, s.address)).toBe(false);
+
+    // 4. Release lockdown. The old secret is STILL rejected by the active route after lockdown: an old-key
+    //    webhook can neither revoke again, nor restore, nor otherwise modify repository verification.
     await setControl(sb.ctx.db, "emergency_lockdown", false, "W-D1 drill complete", "drill-operator");
     expect(await alerts()).not.toContain("EMERGENCY_LOCKDOWN_ACTIVE");
+    const afterLockdown = await rejections();
+    for (const [ev, action, p] of [
+      ["repository", "deleted", { action: "deleted", repository: { id: s.repoId, full_name: "x/y" } }],
+      ["installation", "created", { action: "created", installation: { id: s.installationId, account: { id: s.org.id, login: s.org.login, type: "Organization" } } }],
+      ["installation", "unsuspend", { action: "unsuspend", installation: { id: s.installationId } }],
+      ["repository", "unarchived", { action: "unarchived", repository: { id: s.repoId, full_name: "x/y" } }],
+    ] as const) {
+      expect((await post(sb.ctx, ev, p, leaked)).status, `${ev}.${action} must stay rejected after lockdown`).toBe(401);
+    }
+    expect(await rejections()).toBe(afterLockdown + 4);
+    await runWorkerOnce(sb.ctx);
+    expect(await isActive(s.repoId, s.address)).toBe(false); // no unexpected revocation, no restoration
+    const revokedStill = await sb.ctx.db.query("SELECT 1 FROM verifications WHERE repo_id = $1 AND revoked_at IS NULL AND expires_at > now()", [s.repoId]);
+    expect(revokedStill.rows.length).toBe(0);
+
+    // 5. A legitimate user must re-verify from scratch (the repository was marked ineligible by the forged
+    //    event); the fresh full verification runs through the rotated, active application and restores service.
     const re = await s.browser.post("/api/github/verify", { repoId: s.repoId, installationId: s.installationId });
     expect(re.status).toBe(200); // GitHub (the fake) still shows the user as admin: a fresh full verification restores service
+    const restored = await sb.ctx.db.query("SELECT 1 FROM verifications WHERE repo_id = $1 AND revoked_at IS NULL AND expires_at > now()", [s.repoId]);
+    expect(restored.rows.length).toBe(1);
   });
 });
 

@@ -58,12 +58,33 @@ describe("W06 GitHub: outage, 5xx and rate limit never revoke and never verify; 
       expect(await ineligibleReason(s.repoId), `${m}: repo not marked ineligible`).toBeNull();
     }
     // Worker pass with reconcile during an outage must not revoke either (errors are per-repo, never "assume revoked").
+    // The pass gets real work for THIS repo: a revalidation job is enqueued first, so the outage behaviour of the
+    // retry path is actually exercised (not swallowed), its retry state is asserted, and no revocation is queued.
     mode = "down";
-    await runWorkerOnce(flaky, { reconcile: true }).catch(() => undefined);
-    await runJobs(flaky);
+    const dedupeKey = `revalidate:${s.repoId}:w06-outage-drill`;
+    await sb.ctx.db.query("INSERT INTO jobs(kind, dedupe_key, payload) VALUES ('repo_revalidate', $1, $2)", [dedupeKey, JSON.stringify({ repoId: String(s.repoId) })]);
+    const passError = await runWorkerOnce(flaky, { reconcile: true }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    expect(passError, "the reconcile part of the pass must fail closed while GitHub is down").toBeTruthy();
+    const job = (await sb.ctx.db.query<{ kind: string; status: string; attempts: string; last_error: string | null }>("SELECT kind, status, attempts::text, last_error FROM jobs WHERE dedupe_key = $1", [dedupeKey])).rows[0]!;
+    expect(job.kind).toBe("repo_revalidate");
+    expect(job.status, "a critical job is retried, never dropped").toBe("pending");
+    expect(Number(job.attempts)).toBeGreaterThanOrEqual(1);
+    expect(job.last_error, "the failure is recorded on the job").toMatch(/could not be reached|outage|fetch failed/i);
+    expect(await isActive(s.repoId, s.address)).toBe(true);
+    expect(await revokeJobs(s.repoId), "the outage must not queue a revocation").toBe(0);
+    expect(await ineligibleReason(s.repoId)).toBeNull();
+
+    // Recovery: with GitHub reachable again the SAME job converges to done (and revokes nothing).
+    mode = "up";
+    await sb.ctx.db.query("UPDATE jobs SET run_after = now() WHERE dedupe_key = $1", [dedupeKey]); // skip the retry backoff
+    const retried = await runJobs(flaky);
+    expect(retried.some((r) => r.kind === "repo_revalidate" && r.ok)).toBe(true);
+    expect(await revokeJobs(s.repoId)).toBe(0);
     expect(await isActive(s.repoId, s.address)).toBe(true);
 
-    mode = "up";
     expect((await reconcileRepository(flaky, s.repoId)).outcome).toBe("ok");
   });
 

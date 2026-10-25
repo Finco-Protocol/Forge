@@ -11,6 +11,15 @@
  * timestamps, and depends only on tracked file content, so two runs on the
  * same tree are byte-identical. Node built-ins only (plus `git` on PATH).
  *
+ * Schema 2 binds every entry to the recorded BASELINE_COMMIT: for each file the
+ * manifest stores the sha256 of the bytes AT THAT COMMIT and whether the file
+ * (a) is byte-identical to it, (b) was added after it, or (c) deliberately
+ * differs from it (only allowed for entries in BASELINE_MODIFICATIONS_ALLOWED,
+ * each with a documented reason). Generation and --check read the baseline
+ * bytes from git (`git show <commit>:<path>`), never from the index or a
+ * previous manifest, so a modified historical source can never ship as a green
+ * gate merely by regenerating the manifest.
+ *
  * This is a source inventory. It is NOT an audit, an approval or a claim of
  * production readiness (PRODUCTION_BLOCKED=true).
  */
@@ -20,6 +29,14 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
 export const BASELINE_COMMIT = "f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f";
+
+/**
+ * Baseline files whose current bytes DELIBERATELY differ from BASELINE_COMMIT.
+ * Empty today: no in-scope Solidity source has changed since the baseline.
+ * Any entry must carry a documented reason and can only be added after review;
+ * a modification that is not listed here fails generation and --check.
+ */
+export const BASELINE_MODIFICATIONS_ALLOWED: readonly { path: string; reason: string }[] = [];
 
 /** Audit roots (tracked *.sol under these are listed). */
 export const AUDIT_ROOTS = [
@@ -48,6 +65,15 @@ export const MANIFEST_RELATIVE_PATH = "docs/audit/source-manifest.json";
 
 export type FileClass = "forge-owned" | "pons-vendored" | "pons-vendored-modified" | "third-party-vendored" | "test" | "mock" | "script";
 
+/** How the file's current bytes relate to BASELINE_COMMIT. */
+export type BaselineStatus = "identical" | "added" | "modified";
+
+export interface BaselineBinding {
+  status: BaselineStatus;
+  /** sha256 of the file's bytes at BASELINE_COMMIT (absent for additions: no baseline blob exists). */
+  sha256?: string;
+}
+
 export interface ManifestFile {
   path: string;
   sha256: string;
@@ -59,17 +85,25 @@ export interface ManifestFile {
   spdx: string;
   /** For contractsV2-forge/src files that exist in contractsV2-deployed/src: byte comparison. */
   deployedCounterpart?: "identical" | "differs";
+  /** Binding of this entry to BASELINE_COMMIT (schema 2). */
+  baseline: BaselineBinding;
 }
 
 export interface Manifest {
-  schema: 1;
+  schema: 2;
   baselineCommit: string;
   hashAlgorithm: "sha256";
   lineCountDefinition: string;
+  baselineDefinition: string;
   generator: string;
   roots: readonly string[];
   excludedRoots: Array<{ path: string; reason: string; trackedSolFiles: number }>;
-  summary: { totalFiles: number; totalLines: number; byClass: Record<string, { files: number; lines: number }> };
+  summary: {
+    totalFiles: number;
+    totalLines: number;
+    byClass: Record<string, { files: number; lines: number }>;
+    byBaseline: Record<BaselineStatus, { files: number; lines: number }>;
+  };
   files: ManifestFile[];
 }
 
@@ -81,6 +115,41 @@ const ROOT = path.resolve(HERE, "..", "..");
 
 function git(args: string[]): string {
   return execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+}
+
+function gitBytes(args: string[]): Buffer {
+  return execFileSync("git", args, { cwd: ROOT, encoding: "buffer", maxBuffer: 64 * 1024 * 1024 }) as Buffer;
+}
+
+function assertBaselineCommitExists(): void {
+  try {
+    execFileSync("git", ["cat-file", "-e", `${BASELINE_COMMIT}^{commit}`], { cwd: ROOT, stdio: "ignore" });
+  } catch {
+    throw new Error(`audit-manifest: BASELINE_COMMIT ${BASELINE_COMMIT} is not a commit reachable from this repository; the manifest cannot bind sources to it.`);
+  }
+}
+
+/** Tracked .sol paths under `roots` AT the baseline commit (the commit's tree, not the index). */
+export function listBaselineSolFiles(commit: string, roots: readonly string[]): Set<string> {
+  const out = execFileSync("git", ["ls-tree", "-r", "--name-only", "-z", commit, "--", ...roots], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return new Set(out.split("\0").filter((p) => p.endsWith(".sol")));
+}
+
+const baselineShaCache = new Map<string, string>();
+
+/** sha256 of a path's raw bytes AT the baseline commit (read from git, never from the working tree). */
+export function baselineSha256(commit: string, p: string): string {
+  const key = `${commit}:${p}`;
+  let v = baselineShaCache.get(key);
+  if (v === undefined) {
+    v = createHash("sha256").update(gitBytes(["show", `${commit}:${p}`])).digest("hex");
+    baselineShaCache.set(key, v);
+  }
+  return v;
 }
 
 function listTracked(roots: readonly string[]): string[] {
@@ -139,14 +208,41 @@ export function classify(p: string): { class: FileClass; basis: string } {
 }
 
 export function generateManifest(): Manifest {
+  assertBaselineCommitExists();
   const tracked = listTracked(AUDIT_ROOTS);
+  const baselineFiles = listBaselineSolFiles(BASELINE_COMMIT, AUDIT_ROOTS);
+  const allowedModifications = new Map(BASELINE_MODIFICATIONS_ALLOWED.map((m) => [m.path, m.reason]));
   const hashes = new Map<string, string>();
+  const byBaseline: Record<BaselineStatus, { files: number; lines: number }> = { identical: { files: 0, lines: 0 }, added: { files: 0, lines: 0 }, modified: { files: 0, lines: 0 } };
   const files: ManifestFile[] = tracked.map((p) => {
     const buf = readFileSync(path.join(ROOT, p));
     const sha256 = createHash("sha256").update(buf).digest("hex");
     hashes.set(p, sha256);
+    // Commit-to-source binding: read the baseline bytes from the stated commit.
+    let baseline: BaselineBinding;
+    if (!baselineFiles.has(p)) {
+      baseline = { status: "added" };
+    } else {
+      const baselineHash = baselineSha256(BASELINE_COMMIT, p);
+      if (baselineHash === sha256) baseline = { status: "identical", sha256: baselineHash };
+      else {
+        const reason = allowedModifications.get(p);
+        if (!reason) {
+          throw new Error(
+            `audit-manifest: ${p} differs from the recorded baseline ${BASELINE_COMMIT} ` +
+              `(baseline sha256 ${baselineHash}, current sha256 ${sha256}). The manifest binds its ` +
+              `bytes to that commit, so a changed historical source cannot pass this gate. Either restore ` +
+              `the baseline bytes, or — only after review — record the change in BASELINE_MODIFICATIONS_ALLOWED ` +
+              `(scripts/w06/audit-manifest.ts) with a reason and update the provenance claims.`,
+          );
+        }
+        baseline = { status: "modified", sha256: baselineHash };
+      }
+    }
+    byBaseline[baseline.status].files++;
+    byBaseline[baseline.status].lines += countLines(buf);
     const c = classify(p);
-    const f: ManifestFile = { path: p, sha256, lines: countLines(buf), class: c.class, basis: c.basis, spdx: spdxOf(buf.toString("utf8")) };
+    const f: ManifestFile = { path: p, sha256, lines: countLines(buf), class: c.class, basis: c.basis, spdx: spdxOf(buf.toString("utf8")), baseline };
     return f;
   });
   for (const f of files) {
@@ -168,14 +264,18 @@ export function generateManifest(): Manifest {
   for (const k of Object.keys(byClass).sort(byteCompare)) sortedByClass[k] = byClass[k] as { files: number; lines: number };
   const excludedRoots = EXCLUDED_ROOTS.map((e) => ({ path: e.path, reason: e.reason, trackedSolFiles: listTracked([e.path]).length }));
   return {
-    schema: 1,
+    schema: 2,
     baselineCommit: BASELINE_COMMIT,
     hashAlgorithm: "sha256",
     lineCountDefinition: "count of LF-terminated lines, plus one when the file does not end with LF; 0 for an empty file",
+    baselineDefinition:
+      "per file: sha256 of the raw bytes at baselineCommit read from git (`git show baselineCommit:path`); " +
+      "`identical` when equal to the current tracked bytes, `added` when the file does not exist at the commit, " +
+      "`modified` only for entries listed in BASELINE_MODIFICATIONS_ALLOWED with a documented reason",
     generator: "scripts/w06/audit-manifest.ts",
     roots: AUDIT_ROOTS,
     excludedRoots,
-    summary: { totalFiles: files.length, totalLines, byClass: sortedByClass },
+    summary: { totalFiles: files.length, totalLines, byClass: sortedByClass, byBaseline },
     files,
   };
 }
@@ -194,9 +294,22 @@ export function diffManifests(committed: Manifest, fresh: Manifest): string[] {
     if (!old) out.push(`ADDED   ${p}`);
     else if (old.sha256 !== f.sha256) out.push(`CHANGED ${p} (sha256 ${old.sha256.slice(0, 12)} -> ${f.sha256.slice(0, 12)})`);
     else if (old.class !== f.class || old.lines !== f.lines || old.spdx !== f.spdx || old.deployedCounterpart !== f.deployedCounterpart) out.push(`METADATA ${p}`);
+    else if (JSON.stringify(old.baseline) !== JSON.stringify(f.baseline)) out.push(`BASELINE ${p} (${JSON.stringify(old.baseline)} -> ${JSON.stringify(f.baseline)})`);
   }
   for (const p of a.keys()) if (!b.has(p)) out.push(`REMOVED ${p}`);
   if (committed.baselineCommit !== fresh.baselineCommit) out.push(`baselineCommit ${committed.baselineCommit} -> ${fresh.baselineCommit}`);
+  // Excluded-root and root drift must surface as real differences: a tracked
+  // Solidity file added under an excluded root changes only trackedSolFiles
+  // here, and the "formatting-only" fallback below must never hide it.
+  if (JSON.stringify(committed.roots) !== JSON.stringify(fresh.roots)) out.push(`ROOTS ${JSON.stringify(committed.roots)} -> ${JSON.stringify(fresh.roots)}`);
+  const freshExcluded = new Map(fresh.excludedRoots.map((e) => [e.path, e]));
+  for (const e of committed.excludedRoots) {
+    const now = freshExcluded.get(e.path);
+    if (!now) out.push(`EXCLUDED_ROOT ${e.path} removed`);
+    else if (now.trackedSolFiles !== e.trackedSolFiles) out.push(`EXCLUDED_ROOT ${e.path} trackedSolFiles ${e.trackedSolFiles} -> ${now.trackedSolFiles}`);
+    else if (now.reason !== e.reason) out.push(`EXCLUDED_ROOT ${e.path} reason changed`);
+  }
+  for (const e of fresh.excludedRoots) if (!committed.excludedRoots.some((x) => x.path === e.path)) out.push(`EXCLUDED_ROOT ${e.path} added`);
   return out;
 }
 

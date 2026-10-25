@@ -37,6 +37,12 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
     address internal anyone = makeAddr("anyone");
     address internal constant NATIVE = address(0);
 
+    // Bookkeeping the invariants read: how much of the splitter-key escrow
+    // balance is a THIRD-PARTY credit (never attested) and how much is
+    // simulated genuine protocol-leg revenue (the only thing ever attested).
+    uint256 internal thirdPartyCredit;
+    uint256 internal genuineRevenue;
+
     address internal attestorA;
     uint256 internal keyA;
     address internal attestorB;
@@ -74,7 +80,8 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
         vm.warp(vm.getBlockTimestamp() + splitter.RECIPIENT_TIMELOCK() + 1);
     }
 
-    /// treasury + reserve liabilities == allocated revenue; funds on hand cover every liability.
+    /// treasury + reserve liabilities == allocated revenue; funds on hand cover every liability;
+    /// third-party escrow credits stay in the escrow, outside every protocol-revenue figure.
     function _assertConservation() internal view {
         ForgeProtocolRevenueSplitter.AssetLedger memory l = splitter.ledger(NATIVE);
         assertEq(
@@ -94,6 +101,23 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
         assertLe(
             l.revenueReceived, l.eligibleCeiling, "allocation never exceeds the attested ceiling"
         );
+        // The ceiling attests GENUINE protocol revenue only; a third-party escrow
+        // credit under the splitter key is never part of it.
+        assertLe(l.eligibleCeiling, genuineRevenue, "ceiling never includes third-party credits");
+        assertLe(l.revenueReceived, genuineRevenue, "pulled revenue is genuine revenue only");
+        // The escrow key balance is exactly the third-party credit plus genuine revenue
+        // minus VERIFIED claims: no claim path may bypass the ceiling and its bookkeeping.
+        assertEq(
+            escrow.balanceOf(address(splitter)),
+            thirdPartyCredit + genuineRevenue - l.escrowClaimed,
+            "escrow key balance == third-party credit + genuine revenue - verified claims"
+        );
+        // Consequently the third-party wei are never consumed by any pull.
+        assertGe(
+            escrow.balanceOf(address(splitter)),
+            thirdPartyCredit,
+            "third-party escrow credit is never pulled into the allocation"
+        );
     }
 
     // ── (a)+(b): sequence fuzz over the emergency state machine ────────────────
@@ -106,9 +130,13 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
         uint64 seed
     ) public {
         uint256 fundA = 1 ether + (seed % 5 ether); // third-party escrow credit under the splitter key
+        uint256 fundR = 1 ether + (seed % 3 ether); // simulated genuine protocol-leg revenue (Forge curve/hook leg)
         _credit(address(splitter), fundA);
+        _credit(address(splitter), fundR);
         _credit(creator, 3 ether);
         uint256 creatorOwed = 3 ether;
+        thirdPartyCredit = fundA;
+        genuineRevenue = fundR;
 
         bool revoked;
         bool unpausedSinceRevoke;
@@ -136,15 +164,16 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
                 vm.prank(governance);
                 splitter.proposeRevenueAttestor(attestorC);
             } else if (op == 5) {
-                // Pull only while a healthy attestor exists and pulls are on.
+                // Pull only while a healthy attestor exists and pulls are on. The attestor is
+                // honest: the ceiling covers ONLY the genuine protocol-leg revenue (fundR) and
+                // never the third-party credit (fundA), which must stay in the escrow.
                 if (splitter.revenueAttestor() != address(0) && !splitter.pullsPaused()) {
-                    uint256 want = ceiling < fundA ? fundA : ceiling;
                     address cur = splitter.revenueAttestor();
                     uint256 key = cur == attestorA ? keyA : (cur == attestorC ? keyC : 0);
                     if (key != 0) {
-                        if (want > ceiling) {
-                            _authAs(key, want);
-                            ceiling = want;
+                        if (ceiling < fundR) {
+                            _authAs(key, fundR);
+                            ceiling = fundR;
                         }
                         uint256 head = splitter.verifiedHeadroom(NATIVE);
                         if (head > 1) {
@@ -220,6 +249,8 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
     // ── directed regression for the exact bypass, with accrued claims alongside ─
 
     function test_directed_matured_rotation_then_revoke_with_accrued_claims() public {
+        thirdPartyCredit = 0;
+        genuineRevenue = 4 ether; // the only escrow credit here is genuine protocol revenue
         _credit(address(splitter), 4 ether);
         _credit(creator, 2 ether);
         _authAs(keyA, 4 ether);
@@ -257,6 +288,8 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
     }
 
     function test_directed_pause_alone_never_blocks_claims_and_unpause_resumes_pulls() public {
+        thirdPartyCredit = 0;
+        genuineRevenue = 2 ether;
         _credit(address(splitter), 2 ether);
         _authAs(keyA, 2 ether);
         vm.prank(anyone);
@@ -274,6 +307,69 @@ contract W06FinancialAcceptanceTest is AttestationHelpers {
         splitter.setPullsPaused(false);
         vm.prank(anyone);
         splitter.pullRevenue(NATIVE, 0.5 ether);
+        _assertConservation();
+    }
+
+    // ── directed regression: a third-party escrow credit is NEVER attested revenue ──
+    //
+    // The escrow's `credit` is permissionless, so wei can sit under the splitter key that
+    // are not protocol revenue (splitter doc: NON-REVENUE provenance, W04 Correction A).
+    // The honest attestor attests only genuine revenue, so the third-party credit stays in
+    // the escrow and can never enter the 70/20/10 allocation. Mutation target: raising the
+    // ceiling over the third-party credit (or claiming past the ceiling) breaks the
+    // conservation assertions above.
+
+    function test_directed_third_party_credit_is_never_attested_or_pulled() public {
+        uint256 thirdParty = 5 ether;
+        uint256 revenue = 2 ether;
+        thirdPartyCredit = thirdParty;
+        genuineRevenue = revenue;
+        _credit(address(splitter), thirdParty); // a third party credits the splitter's escrow key
+        _credit(address(splitter), revenue); // simulated genuine protocol-leg revenue (Forge curve/hook)
+        assertEq(escrow.balanceOf(address(splitter)), thirdParty + revenue);
+
+        // The honest attestor attests ONLY the genuine revenue...
+        _authAs(keyA, revenue);
+        assertEq(
+            splitter.verifiedHeadroom(NATIVE),
+            revenue,
+            "headroom is bounded by the genuine revenue, not the escrow balance"
+        );
+        vm.prank(anyone);
+        splitter.pullRevenue(NATIVE, 0); // pull all VERIFIED headroom
+        _assertConservation();
+
+        // ...so the third-party credit is untouched and outside every revenue figure.
+        assertEq(
+            escrow.balanceOf(address(splitter)),
+            thirdParty,
+            "third-party credit remains in the escrow"
+        );
+        assertEq(splitter.ledger(NATIVE).revenueReceived, revenue);
+        assertEq(
+            splitter.treasuryLiability(NATIVE) + splitter.reserveLiability(NATIVE),
+            revenue,
+            "treasury + reserve liabilities conserve the eligible revenue only"
+        );
+
+        // Once the ceiling is exhausted, not even the whole escrow key balance is pullable.
+        vm.prank(anyone);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ForgeProtocolRevenueSplitter.ExceedsVerifiedRevenue.selector, thirdParty, 0
+            )
+        );
+        splitter.pullRevenue(NATIVE, thirdParty);
+
+        // Claims out of the allocated revenue work and never touch the third-party credit.
+        vm.prank(treasury);
+        splitter.claimTreasury(NATIVE, 0);
+        assertEq(treasury.balance, revenue - revenue / 3);
+        assertEq(
+            escrow.balanceOf(address(splitter)),
+            thirdParty,
+            "third-party credit survives treasury claims"
+        );
         _assertConservation();
     }
 }

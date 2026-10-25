@@ -42,7 +42,10 @@ export default async function globalSetup() {
   const busy = await fetch(`${origin}/api/health`).then(() => true, () => false);
   if (busy) throw new Error(`Port ${E2E_PORT} is already in use (stale server?)`);
   const env = { ...process.env, ...sandboxEnv(deployment, gh, anvil.url, deploymentFile, { FORGE_PUBLIC_ORIGIN: origin, FORGE_EMBEDDED_WORKER: "true" }), PORT: String(E2E_PORT) } as NodeJS.ProcessEnv;
-  const server = spawn("npx", ["next", "start", "-p", String(E2E_PORT)], { env, stdio: "pipe", detached: true });
+  // The repo-local next binary via node (NOT `npx`): Node >=18.20 on Windows refuses to spawn
+  // .cmd shims without a shell, which made the whole E2E stack Windows-unrunnable.
+  const here: string = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname;
+  const server = spawn(process.execPath, [path.resolve(here, "../../node_modules/next/dist/bin/next"), "start", "-p", String(E2E_PORT)], { env, stdio: "pipe", detached: true });
   let log = "";
   server.stdout.on("data", (d: Buffer) => (log += d.toString()));
   server.stderr.on("data", (d: Buffer) => (log += d.toString()));

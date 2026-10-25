@@ -225,18 +225,18 @@ describe("W06 signing fails CLOSED when the RPC is unavailable (before any custo
 
   it("an app that cannot reach its RPC AT STARTUP leaves roles unverified and signs nothing", async () => {
     proxy.up = false;
+    const calls = kms.signCalls.length; // captured BEFORE the startup attempt: a Sign made during startup must be caught too
     let c: AppContext | null = null;
     try {
       c = await ctxFor({ FORGE_RPC_URL: proxy.url });
     } catch {
       /* refusing to start is also fail-closed */
     }
-    const calls = kms.signCalls.length;
     if (c) {
       await expect(bindingOp(c)).rejects.toThrow();
       await c.db.close();
     }
-    expect(kms.signCalls.length).toBe(calls);
+    expect(kms.signCalls.length).toBe(calls); // zero custody calls: not at startup, not on the post-startup request
     proxy.up = true;
   });
 });

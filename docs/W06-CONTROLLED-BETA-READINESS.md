@@ -32,7 +32,7 @@ Base: `origin/main` `f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f` (PR #5 normal mer
 | `forge` size gate / ABI drift | `EIP170_GATE_OK factory=24470 B margin=106 B`; splitter runtime **11,680 B** (the 11,220 B figure in the PR #5 description was wrong); ABI drift check clean |
 | Semgrep CE 1.181.0 (repo config) | 3 findings, all the existing baselined `forge-sql-string-interpolation` in `webhooks.ts`; 0 new. Slither/Aderyn not re-run: no scanned contract file changed |
 | actionlint / zizmor (`--min-severity low`) / shellcheck on W06 files | clean |
-| audit manifest `--check` | `AUDIT_MANIFEST_OK files=157 lines=30014` |
+| audit manifest `--check` | `AUDIT_MANIFEST_OK files=157 lines=30110` |
 
 ## Statuses
 - **GitHub App: `EXTERNAL_GITHUB_APP_CONFIGURATION_REQUIRED`.** No App was registered; the in-process fake is `SANDBOX_NOT_EVIDENCE`. Operator steps: `docs/W06-GITHUB-APP-ACCEPTANCE.md`.

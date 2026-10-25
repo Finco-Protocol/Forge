@@ -78,8 +78,8 @@ Expected: exit 0, no output; `SELECT role, engaged FROM signer_kill_switch;` sho
 3. During the 2-day delay the **old** key keeps signing (disclosed). If it is compromised, do **P4 now**.
 4. After the delay: Safe executes `executeBatch(...)`. Expected: both `cast call … eligibilityAuthority()` equal `$NEW`. From this block the old key is refused on the next request (log: `authority signing DISABLED: on-chain eligibilityAuthority … ≠ custody address`).
 5. `rotateSignerKey` (§2.0) with `keyRef` = the new ARN. Restart the app with `FORGE_AUTHORITY_KMS_KEY_ID=<new ARN>` and `FORGE_AUTHORITY_EXPECTED_ADDRESS=$NEW`.
-6. Expected: `signer_keys` shows version *n* `retired`, version *n+1* `active`; startup log has no `DISABLED`; the next authorization succeeds; `signer_audit` row has `key_version = n+1`.
-7. If P4 was run first (the kill switch is still engaged), release it explicitly and audibly once steps 4–6 pass: §2.0 `releaseKillSwitch(db,"authority","<operator>","<INC> rotation verified")`. Until then the signing guard keeps denying every authority request even with the new key installed.
+6. Expected: `signer_keys` shows version *n* `retired`, version *n+1* `active`; startup log has no `DISABLED`.
+7. Authorization check LAST, after any kill-switch release (the signing guard checks the kill switch on every request, so while it is engaged even the correctly rotated new key is refused): if P4 was run first, release the switch explicitly and audibly once steps 4–6 pass — §2.0 `releaseKillSwitch(db,"authority","<operator>","<INC> rotation verified")` — then trigger an authorization. Expected: it succeeds and the `signer_audit` row has `key_version = n+1`. (If P4 never ran, skip the release; the authorization check is the same.)
 
 ### P4 Emergency authority-key revocation (suspected compromise)
 1. Immediate, off-chain, ≤ 1 min: `pnpm ops:control lockdown on --reason "<INC>" --operator <id>` and §2.0 `engageKillSwitch(db,"authority",…)` then `revokeSignerKey(db,"authority",<addr>,…)`. Expected: next request refused (`kill switch` / `is revoked`) with no custody call; `EMERGENCY_LOCKDOWN_ACTIVE` alert rule fires.
