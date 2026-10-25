@@ -43,7 +43,7 @@ RUN chmod +x /usr/local/bin/forge-entrypoint && useradd --system --uid 10001 --c
  && mkdir -p /sandbox && chown -R forge /sandbox /home/forge /repo/apps/forge-web/.next
 # The runtime user needs a writable HOME: corepack writes its cache under $HOME/.cache at
 # `pnpm exec` time, and without it every role crashed with EACCES (W07 compose smoke finding).
-ENV HOME=/home/forge
+ENV HOME=/home/forge COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 USER forge
 WORKDIR /repo/apps/forge-web
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/forge-entrypoint"]
