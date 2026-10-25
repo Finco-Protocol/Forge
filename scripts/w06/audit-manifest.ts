@@ -122,10 +122,26 @@ function gitBytes(args: string[]): Buffer {
 }
 
 function assertBaselineCommitExists(): void {
+  const have = (): boolean => {
+    try {
+      execFileSync("git", ["cat-file", "-e", `${BASELINE_COMMIT}^{commit}`], { cwd: ROOT, stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (have()) return;
+  // Shallow CI/local checkouts do not contain the baseline commit. Fetch exactly the
+  // pinned commit (content-addressed: the SHA is the binding, so this cannot weaken
+  // the gate) with its full tree, then verify it is the recorded commit.
+  console.error(`audit-manifest: ${BASELINE_COMMIT} not present (shallow checkout?); fetching the pinned baseline commit`);
   try {
-    execFileSync("git", ["cat-file", "-e", `${BASELINE_COMMIT}^{commit}`], { cwd: ROOT, stdio: "ignore" });
-  } catch {
-    throw new Error(`audit-manifest: BASELINE_COMMIT ${BASELINE_COMMIT} is not a commit reachable from this repository; the manifest cannot bind sources to it.`);
+    execFileSync("git", ["fetch", "--no-tags", "--depth", "1", "origin", BASELINE_COMMIT], { cwd: ROOT, stdio: "ignore" });
+  } catch (e) {
+    throw new Error(`audit-manifest: BASELINE_COMMIT ${BASELINE_COMMIT} is not reachable and fetching it failed (${(e as Error).message.split("\n")[0]}); the manifest cannot bind sources to it from this checkout.`);
+  }
+  if (!have()) {
+    throw new Error(`audit-manifest: BASELINE_COMMIT ${BASELINE_COMMIT} could not be fetched into this repository; the manifest cannot bind sources to it.`);
   }
 }
 
