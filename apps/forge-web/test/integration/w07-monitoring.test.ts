@@ -15,10 +15,10 @@ import { collectSignals, evaluateAlerts } from "@/server/ops/monitor";
 import { engageKillSwitch, releaseKillSwitch, revokeSignerKey } from "@/server/signer/controls";
 import { recordHeartbeat, runWorkerOnce } from "@/server/worker";
 import { dispatch } from "@/server/api/handlers";
-import { launchThroughApi } from "../helpers/scenario";
 import { rpc } from "../helpers/anvil";
 import { startSandbox, type Sandbox } from "../helpers/sandbox";
 import { zeroAddress } from "viem";
+
 
 let sb: Sandbox;
 beforeAll(async () => {
@@ -148,7 +148,6 @@ describe("W07 alert reachability: infrastructure", () => {
 import { freshScenario as baseFreshScenario, signedLaunch } from "../helpers/scenario";
 import { chainClients } from "../helpers/sandbox";
 import { ponsV2LaunchFactoryAbi } from "@/shared/abis.generated";
-import type { Hex } from "viem";
 
 function freshScenario() {
   return baseFreshScenario(sb).then(async (s) => {

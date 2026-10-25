@@ -354,7 +354,7 @@ const health: Handler = async (ctx) => {
   );
 };
 
-const liveProbe: Handler = async () => json({ ok: true, live: true, at: new Date().toISOString() });
+const liveProbe: Handler = async () => json(liveness());
 
 const readyProbe: Handler = async (ctx) => {
   const r = await readiness(ctx);
