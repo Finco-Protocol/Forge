@@ -37,7 +37,7 @@
         "M-ELIG adversarial authorization tests (17)",
         "full lifecycle + snipe tax E2E",
         "w03: build W02 forge profile + ABI drift check",
-        "w05: forge security suites (owner powers, attestor compromise)"
+        "w05: forge security suites (emergency revocation, owner powers, attestor compromise)"
       ]
     },
     {
@@ -283,7 +283,15 @@
       "title": "FINCO-specific tokenomics and any burn authorization (separate financial workflow)",
       "blocks": "LEGAL_APPROVAL_REQUIRED",
       "evidenceRequired": "governance decision record + review hash"
+    },
+    {
+      "id": "A17_OPERATIONAL_RELIABILITY",
+      "class": "A",
+      "title": "W07 operational reliability: monitoring/alert reachability through real events, webhook delivery lifecycle with bounded retries and terminal observability, DEEP_REORG evidence + depth-threshold alerting, structured health (503) with liveness/readiness split, malformed-webhook refusal, and the pre-existing lexicographic ORDER BY defect fixed with exact-depth reorg regressions. Compose-level backup/restore remains evidenced by the W06 rehearsal suite; the compose smoke (worker SIGKILL, Postgres restart persistence) runs manually via w06-compose-smoke.yml.",
+      "ciJobs": [
+        "w07: operational reliability (monitoring, webhooks, health)"
+      ]
     }
   ],
-  "integrity": "0xcb25e32d87270d0aa25b37511594b727648aecc17e6c2cb31009aa533630632d"
+  "integrity": "0x049b4b1c6c995e979eb97f7fe2f8a57705e55b8c7be094eafc35b55cab503e5d"
 }
