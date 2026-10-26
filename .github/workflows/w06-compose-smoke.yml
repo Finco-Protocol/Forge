@@ -85,8 +85,8 @@ jobs:
             STATE=$(docker inspect --format '{{.State.Running}} {{.RestartCount}} {{.State.StartedAt}}' "$WORKER")
             RD=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/ready || true)
             OBSERVED="$OBSERVED $RD"
-            set -- $STATE
-            RUNNING=$1; RESTARTS=$2; START=$3
+            IFS=' ' read -r RUNNING RESTARTS START <<< "$STATE"
+            [ -n "$RUNNING" ] && [ -n "$RESTARTS" ] && [ -n "$START" ] || { echo "unparseable worker state: '$STATE'"; sleep 5; continue; }
             if [ "$RUNNING" = "true" ] && [ "$START" != "$BEFORE_START" ] && [ "$RESTARTS" -gt "$BEFORE_RESTARTS" ] && [ "$RD" = "200" ]; then
               AFTER_COUNTS=$(DB_COUNTS)
               WH=$(curl -fsS -H "Authorization: Bearer $OPS_TOKEN" http://127.0.0.1:3000/api/ops/health | grep -o '"worker":{"ok":[a-z]*' | head -1)
@@ -129,30 +129,51 @@ jobs:
           done
           docker compose --env-file ops/staging/.env.staging logs --no-color | tail -200
           exit 1
-      # Correction A 4.4: REAL compose-level backup -> restore into a SECOND database ->
-      # canonical ledger digest agreement (closes the W07 handover E1 carryover).
+      # Correction A 4.4 / C: REAL compose-level backup -> restore into a SECOND database ->
+      # full digest agreement (closes the W07 handover E1 carryover). The one-off digest
+      # container loads the simulated-GitHub credentials EXACTLY like the staging
+      # entrypoint does (set -a; . /sandbox/github.env; set +a, verified to exist first)
+      # and passes the staging guard; jq parses the digest payloads structurally.
       - name: W07 backup -> restore into a second database -> ledger digest agreement
         run: |
           PG_PW=$(grep '^POSTGRES_PASSWORD=' ops/staging/.env.staging | head -1 | cut -d= -f2)
-          # snapshot wants a quiet database (the sidecar digest must describe the dump)
+          cat > /tmp/digest.sh <<'EOS'
+          set -eu
+          [ -f /sandbox/github.env ] || { echo "MISSING /sandbox/github.env (the fake-github service did not write the test credentials)" >&2; exit 3; }
+          set -a
+          . /sandbox/github.env
+          set +a
+          GITHUB_API_URL="${STAGING_GITHUB_API_URL:-${GITHUB_API_URL:-}}"
+          GITHUB_WEB_URL="${STAGING_GITHUB_WEB_URL:-${GITHUB_WEB_URL:-}}"
+          export GITHUB_API_URL GITHUB_WEB_URL
+          pnpm --silent staging:check
+          exec pnpm --silent exec tsx scripts/w06/staging-ops.ts digest
+          EOS
+          # the digests must describe one settled database state
           docker compose --env-file ops/staging/.env.staging stop worker
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge -Fc forge_staging > backup.dump
           docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_restore
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_restore -U forge -d forge_restore --no-owner < backup.dump
-          # --entrypoint pnpm: the image entrypoint would otherwise read "pnpm" as a ROLE.
-          # `digest` (not `snapshot`): the app image has no server-matched pg_dump client;
-          # the dump itself was already taken by the postgres container's own binaries.
-          # sh wrapper: the one-off bypasses the role entrypoint, so the simulated-GitHub
-          # credentials (/sandbox/github.env, shared volume) must be sourced by hand.
-          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web -c '. /sandbox/github.env 2>/dev/null || true; exec pnpm exec tsx scripts/w06/staging-ops.ts digest')
-          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web -c '. /sandbox/github.env 2>/dev/null || true; exec pnpm exec tsx scripts/w06/staging-ops.ts digest')
-          echo "original: $ORIG"
-          echo "restored: $REST"
-          OD=$(echo "$ORIG" | grep -o '"ledgerDigest":"[^"]*"' | head -1 | cut -d'"' -f4)
-          RD=$(echo "$REST" | grep -o '"ledgerDigest":"[^"]*"' | head -1 | cut -d'"' -f4)
-          [ -n "$OD" ] || { echo "::error::no ledger digest from the original database"; exit 1; }
-          [ "$OD" = "$RD" ] || { echo "::error::ledger digest mismatch after restore ($OD vs $RD)"; exit 1; }
-          echo "ledger digest agreement proven: $OD"
+          # --entrypoint /bin/sh: the image entrypoint would read "sh" as a ROLE.
+          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web /tmp/digest.sh)
+          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web /tmp/digest.sh)
+          echo "original:  $ORIG"
+          echo "restored:  $REST"
+          O_LED=$(echo "$ORIG" | jq -er '.ledgerDigest // empty')        || { echo "::error::malformed original digest payload"; exit 1; }
+          R_LED=$(echo "$REST"  | jq -er '.ledgerDigest // empty')        || { echo "::error::malformed restored digest payload"; exit 1; }
+          O_MAT=$(echo "$ORIG"  | jq -er '.materializedDigest // empty')  || { echo "::error::malformed original materialized digest"; exit 1; }
+          R_MAT=$(echo "$REST"  | jq -er '.materializedDigest // empty')  || { echo "::error::malformed restored materialized digest"; exit 1; }
+          [ "$O_LED" = "$R_LED" ] || { echo "::error::REFERENCE ledger digest mismatch ($O_LED vs $R_LED)"; exit 1; }
+          [ "$O_MAT" = "$R_MAT" ] || { echo "::error::MATERIALIZED ledger digest mismatch ($O_MAT vs $R_MAT)"; exit 1; }
+          [ "$O_LED" = "$O_MAT" ] || { echo "::error::original reference and materialized digests disagree ($O_LED vs $O_MAT)"; exit 1; }
+          [ "$R_LED" = "$R_MAT" ] || { echo "::error::restored reference and materialized digests disagree ($R_LED vs $R_MAT)"; exit 1; }
+          for t in chain_events webhook_deliveries jobs evidence_receipts fin_claim_submissions; do
+            OC=$(echo "$ORIG" | jq -r --arg t "$t" '.counts[$t] // 0'); RC=$(echo "$REST" | jq -r --arg t "$t" '.counts[$t] // 0')
+            [ "$OC" = "$RC" ] || { echo "::error::table $t count changed across restore ($OC vs $RC)"; exit 1; }
+          done
+          OM=$(echo "$ORIG" | jq -cS '.migrations // []'); RM=$(echo "$REST" | jq -cS '.migrations // []')
+          [ "$OM" = "$RM" ] || { echo "::error::applied migrations differ across restore"; exit 1; }
+          echo "restore agreement proven: reference $O_LED, materialized $O_MAT, counts identical, migrations identical"
           docker compose --env-file ops/staging/.env.staging start worker
       - name: down
         if: always()

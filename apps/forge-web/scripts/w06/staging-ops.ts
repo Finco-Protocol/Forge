@@ -49,7 +49,14 @@ try {
   } else if (cmd === "digest") {
     if (!process.env.DATABASE_URL) throw new Error("usage: DATABASE_URL=… digest");
     const d = await digestDatabase(process.env.DATABASE_URL, process.env);
-    out({ ledgerDigest: d.ledgerDigest, materializedDigest: d.materializedDigest, counts: d.counts });
+    // Correction C: the workflow compares reference vs materialized digests, financial
+    // row counts AND the applied migration checksums (schema identity), all in one payload.
+    const migrations = await (async () => {
+      const { migrationStatus } = await import("../../src/server/db/migrate");
+      const m = await migrationStatus(process.env.DATABASE_URL ? new PgDb(process.env.DATABASE_URL, { max: 2, applicationName: "forge-cli" }) : (() => { throw new Error("no url"); })());
+      return m.applied.map((name) => ({ name }));
+    })();
+    out({ ledgerDigest: d.ledgerDigest, materializedDigest: d.materializedDigest, counts: d.counts, migrations });
   } else {
     throw new Error("usage: manifest | verify | check-env | snapshot | digest | rollback-plan");
   }
