@@ -7,6 +7,9 @@
  *   tsx scripts/w06/staging-ops.ts snapshot <out.dump>        pg_dump -Fc of DATABASE_URL + sidecar digest JSON
  *                                                             (stop the worker first: the sidecar digest is taken right after the dump and must describe the same state)
  *   tsx scripts/w06/staging-ops.ts rollback-plan <manifest>   can the DB run the target (older) build? (no down migrations)
+ *   tsx scripts/w06/staging-ops.ts digest                     canonical ledger/materialized digests + row counts of
+ *                                                             DATABASE_URL (no pg_dump: usable where the image lacks the
+ *                                                             server-matched pg_dump client, e.g. restore verification)
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { stagingViolations } from "../../src/server/staging/guard";
@@ -43,8 +46,12 @@ try {
     await db.close();
     out(plan);
     code = plan.safe ? 0 : 2;
+  } else if (cmd === "digest") {
+    if (!process.env.DATABASE_URL) throw new Error("usage: DATABASE_URL=… digest");
+    const d = await digestDatabase(process.env.DATABASE_URL, process.env);
+    out({ ledgerDigest: d.ledgerDigest, materializedDigest: d.materializedDigest, counts: d.counts });
   } else {
-    throw new Error("usage: manifest | verify | check-env | snapshot | rollback-plan");
+    throw new Error("usage: manifest | verify | check-env | snapshot | digest | rollback-plan");
   }
 } catch (e) {
   console.error((e as Error).message);

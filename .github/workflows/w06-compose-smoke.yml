@@ -140,8 +140,10 @@ jobs:
           docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_restore
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_restore -U forge -d forge_restore --no-owner < backup.dump
           # --entrypoint pnpm: the image entrypoint would otherwise read "pnpm" as a ROLE.
-          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm web exec tsx scripts/w06/staging-ops.ts snapshot /tmp/o.dump)
-          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web exec tsx scripts/w06/staging-ops.ts snapshot /tmp/r.dump)
+          # `digest` (not `snapshot`): the app image has no server-matched pg_dump client;
+          # the dump itself was already taken by the postgres container's own binaries.
+          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm web exec tsx scripts/w06/staging-ops.ts digest)
+          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web exec tsx scripts/w06/staging-ops.ts digest)
           echo "original: $ORIG"
           echo "restored: $REST"
           OD=$(echo "$ORIG" | grep -o '"ledgerDigest":"[^"]*"' | head -1 | cut -d'"' -f4)
