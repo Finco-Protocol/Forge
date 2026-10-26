@@ -151,6 +151,9 @@ jobs:
           # --entrypoint /bin/sh: the image entrypoint would read "sh" as a ROLE.
           ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web /repo/ops/staging/digest.sh 2>/tmp/orig.err) || { echo "::error::original digest failed:"; tail -40 /tmp/orig.err; exit 1; }
           REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_restore" web /repo/ops/staging/digest.sh 2>/tmp/rest.err) || { echo "::error::restored digest failed:"; tail -40 /tmp/rest.err; exit 1; }
+          # compose prints container status lines on the same stream: keep only the JSON object.
+          ORIG=$(echo "$ORIG" | sed -n '/^{/,$p')
+          REST=$(echo "$REST" | sed -n '/^{/,$p')
           echo "--- original stderr ---"; tail -8 /tmp/orig.err || true
           echo "--- restored stderr ---"; tail -8 /tmp/rest.err || true
           echo "original:  $ORIG"
