@@ -90,6 +90,19 @@ contract CurveInvariants is Test {
         vm.startPrank(trader);
         token.approve(address(curve), type(uint256).max);
         vm.stopPrank();
+
+        // The randomized invariant driver must exercise the curve through its
+        // real external entry points, as described above (buy/sell/sweep).
+        // Auto-discovery otherwise also targets the ERC20 token directly and
+        // may impersonate the curve's contract address to call burn(uint256).
+        // That call cannot arise from the curve's deployed code, and falsifies
+        // balance==trackedTokens by burning its physical tokens behind its back.
+        //
+        // Keep the same 64 runs x depth 32 and BOTH invariants; constrain only
+        // unreachable synthetic contract-sender actions, not assertions.
+        targetContract(address(curve));
+        targetSender(trader);
+        targetSender(creator);
     }
 
     function _buy(uint256 quoteIn) internal {
