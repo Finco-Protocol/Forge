@@ -10,7 +10,7 @@ Status: **BLOCKED for all real-operator items** — no live credentials, custody
 | B04 Production RPC | Primary + fallback endpoints for chain 4663 | RPC-unavailable fail-closed drills (CI) + W08 compose RPC-outage drill | Operator-provisioned endpoints |
 | B05 Deployment/treasury approval | Owner-approved deployment plan + treasury addresses | Dry-run planner (`w05:deploy-plan`, never broadcasts) | Owner sign-off + funded treasury |
 | B06 Monitoring escalation | Alert routing + on-call contacts + test-page record | W07: 29 alert rules, all reachable through real events (`/api/ops/alerts`, `/metrics`); the compose drills exercise the underlying states | Routing destination, on-call contract, test-page record |
-| B07 Production backup/restore | Production backup schedule + restore drill | W08 compose backup→restore with ledger-digest agreement (executed, see W08-STAGING-RECOVERY.md); `db:backup-rehearsal` suite (CI) | Production backup infrastructure |
+| B07 Production backup/restore | Production backup schedule + restore drill | W07 compose backup→restore with ledger-digest agreement — run 40278679711 @ `38aaa5d`, inherited as W07 engineering evidence (Correction A, review finding 4; NOT a current-W08 execution — the W08-HEAD compose run is recorded in W08-STAGING-RECOVERY.md once complete) — plus the `db:backup-rehearsal` suite (CI) | Production backup infrastructure |
 | B08 Real CREATE2 hook salt | Second-operator reproduction of the hook address | Salt-mask derivation tests | Real deployment |
 | B09 Robinhood production-write acceptance | Controlled production write acceptance | Read-only probes + fork lifecycle (steps 7–9 deferred; A07e NOT_VERIFIED) | Owner authorization + production deployment (blocked behind B05) |
 

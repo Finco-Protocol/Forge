@@ -207,11 +207,19 @@ jobs:
       # unreachable (fail closed), so confinement holds under the fault too.
       - name: W08 RPC outage drill (anvil paused) and recovery
         run: |
+          ALLOWED() {
+            docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM signer_audit WHERE decision = 'allowed'"
+          }
+          BEFORE_ALLOWED=$(ALLOWED)
           docker compose --env-file ops/staging/.env.staging pause anvil
           sleep 3
           DEGRADED=$(curl -s http://127.0.0.1:3000/api/health)
           echo "health during the RPC outage: $DEGRADED"
           echo "$DEGRADED" | grep -q '"rpc":{"ok":false}' || { echo "::error::health did not expose the RPC outage"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
+          sleep 5
+          AFTER_ALLOWED=$(ALLOWED)
+          [ "$AFTER_ALLOWED" = "$BEFORE_ALLOWED" ] || { echo "::error::a custody signature was produced during the RPC outage ($BEFORE_ALLOWED -> $AFTER_ALLOWED)"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
+          echo "fail closed, execution-backed: zero custody signatures during the outage ($BEFORE_ALLOWED unchanged)"
           docker compose --env-file ops/staging/.env.staging unpause anvil
           for _ in $(seq 1 24); do
             if curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
@@ -222,19 +230,34 @@ jobs:
           done
           echo "::error::readiness did not recover after the RPC came back"
           exit 1
-      # Interrupted/drifted migration refusal: a database whose migration ledger names a
-      # checksum that differs from the built migrations must be REFUSED by the migrate
-      # role (verify mode) — nothing is half-applied, the app never serves from it.
-      - name: W08 migration drift refusal (verify refuses a tampered ledger)
+      # Migration-drift refusal (Correction A §4): a cloned staging database with EXACTLY
+      # ONE tampered migration checksum must be refused by the real migrate implementation
+      # with the SPECIFIC MIGRATION_DRIFT diagnostic — a control run against the untampered
+      # clone proves the invocation itself is sound; an unrelated failure (credentials,
+      # connection, shell) must not count as drift protection. No migration may be applied,
+      # and the original database stays untouched.
+      - name: W08 migration drift refusal (MIGRATION_DRIFT diagnostic on a tampered clone)
         run: |
           PG_PW=$(grep '^POSTGRES_PASSWORD=' ops/staging/.env.staging | head -1 | cut -d= -f2)
           docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_staging_drift
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge forge_staging | docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift > /dev/null
-          docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -c "UPDATE schema_migrations SET checksum = '0000000000000000000000000000000000000000000000000000000000000000' WHERE name = '006_ops.sql'" 
-          if docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_drift" web pnpm exec tsx scripts/migrate.ts > /tmp/drift.log 2>&1; then
-            echo "::error::migrate accepted a drifted migration ledger"; tail -20 /tmp/drift.log; exit 1
+          # control: the same invocation against the untampered clone must succeed
+          if ! docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_drift" web exec tsx scripts/migrate.ts > /tmp/control.log 2>&1; then
+            echo "::error::the migration command failed on the UNtampered clone (invocation defect, not drift protection)"; tail -30 /tmp/control.log; exit 1
           fi
-          echo "migration drift refused (exit nonzero)"; tail -5 /tmp/drift.log
+          BEFORE_ROWS=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations")
+          docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -c "UPDATE schema_migrations SET checksum = '0000000000000000000000000000000000000000000000000000000000000000' WHERE name = '006_ops.sql'" > /dev/null
+          TAMPERED=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations WHERE name = '006_ops.sql' AND checksum = '0000000000000000000000000000000000000000000000000000000000000000'")
+          [ "$TAMPERED" = "1" ] || { echo "::error::the tampered row was not verifiably written"; exit 1; }
+          if docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_drift" web exec tsx scripts/migrate.ts > /tmp/drift.log 2>&1; then
+            echo "::error::migrate ACCEPTED a drifted migration ledger"; tail -20 /tmp/drift.log; exit 1
+          fi
+          grep -q "MIGRATION_DRIFT" /tmp/drift.log || { echo "::error::the refusal was not the specific MIGRATION_DRIFT diagnostic:"; tail -20 /tmp/drift.log; exit 1; }
+          AFTER_ROWS=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations")
+          [ "$AFTER_ROWS" = "$BEFORE_ROWS" ] || { echo "::error::a migration was applied during the refusal ($BEFORE_ROWS -> $AFTER_ROWS)"; exit 1; }
+          ORIG_COUNT=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM schema_migrations WHERE name = '006_ops.sql' AND checksum = '0000000000000000000000000000000000000000000000000000000000000000'")
+          [ "$ORIG_COUNT" = "0" ] || { echo "::error::the ORIGINAL database was modified"; exit 1; }
+          echo "migration drift refused with MIGRATION_DRIFT; no migration applied; original database untouched"
           docker compose --env-file ops/staging/.env.staging exec -T postgres dropdb -U forge --force forge_staging_drift
       - name: down
         if: always()

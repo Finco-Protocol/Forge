@@ -17,7 +17,7 @@ Status: **in progress**. This document separates what is proven by executed test
 ## W08-remaining (tracked in docs/W08-TO-W09-HANDOVER.md as W08-2)
 
 - Independent oracle-style reconciliation across multi-launch / multi-creator / multi-block histories (existing suites use production calculations cross-checked by invariant assertions; an independently implemented oracle is the remaining gap).
-- Reorg-near-attestation and interrupted-claim lifecycle combinations on the integrated staging stack (covered at unit/integration level; the compose-level drill rides the W08 recovery suite).
+- Reorg-near-attestation and interrupted-claim execution/recovery at the COMPOSE level: **PENDING** (Correction A, review finding 3). Existing coverage is unit/integration-level only (ledger-fold reorg suites, economics claim-recovery cases) — that is not a full Compose lifecycle drill, and none has been executed yet. Implementing these as compose drills is tracked in this PR's remaining W08 scope; until executed they are classified PENDING, not covered.
 
 ## Boundaries
 

@@ -19,7 +19,7 @@ Base: post-W07 `main` at `0dae2c6c5f2399bf3303b4be1d6853ad6f84fc34` (merge of PR
 The compose smoke (`.github/workflows/w06-compose-smoke.yml`, manual) now exercises, in order: confinement (parsed config, before startup) → build/start → readiness → **worker** host-SIGKILL crash + restart-policy recovery (W07) → PostgreSQL restart with data-equality persistence (W07) → backup/restore + ledger-digest agreement (W07) → **NEW (W08)**:
 
 1. **Web crash drill** — host-level SIGKILL of the web process; restart policy recreates the container (new StartedAt, increased RestartCount) and `/api/ready` returns 200.
-2. **RPC outage drill** — the anvil container is paused (the node is unreachable): `/api/health` must expose `"rpc":{"ok":false}`; after unpause readiness recovers. Signing fails closed while the chain is unreachable, so confinement holds under the fault.
+2. **RPC outage drill** — the anvil container is paused (the node is unreachable): `/api/health` must expose `"rpc":{"ok":false}`; after unpause readiness recovers. This proves FAIL-CLOSED behavior under an unreachable chain, not chain confinement. (Correction A, review finding 2: confinement is a separate claim with separate evidence — the resolved-compose-config check in the confinement step; the outage drill additionally includes a signing refusal probe so the fail-closed claim itself is execution-backed, not documentation-only.)
 3. **Migration-drift refusal** — a database whose `schema_migrations` names a tampered checksum must be REFUSED by the migrate role (nonzero exit); nothing is half-applied and the stack never serves from it.
 
 Evidence protocol: run the workflow from the Actions tab on the exact W08 HEAD; record run id + SHA here and in the PR.

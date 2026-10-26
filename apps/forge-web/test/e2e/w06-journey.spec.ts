@@ -267,12 +267,27 @@ test("J14-J17 creator earnings, treasury allocation, prepare + send claim, canon
 
   await injectWallet(page, CREATOR);
   await page.goto("/dashboard");
-  const gh = page.getByRole("link", { name: "Connect GitHub" });
-  if (await gh.isVisible().catch(() => false)) {
-    await gh.click();
+  // W08 Correction A root-cause fix (J14–J17 flake): a momentary isVisible() probe raced
+  // the streamed dashboard render — when the signed-out prompt had not painted yet, the
+  // whole sign-in branch was silently skipped and the test then failed on a signed-out
+  // dashboard. WAIT for the signed-out state to appear (it always does on a fresh
+  // context: no session cookie), then sign in deterministically.
+  const githubConnect = page.getByRole("link", { name: "Connect GitHub" });
+  const signedOut = await githubConnect
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .then(() => true, () => false);
+  if (signedOut) {
+    await githubConnect.click();
     await page.waitForURL("**/launch");
     await page.goto("/dashboard");
   }
+  // Diagnostic assertion (Correction A §2.2): if this fails, the page is either still
+  // signed out (session/OAuth defect) or signed in as the wrong user — the snapshot
+  // names which, instead of a bare "creator-earnings not found".
+  await expect(
+    page.getByTestId("account-status"),
+    "the dashboard must be used signed in as the creator (carol-admin)",
+  ).toContainText("@carol-admin");
   await expect(page.getByTestId("creator-earnings")).toBeVisible();
   await expect(page.getByTestId("claimable-ETH")).not.toHaveText(/^0 ETH$/, { timeout: 30_000 });
   const claimable = (await page.getByTestId("claimable-ETH").innerText()).trim();
