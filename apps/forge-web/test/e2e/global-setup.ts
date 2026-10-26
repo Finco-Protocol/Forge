@@ -8,7 +8,6 @@ import path from "node:path";
 import { startAnvil } from "../helpers/anvil";
 import { FakeGithub } from "../helpers/fake-github";
 import { deploySandbox } from "../../scripts/sandbox-lib";
-import { deployGenuineV4Local } from "../../scripts/w05/genuine-v4";
 import { sandboxEnv } from "../helpers/env";
 import { E2E_PORT } from "../../playwright.config";
 
@@ -20,7 +19,11 @@ export default async function globalSetup() {
   if (process.env.W08_E2E_GENUINE_V4 && !["true", "false"].includes(process.env.W08_E2E_GENUINE_V4)) {
     throw new Error("W08_E2E_GENUINE_V4 must be true or false");
   }
-  const genuine = process.env.W08_E2E_GENUINE_V4 === "true" ? await deployGenuineV4Local(anvil.url) : null;
+  // Defer the genuine-only helper entirely: default Playwright uses mock V4
+  // and must not eagerly load ESM JSON/network artifact dependencies.
+  const genuine = process.env.W08_E2E_GENUINE_V4 === "true"
+    ? await (await import("../../scripts/w05/genuine-v4")).deployGenuineV4Local(anvil.url)
+    : null;
   const deployment = genuine
     ? await deploySandbox(anvil.url, {
         v4: { poolManager: genuine.poolManager, positionManager: genuine.positionManager, permit2: genuine.permit2 },
