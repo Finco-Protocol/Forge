@@ -142,8 +142,10 @@ jobs:
           # --entrypoint pnpm: the image entrypoint would otherwise read "pnpm" as a ROLE.
           # `digest` (not `snapshot`): the app image has no server-matched pg_dump client;
           # the dump itself was already taken by the postgres container's own binaries.
-          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm web exec tsx scripts/w06/staging-ops.ts digest)
-          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web exec tsx scripts/w06/staging-ops.ts digest)
+          # sh wrapper: the one-off bypasses the role entrypoint, so the simulated-GitHub
+          # credentials (/sandbox/github.env, shared volume) must be sourced by hand.
+          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web -c '. /sandbox/github.env 2>/dev/null || true; exec pnpm exec tsx scripts/w06/staging-ops.ts digest')
+          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web -c '. /sandbox/github.env 2>/dev/null || true; exec pnpm exec tsx scripts/w06/staging-ops.ts digest')
           echo "original: $ORIG"
           echo "restored: $REST"
           OD=$(echo "$ORIG" | grep -o '"ledgerDigest":"[^"]*"' | head -1 | cut -d'"' -f4)
