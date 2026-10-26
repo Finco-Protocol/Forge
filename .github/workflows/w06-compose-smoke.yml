@@ -213,9 +213,9 @@ jobs:
           BEFORE_ALLOWED=$(ALLOWED)
           docker compose --env-file ops/staging/.env.staging pause anvil
           sleep 3
-          DEGRADED=$(curl -s http://127.0.0.1:3000/api/health)
+          DEGRADED=$(curl -s -m 20 http://127.0.0.1:3000/api/health)
           echo "health during the RPC outage: $DEGRADED"
-          echo "$DEGRADED" | grep -q '"rpc":{"ok":false}' || { echo "::error::health did not expose the RPC outage"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
+          echo "$DEGRADED" | grep -q '"failing":\["rpc"\]' || { echo "::error::health did not expose the RPC outage"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
           sleep 5
           AFTER_ALLOWED=$(ALLOWED)
           [ "$AFTER_ALLOWED" = "$BEFORE_ALLOWED" ] || { echo "::error::a custody signature was produced during the RPC outage ($BEFORE_ALLOWED -> $AFTER_ALLOWED)"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
