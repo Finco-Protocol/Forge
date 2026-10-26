@@ -142,7 +142,7 @@ jobs:
       - name: W07 backup -> restore into a second database -> ledger digest agreement
         run: |
           PG_PW=$(grep '^POSTGRES_PASSWORD=' ops/staging/.env.staging | head -1 | cut -d= -f2)
-          cat > /tmp/digest.sh <<'EOS'
+          cat > ops/staging/digest.sh <<'EOS'
           set -eu
           [ -f /sandbox/github.env ] || { echo "MISSING /sandbox/github.env (the fake-github service did not write the test credentials)" >&2; exit 3; }
           set -a
@@ -154,14 +154,15 @@ jobs:
           pnpm --silent staging:check
           exec pnpm --silent exec tsx scripts/w06/staging-ops.ts digest
           EOS
+          chmod +x ops/staging/digest.sh
           # the digests must describe one settled database state
           docker compose --env-file ops/staging/.env.staging stop worker
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge -Fc forge_staging > backup.dump
           docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_restore
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_restore -U forge -d forge_restore --no-owner < backup.dump
           # --entrypoint /bin/sh: the image entrypoint would read "sh" as a ROLE.
-          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web /tmp/digest.sh)
-          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web /tmp/digest.sh)
+          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web ./ops/staging/digest.sh)
+          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web ./ops/staging/digest.sh)
           echo "original:  $ORIG"
           echo "restored:  $REST"
           O_LED=$(echo "$ORIG" | jq -er '.ledgerDigest // empty')        || { echo "::error::malformed original digest payload"; exit 1; }
