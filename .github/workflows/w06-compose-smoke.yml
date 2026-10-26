@@ -218,11 +218,16 @@ jobs:
           echo "$DEGRADED" | grep -q '"failing":\["rpc"\]' || { echo "::error::health did not expose the RPC outage"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
           sleep 5
           # Correction A (review thread): exercise a REAL custody-signing attempt through
-          # the production signing-policy guard while the chain is unreachable. The guard
-          # must refuse fail-closed (exit 0 from the probe); a signature here is a hard fail.
-          PROBE=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web -c '. /sandbox/github.env; set -a; . /sandbox/github.env; set +a; exec pnpm exec tsx scripts/sign-probe.ts' 2>&1 | tail -1)
-          echo "$PROBE"
-          echo "$PROBE" | grep -q "SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED" || { echo "::error::the signing attempt did not fail closed"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
+          # the production signing-policy guard while the chain is unreachable. The probe
+          # creates its context while the chain is up, the drill then pauses anvil, and the
+          # guard's per-request freshness check must refuse (SIGN_PROBE_RESULT=
+          # REFUSED_FAIL_CLOSED). A signature here is a hard failure.
+          docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T -e SIGN_PROBE_WAIT_SECONDS=14 --entrypoint /bin/sh web /repo/ops/staging/sign-probe.sh > /tmp/sign-probe.log 2>&1 &
+          PROBE_PID=$!
+          sleep 8 # the probe's context is up; the signing attempt is now inside the outage window
+          docker compose --env-file ops/staging/.env.staging pause anvil
+          wait $PROBE_PID || { echo "::error::the signing probe crashed"; tail -20 /tmp/sign-probe.log; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
+          grep -q "SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED" /tmp/sign-probe.log || { echo "::error::the signing attempt did not fail closed:"; tail -20 /tmp/sign-probe.log; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
           AFTER_ALLOWED=$(ALLOWED)
           [ "$AFTER_ALLOWED" = "$BEFORE_ALLOWED" ] || { echo "::error::a custody signature was produced during the RPC outage ($BEFORE_ALLOWED -> $AFTER_ALLOWED)"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
           echo "fail closed, execution-backed: the real signing attempt was refused and zero custody signatures were produced ($BEFORE_ALLOWED unchanged)"

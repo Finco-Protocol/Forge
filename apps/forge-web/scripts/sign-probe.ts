@@ -15,6 +15,14 @@ import { zeroAddress } from "viem";
 const cfg = buildConfig(process.env);
 const db = await PgliteDb.open();
 const ctx = await createAppContext(process.env, { db });
+// W08 drill protocol: the context is created while the chain is REACHABLE (startup
+// verification needs it); the drill then pauses anvil and this wait lands the
+// signing attempt squarely in the outage window, so the GUARD's per-request
+// freshness check is what must refuse - not the startup.
+if (process.env.SIGN_PROBE_WAIT_SECONDS) {
+  console.log(`SIGN_PROBE_WAITING ${process.env.SIGN_PROBE_WAIT_SECONDS}s (context up; the drill pauses the chain now)`);
+  await new Promise((r) => setTimeout(r, Number(process.env.SIGN_PROBE_WAIT_SECONDS) * 1_000));
+}
 let n = 9_001;
 try {
   await ctx.signers
