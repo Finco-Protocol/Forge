@@ -284,6 +284,14 @@ jobs:
           # ops/staging/migrate-drill.sh is a committed repo file: it loads the sandbox
           # credentials entrypoint-faithfully and runs the real migrate implementation.
           BEFORE_ROWS=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations")
+          # Positive control: prove the REAL migrate command succeeds on an
+          # untouched clone, before its checksum is corrupted.
+          if ! docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:$PG_PW@postgres:5432/forge_staging_drift" web /repo/ops/staging/migrate-drill.sh > /tmp/drift-control.log 2>&1; then
+            echo "::error::untampered migration control failed"; tail -30 /tmp/drift-control.log; exit 1
+          fi
+          CONTROL_ROWS=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations")
+          [ "$CONTROL_ROWS" = "$BEFORE_ROWS" ] || { echo "::error::control modified migration ledger"; exit 1; }
+          echo "untampered migration control PASS"
           docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -c "UPDATE schema_migrations SET checksum = '0000000000000000000000000000000000000000000000000000000000000000' WHERE name = '006_ops.sql'" > /dev/null
           TAMPERED=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations WHERE name = '006_ops.sql' AND checksum = '0000000000000000000000000000000000000000000000000000000000000000'")
           [ "$TAMPERED" = "1" ] || { echo "::error::the tampered row was not verifiably written"; exit 1; }
