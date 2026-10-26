@@ -178,8 +178,10 @@ describe.skipIf(!gitAvailable)("baseline binding (schema 2): the manifest proves
     const added = m.files.filter((f) => f.baseline.status === "added");
     expect(added.map((f) => f.path)).toEqual(["test-forge/W06FinancialAcceptance.t.sol"]); // the W06 financial acceptance test
     expect(m.summary.byBaseline.added.files).toBe(1);
-    expect(m.summary.byBaseline.identical.files).toBe(m.summary.totalFiles - 1);
-    expect(m.summary.byBaseline.modified.files).toBe(0); // no in-scope source has deliberately changed since the baseline
+    expect(m.summary.byBaseline.identical.files).toBe(m.summary.totalFiles - 3);
+    // W07: exactly the two reviewed D12 modifications (natspec correction + its regression test),
+    // each recorded in BASELINE_MODIFICATIONS_ALLOWED with a reason — never a silent change.
+    expect(m.summary.byBaseline.modified.files).toBe(2);
   });
 
   it("FAILS THE GATE when a baseline file's bytes are tampered with (deliberate source mutation)", () => {
@@ -194,6 +196,19 @@ describe.skipIf(!gitAvailable)("baseline binding (schema 2): the manifest proves
       writeFileSync(path.join(REPO_ROOT, target), original); // restore before anything else runs
     }
     // the restored tree regenerates cleanly again
+    expect(() => generateManifest()).not.toThrow();
+  });
+
+  it("an allow-listed modification is sha-pinned: a FUTURE change under an existing entry fails the gate", () => {
+    const target = "test-forge/ForgeLaunchAuth.t.sol";
+    const original = readFileSync(path.join(REPO_ROOT, target));
+    const tampered = Buffer.concat([original, Buffer.from("\n// future change riding an old approval\n")]);
+    try {
+      writeFileSync(path.join(REPO_ROOT, target), tampered);
+      expect(() => generateManifest()).toThrow(/changed again after its reviewed modification/);
+    } finally {
+      writeFileSync(path.join(REPO_ROOT, target), original);
+    }
     expect(() => generateManifest()).not.toThrow();
   });
 

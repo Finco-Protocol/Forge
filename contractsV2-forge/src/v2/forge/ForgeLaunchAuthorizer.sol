@@ -12,10 +12,11 @@ import {PonsV2LaunchFactory} from "../PonsV2LaunchFactory.sol";
 /// @dev Selector sources for the two `launchToken` overloads (overloaded
 /// members have no unambiguous `.selector`). Types are the factory's own.
 interface IForgeLaunchEntryNoExemptions {
-    function launchToken(PonsV2LaunchFactory.TokenParams calldata params, uint256 launchConfigId, address pairToken)
-        external
-        payable
-        returns (address token, address curve);
+    function launchToken(
+        PonsV2LaunchFactory.TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken
+    ) external payable returns (address token, address curve);
 }
 
 interface IForgeLaunchEntryWithExemptions {
@@ -181,7 +182,9 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         bytes calldata attestationPayload
     ) external override {
         if (msg.sender != forgeFactory) revert WrongFactory();
-        _authorize(intent, creatorFeeRecipient, buybackEnabled, creatorSignature, attestationPayload);
+        _authorize(
+            intent, creatorFeeRecipient, buybackEnabled, creatorSignature, attestationPayload
+        );
     }
 
     /// @inheritdoc IForgeLaunchAuthorizer
@@ -281,7 +284,9 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
         bytes memory creatorSignature,
         bytes memory attestationPayload
     ) private {
-        if (eligibilityAuthority == address(0)) revert AuthorityRevoked();
+        if (eligibilityAuthority == address(0)) {
+            revert AuthorityRevoked();
+        }
 
         // ── Layer 1: creator consent ─────────────────────────────────────
         // The consent digest binds the launch's effective metadata: the
@@ -437,9 +442,12 @@ contract ForgeLaunchAuthorizer is EIP712, Ownable2Step, IForgeLaunchAuthorizer {
     }
 
     /// @notice Rotates the eligibility authority key (governance-gated).
-    /// Setting it to address(0) permanently revokes the authority and
-    /// bricks ALL launches — an explicit kill switch, never a bypass.
-    /// Must be rotated together with ForgeBindingRegistry in one batch.
+    /// Setting it to address(0) is the LAUNCH KILL SWITCH: every launch
+    /// reverts `AuthorityRevoked` while it is zero. It is NOT a permanent
+    /// revocation — there is no latch, so the owner can restore a non-zero
+    /// authority at any time, with no timelock (D12; owner-power review item).
+    /// Must be rotated together with ForgeBindingRegistry in one batch. The
+    /// registry itself refuses zero entirely (its key can never be bricked).
     function setEligibilityAuthority(address newAuthority) external onlyOwner {
         emit EligibilityAuthorityUpdated(eligibilityAuthority, newAuthority);
         eligibilityAuthority = newAuthority;

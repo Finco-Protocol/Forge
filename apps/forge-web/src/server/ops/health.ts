@@ -68,7 +68,7 @@ export async function ledgerHealth(ctx: AppContext) {
     const i = await ledgerIntegrity(ctx.db, ctx.cfg.chainId);
     const snap = (
       await ctx.db.query<{ block_number: string; created_at: Date; bytes: string }>(
-        "SELECT block_number::text, created_at, octet_length(state)::text AS bytes FROM ledger_snapshots WHERE chain_id = $1 ORDER BY block_number DESC LIMIT 1",
+        "SELECT block_number::text, created_at, octet_length(state)::text AS bytes FROM ledger_snapshots WHERE chain_id = $1 ORDER BY ledger_snapshots.block_number DESC LIMIT 1",
         [ctx.cfg.chainId],
       )
     ).rows[0];
@@ -90,3 +90,4 @@ export async function systemHealth(ctx: AppContext) {
   const [db, indexer, worker, ledger] = await Promise.all([dbHealth(ctx), indexerHealth(ctx), workerHealth(ctx), ledgerHealth(ctx)]);
   return { db, indexer, worker, ledger };
 }
+

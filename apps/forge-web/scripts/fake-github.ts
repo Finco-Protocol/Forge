@@ -21,7 +21,9 @@ gh.install(7001, org, [5001, 5002]);
 gh.nextLoginUser = Number(process.env.FAKE_GITHUB_LOGIN_AS ?? 1001);
 // FAKE_GITHUB_HOST=0.0.0.0 only inside the staging compose network (internal: true); FAKE_GITHUB_PUBLIC_URL is the URL services use to reach it.
 await gh.start(port, process.env.FAKE_GITHUB_HOST ?? "127.0.0.1", process.env.FAKE_GITHUB_PUBLIC_URL);
-const dir = path.resolve(process.cwd(), ".sandbox");
+// W07: the staging compose stack mounts the shared `sandbox` volume at /sandbox and its
+// healthcheck tests /sandbox/github.env there; local runs keep the historical .sandbox dir.
+const dir = path.resolve(process.env.FAKE_GITHUB_ENV_DIR ?? path.join(process.cwd(), ".sandbox"));
 mkdirSync(dir, { recursive: true });
 const env = {
   GITHUB_APP_ID: gh.appId,

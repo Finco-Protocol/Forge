@@ -29,14 +29,14 @@ The manifest is bound to that commit by a **one-time verification, not by the ge
 
 | Class | Files | Lines |
 | --- | ---: | ---: |
-| `forge-owned` | 5 | 1591 |
+| `forge-owned` | 5 | 1599 |
 | `pons-vendored-modified` | 1 | 1573 |
 | `pons-vendored` | 29 | 8678 |
 | `third-party-vendored` | 88 | 9996 |
-| `test` | 19 | 6810 |
+| `test` | 19 | 6830 |
 | `mock` | 14 | 1319 |
 | `script` | 1 | 143 |
-| **All** | **157** | **30110** |
+| **All** | **157** | **30138** |
 
 ## 1.3 Classification (how each class is decided)
 

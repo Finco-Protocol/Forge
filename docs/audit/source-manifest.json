@@ -27,11 +27,11 @@
   ],
   "summary": {
     "totalFiles": 157,
-    "totalLines": 30110,
+    "totalLines": 30138,
     "byClass": {
       "forge-owned": {
         "files": 5,
-        "lines": 1591
+        "lines": 1599
       },
       "mock": {
         "files": 14,
@@ -51,7 +51,7 @@
       },
       "test": {
         "files": 19,
-        "lines": 6810
+        "lines": 6830
       },
       "third-party-vendored": {
         "files": 88,
@@ -60,16 +60,16 @@
     },
     "byBaseline": {
       "identical": {
-        "files": 156,
-        "lines": 29735
+        "files": 154,
+        "lines": 28464
       },
       "added": {
         "files": 1,
         "lines": 375
       },
       "modified": {
-        "files": 0,
-        "lines": 0
+        "files": 2,
+        "lines": 1299
       }
     }
   },
@@ -1454,13 +1454,13 @@
     },
     {
       "path": "contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol",
-      "sha256": "aefea65156cb86454a1b18cef82fbb905148ef9e8abc5a5631e34554fc3387a3",
-      "lines": 458,
+      "sha256": "578a8003cd6a46073abbccc93fba162d50e11dba6c11d5ce3832bb15d6e7dd60",
+      "lines": 466,
       "class": "forge-owned",
       "basis": "Forge-authored additive contracts (docs/MODIFICATION-REGISTER.md section 3 and 8)",
       "spdx": "MIT",
       "baseline": {
-        "status": "identical",
+        "status": "modified",
         "sha256": "aefea65156cb86454a1b18cef82fbb905148ef9e8abc5a5631e34554fc3387a3"
       }
     },
@@ -1579,13 +1579,13 @@
     },
     {
       "path": "test-forge/ForgeLaunchAuth.t.sol",
-      "sha256": "96871c0863d32745b115d3f4485dd524810bdae37d20a98fca4764599cc8b606",
-      "lines": 813,
+      "sha256": "c4f5776458bfa06204ba442ab6ccfedc53860b1b0deee036c8034fcfb3cb9975",
+      "lines": 833,
       "class": "test",
       "basis": "Foundry test or harness (profiles `forge` / `testable`)",
       "spdx": "MIT",
       "baseline": {
-        "status": "identical",
+        "status": "modified",
         "sha256": "96871c0863d32745b115d3f4485dd524810bdae37d20a98fca4764599cc8b606"
       }
     },

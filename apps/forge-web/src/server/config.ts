@@ -79,6 +79,10 @@ const EnvSchema = z.object({
   FORGE_DEPLOYMENT_FILE: z.string().optional(),
   FORGE_CONFIRMATIONS: z.coerce.number().int().min(0).max(1000).default(0),
   FORGE_INDEXER_REORG_WINDOW: z.coerce.number().int().min(1).max(10_000).default(64),
+  // W07: a reorg is always recorded as evidence; DEEP_REORG pages only past this depth.
+  FORGE_REORG_ALERT_DEPTH_BLOCKS: z.coerce.number().int().min(1).max(10_000).default(2),
+  // W07: webhook deliveries are retried by the worker with capped backoff, then terminal.
+  FORGE_WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(8),
   FORGE_INDEXER_BATCH_BLOCKS: z.coerce.number().int().min(1).max(100_000).default(2_000),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be >= 32 chars"),
   SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(8 * 60 * 60),
@@ -226,6 +230,7 @@ export function buildConfig(env: Record<string, string | undefined>) {
     chainId: e.FORGE_CHAIN_ID,
     confirmations: e.FORGE_CONFIRMATIONS,
     reorgWindow: e.FORGE_INDEXER_REORG_WINDOW,
+    reorgAlertDepthBlocks: e.FORGE_REORG_ALERT_DEPTH_BLOCKS,
     indexerBatchBlocks: BigInt(e.FORGE_INDEXER_BATCH_BLOCKS),
     addresses,
     sessionSecret: e.SESSION_SECRET,
@@ -266,7 +271,7 @@ export function buildConfig(env: Record<string, string | undefined>) {
       roleRateLimitPerHour: e.FORGE_SIGNER_ROLE_RATE_LIMIT_PER_HOUR,
     },
     db: dbConfigFromEnv(env),
-    worker: { jobLeaseSeconds: e.FORGE_JOB_LEASE_SECONDS, heartbeatStaleSeconds: e.FORGE_WORKER_HEARTBEAT_STALE_SECONDS },
+    worker: { jobLeaseSeconds: e.FORGE_JOB_LEASE_SECONDS, heartbeatStaleSeconds: e.FORGE_WORKER_HEARTBEAT_STALE_SECONDS, webhookMaxAttempts: e.FORGE_WEBHOOK_MAX_ATTEMPTS },
     ledger: { mode: e.FORGE_LEDGER_MODE, snapshotMinBlocks: e.FORGE_LEDGER_SNAPSHOT_MIN_BLOCKS, selfCheckIntervalMs: e.FORGE_LEDGER_SELF_CHECK_INTERVAL_MS },
     embeddedWorker: e.FORGE_EMBEDDED_WORKER,
     revocationSloSeconds: e.FORGE_REVOCATION_SLO_SECONDS,

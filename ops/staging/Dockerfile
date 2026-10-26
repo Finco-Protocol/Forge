@@ -37,9 +37,19 @@ RUN corepack enable && corepack prepare pnpm@10.28.0 --activate \
  && apt-get update && apt-get install -y --no-install-recommends postgresql-client tini && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 COPY --from=build /repo /repo
+COPY --from=build /root/.cache/node/corepack /corepack-cache
 COPY --from=contracts /repo/out /repo/out
 COPY ops/staging/entrypoint.sh /usr/local/bin/forge-entrypoint
-RUN chmod +x /usr/local/bin/forge-entrypoint && useradd --system --uid 10001 forge && mkdir -p /sandbox && chown -R forge /sandbox /repo/apps/forge-web/.next
+COPY ops/staging/ /repo/ops/staging/
+RUN chmod +x /usr/local/bin/forge-entrypoint && useradd --system --uid 10001 --create-home --home-dir /home/forge forge \
+ && mkdir -p /sandbox && chown -R forge /sandbox /home/forge /corepack-cache /repo/apps/forge-web/.next
+# The runtime user needs a writable HOME: corepack writes its cache under $HOME/.cache at
+# `pnpm exec` time, and without it every role crashed with EACCES (W07 compose smoke finding).
+ENV HOME=/home/forge COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# Ship the build stage's corepack store: the backend network is internal (no
+# registry route), so the runtime user's first `pnpm exec` must resolve pnpm
+# 10.28.0 (the packageManager pin) from a local cache, never the network.
+ENV COREPACK_HOME=/corepack-cache
 USER forge
 WORKDIR /repo/apps/forge-web
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/forge-entrypoint"]

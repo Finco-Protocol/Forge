@@ -36,7 +36,20 @@ export const BASELINE_COMMIT = "f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f";
  * Any entry must carry a documented reason and can only be added after review;
  * a modification that is not listed here fails generation and --check.
  */
-export const BASELINE_MODIFICATIONS_ALLOWED: readonly { path: string; reason: string }[] = [];
+export const BASELINE_MODIFICATIONS_ALLOWED: readonly { path: string; reason: string; expectedSha256: string }[] = [
+  {
+    path: "contractsV2-forge/src/v2/forge/ForgeLaunchAuthorizer.sol",
+    reason:
+      "W07 D12 reconciliation: natspec-only correction of the false 'permanently revokes' claim on setEligibilityAuthority(0) — zero is owner-reversible (no latch), as the tests and docs already stated. Comments generate no bytecode or ABI change (runtime size and ABI verified unchanged); the claim itself was the defect.",
+    expectedSha256: "578a8003cd6a46073abbccc93fba162d50e11dba6c11d5ce3832bb15d6e7dd60",
+  },
+  {
+    path: "test-forge/ForgeLaunchAuth.t.sol",
+    reason:
+      "W07 D12: adds test_W07_zero_authority_is_owner_reversible_and_registry_refuses_zero, the explicit regression that the zero kill switch is owner-reversible and that the registry refuses zero (test-only; no contract change).",
+    expectedSha256: "c4f5776458bfa06204ba442ab6ccfedc53860b1b0deee036c8034fcfb3cb9975",
+  },
+];
 
 /**
  * Baseline files deliberately REMOVED from the tree after BASELINE_COMMIT.
@@ -252,7 +265,7 @@ export function generateManifest(): Manifest {
       );
     }
   }
-  const allowedModifications = new Map(BASELINE_MODIFICATIONS_ALLOWED.map((m) => [m.path, m.reason]));
+  const allowedModifications = new Map(BASELINE_MODIFICATIONS_ALLOWED.map((m) => [m.path, m]));
   const hashes = new Map<string, string>();
   const byBaseline: Record<BaselineStatus, { files: number; lines: number }> = { identical: { files: 0, lines: 0 }, added: { files: 0, lines: 0 }, modified: { files: 0, lines: 0 } };
   const files: ManifestFile[] = tracked.map((p) => {
@@ -267,14 +280,23 @@ export function generateManifest(): Manifest {
       const baselineHash = baselineSha256(BASELINE_COMMIT, p);
       if (baselineHash === sha256) baseline = { status: "identical", sha256: baselineHash };
       else {
-        const reason = allowedModifications.get(p);
-        if (!reason) {
+        const allowed = allowedModifications.get(p);
+        if (allowed === undefined) {
           throw new Error(
             `audit-manifest: ${p} differs from the recorded baseline ${BASELINE_COMMIT} ` +
               `(baseline sha256 ${baselineHash}, current sha256 ${sha256}). The manifest binds its ` +
               `bytes to that commit, so a changed historical source cannot pass this gate. Either restore ` +
               `the baseline bytes, or — only after review — record the change in BASELINE_MODIFICATIONS_ALLOWED ` +
               `(scripts/w06/audit-manifest.ts) with a reason and update the provenance claims.`,
+          );
+        }
+        // The allow-list entry is itself pinned: a FUTURE change to an already-approved
+        // file must not silently ride the existing approval — record the new reviewed hash.
+        if (allowed !== undefined && allowed.expectedSha256 !== sha256) {
+          throw new Error(
+            `audit-manifest: ${p} changed again after its reviewed modification (allow-list pins sha256 ` +
+              `${allowed.expectedSha256}, current ${sha256}). Update the entry's expectedSha256 with a new ` +
+              `reviewed reason; an approved modification is not a standing exemption.`,
           );
         }
         baseline = { status: "modified", sha256: baselineHash };

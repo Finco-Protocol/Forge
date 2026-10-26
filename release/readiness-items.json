@@ -38,7 +38,7 @@
         "M-ELIG adversarial authorization tests (17)",
         "full lifecycle + snipe tax E2E",
         "w03: build W02 forge profile + ABI drift check",
-        "w05: forge security suites (owner powers, attestor compromise)"
+        "w05: forge security suites (emergency revocation, owner powers, attestor compromise)"
       ]
     },
     {
@@ -151,7 +151,7 @@
     {
       "id": "A13_STAGING_ACCEPTANCE",
       "class": "A",
-      "title": "W06 staging package: separate web + worker processes on PostgreSQL \u2014 config refusal, empty-DB migration, cold start, restart with state, indexer recovery, worker SIGKILL recovery, failed-migration handling, backup/restore ledger digest, rollback planning (docker compose itself is NOT executed by CI; see docs/W06-STAGING.md)",
+      "title": "W06 staging package: separate web + worker processes on PostgreSQL — config refusal, empty-DB migration, cold start, restart with state, indexer recovery, worker SIGKILL recovery, failed-migration handling, backup/restore ledger digest, rollback planning (docker compose itself is NOT executed by CI; see docs/W06-STAGING.md)",
       "ciJobs": [
         "w06: staging acceptance (separate web + worker processes, PostgreSQL)"
       ]
@@ -284,6 +284,14 @@
       "title": "FINCO-specific tokenomics and any burn authorization (separate financial workflow)",
       "blocks": "LEGAL_APPROVAL_REQUIRED",
       "evidenceRequired": "governance decision record + review hash"
+    },
+    {
+      "id": "A17_OPERATIONAL_RELIABILITY",
+      "class": "A",
+      "title": "W07 operational reliability: monitoring/alert reachability through real events, webhook delivery lifecycle with bounded retries and terminal observability, DEEP_REORG evidence + depth-threshold alerting, structured health (503) with liveness/readiness split, malformed-webhook refusal, and the pre-existing lexicographic ORDER BY defect fixed with exact-depth reorg regressions. Compose-level backup/restore remains evidenced by the W06 rehearsal suite; the compose smoke (worker SIGKILL, Postgres restart persistence) runs manually via w06-compose-smoke.yml.",
+      "ciJobs": [
+        "w07: operational reliability (monitoring, webhooks, health)"
+      ]
     }
   ]
 }

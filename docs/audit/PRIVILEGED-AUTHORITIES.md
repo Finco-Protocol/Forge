@@ -17,7 +17,7 @@ Nothing here has been accepted by an external reviewer. The release register mar
 | Creator fee recipient | per launch, default the creator | n/a |
 | `Ownable2Step` pending owner | none | n/a |
 
-Every owned contract uses `Ownable2Step`. `renounceOwnership` reverts on factory, hook, vault, locker and splitter (SOURCE), and is **not** disabled on `ForgeLaunchAuthorizer` and `ForgeBindingRegistry` (finding W05-02): renouncing either freezes authority rotation and, for the authorizer, the launch kill switch.
+Every owned contract uses `Ownable2Step`. `renounceOwnership` reverts on factory, hook, vault, locker and splitter (SOURCE), and is **not** disabled on `ForgeLaunchAuthorizer` and `ForgeBindingRegistry` (finding W05-02): renouncing either freezes authority rotation and, for the authorizer, the launch kill switch. **W07 (D11 reconciliation): `PonsV2LaunchAndBuy` is a THIRD renounceable surface** (classified in the matrix, in no deploy plan) — renouncing it would freeze its owner `rescue`. Whether to disable renounceOwnership there (and on registry/authorizer) is an OWNER_DECISION_REQUIRED, not made in W07.
 
 ## 4.2 Timelocks that exist on chain (SOURCE)
 

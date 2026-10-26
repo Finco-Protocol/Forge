@@ -250,10 +250,10 @@ const tokenDetail: Handler = async (ctx, req, p) => {
   const repoId = (t as { repo_id: string | null }).repo_id;
   const repo = repoId ? (await ctx.db.query("SELECT repo_id::text, full_name, owner_login, private, archived, ineligible_reason, updated_at FROM repositories WHERE repo_id = $1", [repoId])).rows[0] : null;
   const names = repoId ? (await ctx.db.query("SELECT full_name, first_seen_at, source FROM repository_names WHERE repo_id = $1 ORDER BY first_seen_at", [repoId])).rows : [];
-  const receipts = (await ctx.db.query("SELECT seq::text, kind, prev_hash, receipt, receipt_hash, signer, signature, created_at FROM evidence_receipts WHERE token = $1 ORDER BY seq", [token])).rows;
+  const receipts = (await ctx.db.query("SELECT seq::text, kind, prev_hash, receipt, receipt_hash, signer, signature, created_at FROM evidence_receipts WHERE token = $1 ORDER BY evidence_receipts.seq", [token])).rows;
   const events = (
     await ctx.db.query(
-      "SELECT block_number::text, tx_hash, log_index, address, event_name, args, block_timestamp::text FROM chain_events WHERE address = $1 OR args->>'token' = $2 ORDER BY block_number, log_index LIMIT 500",
+      "SELECT block_number::text, tx_hash, log_index, address, event_name, args, block_timestamp::text FROM chain_events WHERE address = $1 OR args->>'token' = $2 ORDER BY chain_events.block_number, chain_events.log_index LIMIT 500",
       [(t as { curve: string }).curve, token],
     )
   ).rows;
@@ -316,22 +316,48 @@ const publicConfig: Handler = async (ctx) =>
 
 const health: Handler = async (ctx) => {
   const block = await ctx.client.getBlockNumber({ cacheTime: 0 }).catch(() => null);
-  const revocations = await revocationHealth(ctx);
+  // W06 defect, fixed in W07: revocationHealth used to be awaited OUTSIDE the
+  // per-probe guards, so a database outage turned /api/health into an
+  // unstructured HTTP 500. It is now guarded like every other probe and the
+  // endpoint answers with a structured 503 while a critical dependency is down.
+  const revocations = await revocationHealth(ctx).catch((e: unknown) => {
+    // W07 Correction A (public disclosure): the raw probe error can name hosts or
+    // identifiers — it goes to the server log only. The public body carries the
+    // structured `unavailable` indicator (and failing[] below), never the message.
+    console.error("[forge] /api/health revocation probe failed:", (e as Error).message.split("\n")[0]);
+    return {
+      pending: 0,
+      oldestPendingSeconds: 0,
+      retrying: 0,
+      lastLatencySeconds: null as number | null,
+      sloSeconds: ctx.cfg.revocationSloSeconds,
+      breached: false,
+      unavailable: true,
+    };
+  });
   // W05: db latency/pool/migration version, indexer lag, worker heartbeats, ledger integrity.
   const system = await systemHealth(ctx);
   // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO),
   // `ledger.halted`, `db.ok=false` and `worker.ok=false` (no live heartbeat; expected with no worker running).
   // PUBLIC: booleans and the revocation lag only. Worker identities, database errors, migration state and ledger
   // halt reasons are operator data: GET /api/ops/health (bearer FORGE_OPS_TOKEN).
-  return json({
-    ok: block !== null && system.db.ok && system.ledger.ok,
-    block,
-    revocations,
-    db: { ok: system.db.ok },
-    indexer: { ok: system.indexer.ok },
-    worker: { ok: system.worker.ok },
-    ledger: { ok: system.ledger.ok, halted: "halted" in system.ledger ? system.ledger.halted : false },
-  });
+  const ok = block !== null && system.db.ok && system.ledger.ok;
+  const failing = [...(system.db.ok ? [] : ["db"]), ...(block === null ? ["rpc"] : []), ...(system.ledger.ok ? [] : ["ledger"])];
+  return json(
+    {
+      ok,
+      live: true, // this endpoint served a response: the process is alive (see /api/live)
+      ready: ok,
+      failing,
+      block,
+      revocations,
+      db: { ok: system.db.ok },
+      indexer: { ok: system.indexer.ok },
+      worker: { ok: system.worker.ok },
+      ledger: { ok: system.ledger.ok, halted: "halted" in system.ledger ? system.ledger.halted : false },
+    },
+    { status: ok ? 200 : 503 },
+  );
 };
 
 // ── W04 economics & treasury ─────────────────────────────────────────────

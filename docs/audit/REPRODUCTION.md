@@ -29,12 +29,14 @@ Verify the source inventory (no network needed, `git` and Node required):
 
 ```bash
 (cd apps/forge-web && pnpm install --frozen-lockfile)     # subshell: the shell stays at the repository root
-apps/forge-web/node_modules/.bin/tsx scripts/w06/audit-manifest.ts --check      # AUDIT_MANIFEST_OK files=157 lines=30110
+apps/forge-web/node_modules/.bin/tsx scripts/w06/audit-manifest.ts --check      # AUDIT_MANIFEST_OK files=157 lines=30138
 # independent check of any file against the pinned commit:
 git show f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f:contractsV2-forge/src/v2/forge/ForgeBindingRegistry.sol | sha256sum
 ```
 
 If you build a later commit, expect `--check` to fail until the manifest is regenerated (`tsx scripts/w06/audit-manifest.ts`) and re-reviewed.
+
+W07+: run the manifest commands from a checkout of the CURRENT head (the W07 tree carries `scripts/w06/audit-manifest.ts` itself, including the schema-2 baseline binding and the sha-pinned `BASELINE_MODIFICATIONS_ALLOWED`); the pinned commit `f4fa5e8a…` is only the comparison baseline, fetched from git when a shallow checkout lacks it.
 
 ## 10.3 Foundry builds
 
@@ -126,7 +128,7 @@ Stated plainly. Anything not in this table was **not** executed by the dossier a
 | 1 | `git rev-parse HEAD` in the worktree | `f4fa5e8a02f77958a0552ccaa411f3f1b39b5c1f` |
 | 2 | `PATH=/tmp/fdry:$PATH FOUNDRY_PROFILE=forge forge build --skip test --skip script --out <scratch> --cache-path <scratch>` | succeeded with solc 0.8.35 (warnings from vendored OpenZeppelin `error` identifier); runtime sizes in `ROBINHOOD-CHAIN-RISKS.md` 7.4 (factory 24,470 B; splitter 11,680 B) |
 | 3 | `forge test` (profile `forge`) with `--match-contract "W05EmergencyRevocationTest\|W05OwnerPowersTest\|W05AttestorCompromiseTest\|ForgeRevenueSplitterTest\|ForgeRevenueSplitterInvariantTest\|ForgeRevenueLifecycleTest\|ForgeLaunchAuthTest\|ForgeLaunchCallTest\|ForgeLifecycleTest\|ForgeSnipeTaxTest"`, in a `git archive` copy of the SHA with forge-std (v1.17.0, `f3dae6e6`) copied in from another checkout because the submodule is empty in the worktree | **129 passed, 0 failed, 0 skipped over 10 suites**: W05AttestorCompromise 7, W05EmergencyRevocation 11, W05OwnerPowers 11, ForgeLaunchAuth 35, ForgeRevenueSplitter 37, ForgeRevenueLifecycle 8, ForgeRevenueSplitterInvariant (3 invariant functions; forge reports the suite as 1 test) , ForgeLifecycle 4, ForgeLaunchCall 14 (10 own + 4 inherited), ForgeSnipeTax 1 |
-| 4 | `tsx scripts/w06/audit-manifest.ts`, then `--check`, then regenerate and `cmp` | wrote 157 files / 30,110 lines (156 byte-identical at the baseline + the W06 financial test, 375 lines, recorded as an explicitly documented addition by the schema-2 baseline binding); `AUDIT_MANIFEST_OK`; byte-identical on regeneration |
+| 4 | `tsx scripts/w06/audit-manifest.ts`, then `--check`, then regenerate and `cmp` | wrote 157 files / 30,138 lines (154 byte-identical at the baseline + the W06 financial test recorded as an explicit addition + 2 deliberately modified baseline files recorded in BASELINE_MODIFICATIONS_ALLOWED with reviewed reasons); `AUDIT_MANIFEST_OK`; byte-identical on regeneration |
 | 5 | Every manifest sha256 compared with `git show f4fa5e8a:<path> \| sha256sum` | 156/156 baseline files identical (the 157th, `test-forge/W06FinancialAcceptance.t.sol`, is not in the baseline commit) |
 | 6 | `vitest run --project unit test/unit/w06-audit-manifest.test.ts` | 10 tests passed; `tsc --noEmit` reported no errors in the script or the test |
 | 7 | `bash scripts/check-vendored-deps.sh` | `DEPENDENCY_INTEGRITY_OK` (89 files: 72 byte-identical, 16 whitespace-only, 1 unresolved) |

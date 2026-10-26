@@ -183,3 +183,15 @@ Ownership: none (immutable wiring) · Upgradeable: no
 | --- | --- | --- | --- | --- | --- | --- |
 | `deployLaunch((address,address,address,address,(address,uint16,uint1…` | forge-factory | launch | n/a |  |  | factory-only |
 
+## PonsV2LaunchAndBuy
+
+Ownership: Ownable2Step · Upgradeable: no
+
+| Function | Caller | Category | Timelock | Emergency | Monitoring events | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+| `launchAndBuy((string,string,string,string,(string,string,string,str…` | permitted-launcher | launch | n/a |  | `Launched` | factory.canLaunch(msg.sender) whitelist (M-ELIG scope); NOT in any deploy plan at this SHA - a source-only router (KNOWN-DISCREPANCIES D11 reconciliation). Wiring it as the factory launch forwarder is an owner decision that requires its own review. |
+| `rescue(address,address)` | owner | emergency | none | **yes** | `Rescued` | F-04-class owner rescue of a stranded router balance (whole balance of asset); the router self-empties on every launch, so this covers only out-of-path arrivals |
+| `acceptOwnership()` | pending-owner | governance | Ownable2Step two-step |  | `OwnershipTransferred` |  |
+| `transferOwnership(address)` | owner | governance | none (two-step) |  | `OwnershipTransferStarted` | renounceOwnership is NOT disabled here (third renounceable surface, W05-02/Add-3 extension) |
+| `renounceOwnership()` | owner | governance | none |  |  | NOT disabled (unlike factory/hook/vault/locker/splitter): renouncing would freeze rescue() and ownership transfer of an unbuilt router; kept as-is - no deploy plan, no authorization to change contract code in W07 |
+
