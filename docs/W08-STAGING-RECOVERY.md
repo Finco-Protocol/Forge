@@ -14,6 +14,12 @@ Evidence class: SANDBOX / ISOLATED (local Anvil, fake GitHub, disposable compose
 | RPC outage (W08 new) | `docker compose pause anvil` (node unreachable) | `/api/health` exposes `failing:["rpc"]` during the outage; readiness recovers after unpause; signing fails closed throughout | **EXECUTED** — run 40290038031 @ `cce1d4a`: `failing:["rpc"]` observed, "fail closed, execution-backed: zero custody signatures during the outage (0 unchanged)", recovery after unpause |
 | Migration-drift refusal (W08 new) | cloned staging database with EXACTLY ONE tampered checksum (verified written); CONTROL run against the untampered clone first; the real migrate implementation via the committed entrypoint-faithful `ops/staging/migrate-drill.sh` | refusal with the SPECIFIC `MIGRATION_DRIFT` diagnostic; no migration applied during the refusal; the original database proven untouched | **EXECUTED** — run 40290038031 @ `cce1d4a`: "migration drift refused with MIGRATION_DRIFT; no migration applied; original database untouched" |
 
+## Current-W08 Compose run requirement
+
+The W08 two-phase signing probe was corrected to initialize against **Compose PostgreSQL** and healthy Anvil before publishing a readiness marker. The workflow pauses Anvil **after readiness**, triggers the guard request, checks an explicit authoritative-chain fail-closed denial and the correlated `signer_audit` row, and asserts zero allowed decisions/signatures. Migration drift now has a successful untampered positive control, then requires the specific `MIGRATION_DRIFT` refusal and unchanged original database.
+
+**Evidence status: NOT YET VERIFIED on the final W08 SHA.** No final-head manual run ID exists in this record. Previous historical Compose PASS runs do not transfer to these changes. To close: dispatch `W06 Staging Compose Smoke` on the final W08 branch SHA, inspect every step (including skipped/cancelled), preserve run ID, logs and digest values, and update the PR evidence. Lack of operator dispatch remains `MANUAL_COMPOSE_PENDING_OPERATOR_DISPATCH`, not a PASS.
+
 ## Browser E2E repetition (Correction A §2.3)
 
 The J14–J17 flake root cause was the sign-in branch being skipped by a momentary visibility probe racing the streamed dashboard render; the test now waits for the signed-out state deterministically and asserts the session identity before the earnings assertions. On the fixed HEAD `cce1d4a` both the push-triggered and the PR-triggered full browser jobs passed 18/18 (runs 40288260748 / 40288256233 jobs). W07 baseline: 7 consecutive full local runs, 18/18 each.

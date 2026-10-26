@@ -14,9 +14,13 @@ Status: **in progress**. This document separates what is proven by executed test
 | Ledger reconciliation (reference recompute vs materialized) and restore digest agreement | `w06 staging acceptance` (CI) + compose backup/restore step (reference = materialized = `1bd5df2c…` on both databases, run 40278679711) |
 | Exact wallet submission counts, refusal codes (BAD_SIGNATURE / NOT_ADMIN / NOT_VERIFIED / PAYLOAD_MISMATCH) | browser journey + webhook acceptance suites |
 
+## W08 independent economic oracle — added, final-head CI required
+
+`apps/forge-web/test/unit/w08-financial-oracle.test.ts` now computes expected amounts *from primitive scenario fees and economic rules*, not production allocation, ledger-fold or rounding helpers. The test inputs cover three launches, two distinct creators, per-launch floors on fees 101/205/331 (protocol contributions 30/61/99), cumulative protocol amount 190, treasury 127 and reserve 63, a third-party escrow credit of 9, an excluded/ineligible launch, a truncated history near attestation, a missing/interrupted creator claim with canonical recovery, and shuffled duplicate events. Test assertions must pass on the final SHA. This remains isolated unit-level economic reconciliation, **not independent financial governance approval or real Compose recovery**.
+
 ## W08-remaining (tracked in docs/W08-TO-W09-HANDOVER.md as W08-2)
 
-- Independent oracle-style reconciliation across multi-launch / multi-creator / multi-block histories (existing suites use production calculations cross-checked by invariant assertions; an independently implemented oracle is the remaining gap).
+- The independent oracle is implemented, but final-head CI pass and independent review are still required. Any unexecuted large-history/live-chain verification must not be inferred from these unit scenarios.
 - Reorg-near-attestation and interrupted-claim execution/recovery at the COMPOSE level: **PENDING** (Correction A, review finding 3). Existing coverage is unit/integration-level only (ledger-fold reorg suites, economics claim-recovery cases) — that is not a full Compose lifecycle drill, and none has been executed yet. Implementing these as compose drills is tracked in this PR's remaining W08 scope; until executed they are classified PENDING, not covered.
 
 ## Boundaries

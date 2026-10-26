@@ -6,10 +6,10 @@ Status: W08 engineering development in progress on `feat/forge-w08-beta-acceptan
 
 | ID | Item | Where | Note |
 |---|---|---|---|
-| W08-1 | Genuine V4 browser graduation (inherited E2) | `apps/forge-web/test/e2e` + sandbox deploy | The e2e stack still graduates on the sandbox pool; switch the staging deployment's graduation to the genuine V4 pool manager already covered by `test/v4`, without new contract powers |
-| W08-2 | Independent financial reconciliation additions | `apps/forge-web/test` | Extend the ledger/reconciliation suites with cross-checks implemented independently of production calculations (oracle-style) across multi-launch, multi-creator histories |
-| W08-3 | Beta browser E2E re-run on the W08 stack | `pnpm test:e2e` | Repeat the 18-test journey after the staging drills stabilize; report pass/fail distribution |
-| W08-4 | Compose smoke evidence attachment | manual workflow | Run on the final W08 HEAD; record run id + SHA in docs/W08-BETA-ACCEPTANCE.md §2 |
+| W08-1 | Genuine V4 browser graduation | `apps/forge-web/test/e2e`, `test/e2e/global-setup.ts`, `.github/workflows/w03.yml` | Implemented isolated genuine-V4 production-build browser path and mandatory CI job. **Pending exact-head PASS**, inspect minted liquidity/position evidence and full J01–J19 results; do not equate implementation with acceptance |
+| W08-2 | Independent financial reconciliation additions | `apps/forge-web/test/unit/w08-financial-oracle.test.ts` | Implemented three-launch/two-creator independent oracle with rounding, third-party/ineligible exclusions and partial-claim recovery; **pending exact-head CI and independent review**. Compose reorg/claim fault drill is separately unproven |
+| W08-3 | Beta browser E2E re-run on the W08 stack | `pnpm test:e2e` and isolated genuine J01–J19 job | Both standard 18-case suite and genuine-V4 journey (including J14–J17) must pass on final HEAD; inspect failing/retried/skipped cases rather than borrowing earlier-green evidence |
+| W08-4 | Compose smoke evidence attachment | manual workflow `.github/workflows/w06-compose-smoke.yml` | **BLOCKED UNTIL MANUAL DISPATCH** on final W08 HEAD; capture actual run ID, full step results, fail-closed audit and recovery/restore digests before engineering PASS |
 
 ## 2. External / operator dependencies (unchanged classes)
 
