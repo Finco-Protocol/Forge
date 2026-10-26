@@ -40,6 +40,7 @@ COPY --from=build /repo /repo
 COPY --from=build /root/.cache/node/corepack /corepack-cache
 COPY --from=contracts /repo/out /repo/out
 COPY ops/staging/entrypoint.sh /usr/local/bin/forge-entrypoint
+COPY ops/staging/ /repo/ops/staging/
 RUN chmod +x /usr/local/bin/forge-entrypoint && useradd --system --uid 10001 --create-home --home-dir /home/forge forge \
  && mkdir -p /sandbox && chown -R forge /sandbox /home/forge /corepack-cache /repo/apps/forge-web/.next
 # The runtime user needs a writable HOME: corepack writes its cache under $HOME/.cache at
