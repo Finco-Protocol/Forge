@@ -83,7 +83,8 @@ jobs:
           OBSERVED=""
           for _ in $(seq 1 36); do
             STATE=$(docker inspect --format '{{.State.Running}} {{.RestartCount}} {{.State.StartedAt}}' "$WORKER")
-            RD=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/ready || true)
+            RD=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/ready)
+            RD=${RD:-000}
             OBSERVED="$OBSERVED $RD"
             IFS=' ' read -r RUNNING RESTARTS START <<< "$STATE"
             [ -n "$RUNNING" ] && [ -n "$RESTARTS" ] && [ -n "$START" ] || { echo "unparseable worker state: '$STATE'"; sleep 5; continue; }
