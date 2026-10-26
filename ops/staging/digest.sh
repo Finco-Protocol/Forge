@@ -15,5 +15,5 @@ set +a
 GITHUB_API_URL="${STAGING_GITHUB_API_URL:-${GITHUB_API_URL:-}}"
 GITHUB_WEB_URL="${STAGING_GITHUB_WEB_URL:-${GITHUB_WEB_URL:-}}"
 export GITHUB_API_URL GITHUB_WEB_URL
-pnpm --silent staging:check
-exec pnpm --silent exec tsx scripts/w06/staging-ops.ts digest
+pnpm staging:check
+exec pnpm exec tsx scripts/w06/staging-ops.ts digest
