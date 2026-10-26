@@ -1,60 +1,65 @@
 /**
- * W08 RPC-outage drill probe (test-only; compose staging stack): attempts a
- * REAL custody signing request through the production signing-policy guard
- * while the chain RPC is unreachable, and verifies the refusal is the guard's
- * fail-closed path (exit 0 = refused without any custody call; nonzero = the
- * attempt did not fail closed, which fails the drill).
+ * W08 RPC outage probe, Compose-only. Initialize a real PostgreSQL-backed
+ * context while Anvil is healthy; expose readiness BEFORE any outage.
+ * Only an audited chain-unavailable guard denial passes.
  */
+import { access, writeFile } from "node:fs/promises";
 import { buildConfig } from "../src/server/config";
-import { PgliteDb } from "../src/server/db";
 import { createAppContext } from "../src/server/context";
-import { registryDomain } from "../src/shared/forge-typed-data";
-import { bindingOpTypes } from "../src/shared/forge-typed-data";
+import { registryDomain, bindingOpTypes } from "../src/shared/forge-typed-data";
 import { zeroAddress } from "viem";
 
+const id = process.env.SIGN_PROBE_ID;
+if (!id || !/^[0-9a-f]{24}$/.test(id)) throw new Error("SIGN_PROBE_ID must be a fresh lowercase 24-digit hex token");
+const base = "/sandbox/w08-sign-probe-" + id;
 const cfg = buildConfig(process.env);
-const db = await PgliteDb.open();
-const ctx = await createAppContext(process.env, { db });
-// W08 drill protocol: the context is created while the chain is REACHABLE (startup
-// verification needs it); the drill then pauses anvil and this wait lands the
-// signing attempt squarely in the outage window, so the GUARD's per-request
-// freshness check is what must refuse - not the startup.
-if (process.env.SIGN_PROBE_WAIT_SECONDS) {
-  console.log(`SIGN_PROBE_WAITING ${process.env.SIGN_PROBE_WAIT_SECONDS}s (context up; the drill pauses the chain now)`);
-  await new Promise((r) => setTimeout(r, Number(process.env.SIGN_PROBE_WAIT_SECONDS) * 1_000));
-}
-let n = 9_001;
+const ctx = await createAppContext(process.env);
 try {
-  await ctx.signers
-    .guarded("authority")!
-    .signTypedData(
-      {
-        domain: registryDomain(cfg.chainId, cfg.addresses.registry),
-        types: bindingOpTypes,
-        primaryType: "BindingOp",
-        message: {
-          githubRepoId: BigInt(++n),
-          creator: zeroAddress,
-          bindingExpiresAt: 4_000_000_000n,
-          opDeadline: 4_000_000_000n,
-          opNonce: BigInt(n),
-          parentOpDigest: `0x${"00".repeat(32)}`,
-          repoFullName: "o/r",
-          revoke: false,
-        },
-      },
-      { requestedBy: "w08-sign-probe", correlationId: `w08-sign-probe-${n}` },
-    );
-  console.error("SIGN_PROBE_RESULT=SIGNED (the guard did NOT fail closed)");
-  process.exit(1);
-} catch (e) {
-  const msg = (e as Error).message;
-  if (!/fail closed/i.test(msg)) {
-    console.error(`SIGN_PROBE_RESULT=UNEXPECTED_REFUSAL: ${msg.split("\n")[0]}`);
-    process.exit(1);
+  if (ctx.db.stats().driver !== "pg" || !process.env.DATABASE_URL) throw new Error("SIGN_PROBE_REQUIRES_COMPOSE_POSTGRES");
+  const signer = ctx.signers.guarded("authority");
+  if (!signer) throw new Error("SIGN_PROBE_MISSING_AUTHORITY_GUARD");
+  await writeFile(base + ".ready", "SIGN_PROBE_READY\n", { flag: "wx" });
+  console.log("SIGN_PROBE_PHASE_A_READY");
+
+  const deadline = Date.now() + 100_000;
+  let triggered = false;
+  while (Date.now() < deadline) {
+    try {
+      await access(base + ".go");
+      triggered = true;
+      break;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  console.log(`SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED: ${msg.split("\n")[0]}`);
-  process.exit(0);
+  if (!triggered) throw new Error("SIGN_PROBE_TRIGGER_TIMEOUT");
+  console.log("SIGN_PROBE_PHASE_B_TRIGGERED");
+  const nonce = BigInt("0x" + id);
+  let refused = false;
+  try {
+    await signer.signTypedData({
+      domain: registryDomain(cfg.chainId, cfg.addresses.registry),
+      types: bindingOpTypes,
+      primaryType: "BindingOp",
+      message: {
+        githubRepoId: nonce, creator: zeroAddress,
+        bindingExpiresAt: 4_000_000_000n, opDeadline: 4_000_000_000n,
+        opNonce: nonce, parentOpDigest: "0x" + "00".repeat(32),
+        repoFullName: "o/r", revoke: false,
+      },
+    }, { requestedBy: "w08-sign-probe", correlationId: "w08-" + id });
+    console.error("SIGN_PROBE_RESULT=SIGNED (hard failure)");
+  } catch (e) {
+    const msg = (e as Error).message.split("\n")[0] ?? "";
+    if (/role disabled: authoritative on-chain read failed \(fail closed\)/i.test(msg)) {
+      console.log("SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED: " + msg);
+      refused = true;
+    } else {
+      console.error("SIGN_PROBE_RESULT=UNEXPECTED_REFUSAL: " + msg);
+    }
+  }
+  if (!refused) process.exitCode = 1;
 } finally {
-  await db.close();
+  await ctx.db.close();
 }

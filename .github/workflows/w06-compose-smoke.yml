@@ -207,38 +207,68 @@ jobs:
       # unreachable (fail closed), so confinement holds under the fault too.
       - name: W08 RPC outage drill (anvil paused) and recovery
         run: |
+          set -euo pipefail
+          PROBE_ID=$(openssl rand -hex 12)
+          CORR="w08-$PROBE_ID"
+          READY="/sandbox/w08-sign-probe-$PROBE_ID.ready"
+          TRIGGER="/sandbox/w08-sign-probe-$PROBE_ID.go"
           ALLOWED() {
             docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM signer_audit WHERE decision = 'allowed'"
           }
+          restore_anvil() {
+            docker compose --env-file ops/staging/.env.staging unpause anvil >/dev/null 2>&1 || true
+          }
+          trap restore_anvil EXIT
           BEFORE_ALLOWED=$(ALLOWED)
-          docker compose --env-file ops/staging/.env.staging pause anvil
-          sleep 3
-          DEGRADED=$(curl -s -m 20 http://127.0.0.1:3000/api/health)
-          echo "health during the RPC outage: $DEGRADED"
-          echo "$DEGRADED" | grep -q '"failing":\["rpc"\]' || { echo "::error::health did not expose the RPC outage"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
-          sleep 5
-          # Correction A (review thread): exercise a REAL custody-signing attempt through
-          # the production signing-policy guard while the chain is unreachable. The probe
-          # creates its context while the chain is up, the drill then pauses anvil, and the
-          # guard's per-request freshness check must refuse (SIGN_PROBE_RESULT=
-          # REFUSED_FAIL_CLOSED). A signature here is a hard failure.
-          docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T -e SIGN_PROBE_WAIT_SECONDS=14 --entrypoint /bin/sh web /repo/ops/staging/sign-probe.sh > /tmp/sign-probe.log 2>&1 &
+          # Phase A: initialize the real Postgres-backed signer with Anvil reachable.
+          timeout 170s docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T -e "SIGN_PROBE_ID=$PROBE_ID" --entrypoint /bin/sh web /repo/ops/staging/sign-probe.sh > /tmp/sign-probe.log 2>&1 &
           PROBE_PID=$!
-          sleep 8 # the probe's context is up; the pause below puts the signing attempt inside the outage window
-          wait $PROBE_PID || { echo "::error::the signing probe crashed"; tail -20 /tmp/sign-probe.log; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
-          grep -q "SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED" /tmp/sign-probe.log || { echo "::error::the signing attempt did not fail closed:"; tail -20 /tmp/sign-probe.log; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
+          READY_SEEN=0
+          for _ in $(seq 1 90); do
+            if docker compose --env-file ops/staging/.env.staging exec -T web test -s "$READY"; then
+              READY_SEEN=1
+              break
+            fi
+            if ! kill -0 "$PROBE_PID" 2>/dev/null; then
+              wait "$PROBE_PID" || true
+              echo "::error::probe exited before Phase A initialization"
+              tail -30 /tmp/sign-probe.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$READY_SEEN" != "1" ]; then
+            echo "::error::probe did not initialize on the healthy chain"
+            tail -30 /tmp/sign-probe.log
+            exit 1
+          fi
+          echo "Phase A complete: guarded signer initialized on real PostgreSQL and healthy Anvil"
+          # Phase B: deterministic trigger; no sleep-based race with context initialization.
+          docker compose --env-file ops/staging/.env.staging pause anvil
+          DEGRADED=$(curl -s -m 20 http://127.0.0.1:3000/api/health)
+          echo "health during RPC outage: $DEGRADED"
+          echo "$DEGRADED" | grep -q '"failing":\["rpc"\]' || { echo "::error::RPC health did not degrade"; exit 1; }
+          docker compose --env-file ops/staging/.env.staging exec -T web touch "$TRIGGER"
+          if ! wait "$PROBE_PID"; then
+            echo "::error::guarded signing probe failed"
+            tail -30 /tmp/sign-probe.log
+            exit 1
+          fi
+          grep -q 'SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED' /tmp/sign-probe.log || { echo "::error::signing guard did not fail closed"; tail -30 /tmp/sign-probe.log; exit 1; }
+          AUDIT=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT (SELECT count(*) FROM signer_audit WHERE correlation_id = '$CORR' AND decision = 'denied' AND reason LIKE '%authoritative on-chain read failed (fail closed)%') || ':' || (SELECT count(*) FROM signer_audit WHERE correlation_id = '$CORR' AND decision = 'allowed') || ':' || (SELECT count(*) FROM signer_signatures WHERE correlation_id = '$CORR')")
+          [ "$AUDIT" = "1:0:0" ] || { echo "::error::signing audit mismatch $AUDIT (expected denied:allowed:signed = 1:0:0)"; exit 1; }
           AFTER_ALLOWED=$(ALLOWED)
-          [ "$AFTER_ALLOWED" = "$BEFORE_ALLOWED" ] || { echo "::error::a custody signature was produced during the RPC outage ($BEFORE_ALLOWED -> $AFTER_ALLOWED)"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
-          echo "fail closed, execution-backed: the real signing attempt was refused and zero custody signatures were produced ($BEFORE_ALLOWED unchanged)"
-          docker compose --env-file ops/staging/.env.staging unpause anvil
+          [ "$AFTER_ALLOWED" = "$BEFORE_ALLOWED" ] || { echo "::error::custody signature allowed during outage ($BEFORE_ALLOWED -> $AFTER_ALLOWED)"; exit 1; }
+          echo "Phase B complete: audited authoritative-chain fail-closed refusal; zero signatures"
+          restore_anvil
           for _ in $(seq 1 24); do
             if curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
-              echo "RPC restored; readiness recovered"
+              echo "RPC restored, readiness recovered"
               exit 0
             fi
             sleep 5
           done
-          echo "::error::readiness did not recover after the RPC came back"
+          echo "::error::readiness did not recover after RPC restoration"
           exit 1
       # Migration-drift refusal (Correction A §4): a cloned staging database with EXACTLY
       # ONE tampered migration checksum must be refused by the real migrate implementation
