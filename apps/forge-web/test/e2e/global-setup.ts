@@ -8,16 +8,46 @@ import path from "node:path";
 import { startAnvil } from "../helpers/anvil";
 import { FakeGithub } from "../helpers/fake-github";
 import { deploySandbox } from "../../scripts/sandbox-lib";
+import { deployGenuineV4Local } from "../../scripts/w05/genuine-v4";
 import { sandboxEnv } from "../helpers/env";
 import { E2E_PORT } from "../../playwright.config";
 
 export default async function globalSetup() {
   const anvil = await startAnvil();
-  const deployment = await deploySandbox(anvil.url);
+  // W08-1: separate isolated browser acceptance; the default mock journey
+  // remains untouched. Genuine contracts are deployed from pinned Uniswap
+  // artifacts on local Anvil only, then checked against runtime bytecode.
+  if (process.env.W08_E2E_GENUINE_V4 && !["true", "false"].includes(process.env.W08_E2E_GENUINE_V4)) {
+    throw new Error("W08_E2E_GENUINE_V4 must be true or false");
+  }
+  const genuine = process.env.W08_E2E_GENUINE_V4 === "true" ? await deployGenuineV4Local(anvil.url) : null;
+  const deployment = genuine
+    ? await deploySandbox(anvil.url, {
+        v4: { poolManager: genuine.poolManager, positionManager: genuine.positionManager, permit2: genuine.permit2 },
+        hookVia: "create2-proxy",
+      })
+    : await deploySandbox(anvil.url);
+  if (genuine && (genuine.chainId !== 31337 || genuine.mode !== "local-genuine" || deployment.v4Source !== "GENUINE_UNISWAP_V4" || !genuine.stateView || genuine.provenance.some((p) => !p.runtimeCheck.equalAfterMasking))) {
+    throw new Error("W08_GENUINE_V4_DEPLOYMENT_UNVERIFIED");
+  }
   const dir = path.resolve(process.cwd(), ".sandbox");
   mkdirSync(dir, { recursive: true });
   const deploymentFile = path.join(dir, "e2e-deployment.json");
   writeFileSync(deploymentFile, JSON.stringify(deployment, null, 2));
+  if (genuine) {
+    writeFileSync(path.join(dir, "e2e-genuine-v4-evidence.json"), JSON.stringify({
+      kind: "W08_GENUINE_V4_BROWSER_BOOTSTRAP",
+      evidenceClass: "LOCAL_ANVIL_FAKE_GITHUB_TEST_ONLY",
+      chainId: genuine.chainId,
+      v4Source: deployment.v4Source,
+      poolManager: genuine.poolManager,
+      positionManager: genuine.positionManager,
+      permit2: genuine.permit2,
+      stateView: genuine.stateView,
+      hook: deployment.memeHook,
+      provenance: genuine.provenance,
+    }, null, 2));
+  }
 
   const gh = new FakeGithub();
   const org = { id: 9001, login: "finco-labs", type: "Organization" };
@@ -62,6 +92,13 @@ export default async function globalSetup() {
   process.env.E2E_ANVIL_URL = anvil.url;
   process.env.E2E_FAKE_GITHUB_URL = gh.url;
   process.env.E2E_FACTORY = deployment.factory;
+  process.env.E2E_V4_SOURCE = deployment.v4Source ?? "W02_MINI_MOCKS";
+  if (genuine) {
+    process.env.E2E_V4_STATE_VIEW = genuine.stateView!;
+    process.env.E2E_V4_POOL_MANAGER = genuine.poolManager;
+    process.env.E2E_V4_POSITION_MANAGER = genuine.positionManager;
+    process.env.E2E_V4_HOOK = deployment.memeHook;
+  }
   return async () => {
     try {
       process.kill(-server.pid!, "SIGTERM");

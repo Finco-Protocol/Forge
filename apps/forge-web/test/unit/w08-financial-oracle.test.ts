@@ -11,9 +11,9 @@ const factory = addr(240), escrow = addr(229), splitter = addr(91), hook = addr(
 const alice = addr(1001), bob = addr(1002), stranger = addr(1003);
 const ctx = { factory, escrow, splitter, hook, vault };
 const launches = [
-  { token: addr(1101), curve: addr(2101), creator: alice, fee: 100n, tax: 40n },
-  { token: addr(1102), curve: addr(2102), creator: bob, fee: 200n, tax: 50n },
-  { token: addr(1103), curve: addr(2103), creator: alice, fee: 330n, tax: 60n },
+  { token: addr(1101), curve: addr(2101), creator: alice, fee: 101n, tax: 40n },
+  { token: addr(1102), curve: addr(2102), creator: bob, fee: 205n, tax: 50n },
+  { token: addr(1103), curve: addr(2103), creator: alice, fee: 331n, tax: 60n },
 ];
 
 function independentOracle() {
@@ -119,6 +119,43 @@ describe("W08 independent oracle across 3 launches and 2 creators", () => {
     expect(l.splitterTotals.get(NATIVE)!.eligibleCeiling).toBe(oracle.protocol);
     expect(l.escrowBalances.get(splitter + ":" + NATIVE)).toBe(oracle.protocol + 9n);
     for (const [creator, amount] of oracle.creators) expect(l.escrowBalances.get(creator + ":" + NATIVE)).toBe(amount);
+  });
+
+  it("rounds per-launch protocol contributions down and splits cumulative revenue exactly once", () => {
+    const o = independentOracle();
+    expect(o.rows.map((x) => x.protocol)).toEqual([30n, 61n, 99n]);
+    expect(o.rows.map((x) => x.creatorBase)).toEqual([71n, 144n, 232n]);
+    expect(o.protocol).toBe(190n);
+    expect(o.treasury).toBe(127n);
+    expect(o.reserve).toBe(63n);
+    expect(o.treasury + o.reserve).toBe(o.protocol);
+    const l = buildLedger(events(), ctx);
+    expect(l.splitterTotals.get(NATIVE)!.treasuryAllocated).toBe(127n);
+    expect(l.splitterTotals.get(NATIVE)!.reserveAllocated).toBe(63n);
+  });
+
+  it("excludes ineligible launches and third-party credits from the independently computed ceiling", () => {
+    const o = independentOracle();
+    const l = buildLedger(events(), ctx);
+    const eligible = new Set([o.rows[0]!.token, o.rows[2]!.token]);
+    const expected = o.rows[0]!.protocol + o.rows[2]!.protocol;
+    expect(verifiedEligibleRevenue(l, splitter, eligible, null).get(NATIVE)).toBe(expected);
+    expect(verifiedEligibleRevenue(l, splitter, eligible, 2n).get(NATIVE)).toBeUndefined();
+    expect(expected).toBe(129n);
+    expect(l.credits.find((x) => x.depositor === stranger)!.amount).toBe(9n);
+  });
+
+  it("interrupted creator claim preserves only the unclaimed creator balance, then settles once on recovery", () => {
+    const o = independentOracle();
+    const full = events();
+    const pending = full.filter((x) => !(x.eventName === "Claimed" && x.args.recipient === bob));
+    const interrupted = buildLedger(pending, ctx);
+    expect(interrupted.escrowBalances.get(bob + ":" + NATIVE)).toBe(o.creators.get(bob));
+    expect(interrupted.escrowBalances.get(alice + ":" + NATIVE)).toBe(0n);
+    expect(interrupted.escrowBalances.get(splitter + ":" + NATIVE)).toBe(9n);
+    const resumed = buildLedger(full, ctx);
+    expect(resumed.escrowBalances.get(bob + ":" + NATIVE)).toBe(0n);
+    expect(buildLedger([...full, ...full], ctx).claims).toEqual(resumed.claims);
   });
 
   it("shuffled duplicate events do not manufacture credited or claimed funds", () => {
