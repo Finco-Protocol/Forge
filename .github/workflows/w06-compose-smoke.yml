@@ -224,8 +224,7 @@ jobs:
           # REFUSED_FAIL_CLOSED). A signature here is a hard failure.
           docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T -e SIGN_PROBE_WAIT_SECONDS=14 --entrypoint /bin/sh web /repo/ops/staging/sign-probe.sh > /tmp/sign-probe.log 2>&1 &
           PROBE_PID=$!
-          sleep 8 # the probe's context is up; the signing attempt is now inside the outage window
-          docker compose --env-file ops/staging/.env.staging pause anvil
+          sleep 8 # the probe's context is up; the pause below puts the signing attempt inside the outage window
           wait $PROBE_PID || { echo "::error::the signing probe crashed"; tail -20 /tmp/sign-probe.log; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
           grep -q "SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED" /tmp/sign-probe.log || { echo "::error::the signing attempt did not fail closed:"; tail -20 /tmp/sign-probe.log; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
           AFTER_ALLOWED=$(ALLOWED)
