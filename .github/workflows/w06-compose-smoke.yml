@@ -241,18 +241,13 @@ jobs:
           PG_PW=$(grep '^POSTGRES_PASSWORD=' ops/staging/.env.staging | head -1 | cut -d= -f2)
           docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_staging_drift
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge forge_staging | docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift > /dev/null
-          # migrate.ts uses buildConfig(process.env): the one-off must load the
-          # simulated-GitHub credentials exactly like the staging entrypoint does.
-          MIGRATE_CMD='. /sandbox/github.env; set -a; . /sandbox/github.env; set +a; GITHUB_API_URL="${STAGING_GITHUB_API_URL:-${GITHUB_API_URL:-}}"; GITHUB_WEB_URL="${STAGING_GITHUB_WEB_URL:-${GITHUB_WEB_URL:-}}"; export GITHUB_API_URL GITHUB_WEB_URL; exec pnpm exec tsx scripts/migrate.ts'
-          # control: the same invocation against the untampered clone must succeed
-          if ! docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_drift" web -c "$MIGRATE_CMD" > /tmp/control.log 2>&1; then
-            echo "::error::the migration command failed on the UNtampered clone (invocation defect, not drift protection)"; tail -30 /tmp/control.log; exit 1
-          fi
+          # ops/staging/migrate-drill.sh is a committed repo file: it loads the sandbox
+          # credentials entrypoint-faithfully and runs the real migrate implementation.
           BEFORE_ROWS=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations")
           docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -c "UPDATE schema_migrations SET checksum = '0000000000000000000000000000000000000000000000000000000000000000' WHERE name = '006_ops.sql'" > /dev/null
           TAMPERED=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations WHERE name = '006_ops.sql' AND checksum = '0000000000000000000000000000000000000000000000000000000000000000'")
           [ "$TAMPERED" = "1" ] || { echo "::error::the tampered row was not verifiably written"; exit 1; }
-          if docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_drift" web -c "$MIGRATE_CMD" > /tmp/drift.log 2>&1; then
+          if docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_drift" web /repo/ops/staging/migrate-drill.sh > /tmp/drift.log 2>&1; then
             echo "::error::migrate ACCEPTED a drifted migration ledger"; tail -20 /tmp/drift.log; exit 1
           fi
           grep -q "MIGRATION_DRIFT" /tmp/drift.log || { echo "::error::the refusal was not the specific MIGRATION_DRIFT diagnostic:"; tail -20 /tmp/drift.log; exit 1; }
