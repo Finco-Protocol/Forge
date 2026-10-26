@@ -174,6 +174,68 @@ jobs:
           [ "$OM" = "$RM" ] || { echo "::error::applied migrations differ across restore"; exit 1; }
           echo "restore agreement proven: reference $O_LED, materialized $O_MAT, counts identical, migrations identical"
           docker compose --env-file ops/staging/.env.staging start worker
+      # ── W08 fault-injection drills (beta recovery acceptance) ──────────────
+      # Web process crash: same host-SIGKILL mechanism as the worker drill; the
+      # restart policy must recreate the web container and readiness returns.
+      - name: W08 web crash drill (host-level SIGKILL) and automatic recovery
+        run: |
+          WEB=$(docker compose --env-file ops/staging/.env.staging ps -q web)
+          BEFORE_START=$(docker inspect --format '{{.State.StartedAt}}' "$WEB")
+          BEFORE_RESTARTS=$(docker inspect --format '{{.RestartCount}}' "$WEB")
+          sudo kill -9 "$(docker inspect --format '{{.State.Pid}}' "$WEB")"
+          sleep 5
+          for _ in $(seq 1 36); do
+            STATE=$(docker inspect --format '{{.State.Running}} {{.RestartCount}} {{.State.StartedAt}}' "$WEB")
+            IFS=' ' read -r RUNNING RESTARTS START <<< "$STATE"
+            if [ -z "$RUNNING" ]; then
+              echo "unparseable web state: '$STATE'"
+              sleep 5
+              continue
+            fi
+            if [ "$RUNNING" = "true" ] && [ "$START" != "$BEFORE_START" ] && [ "$RESTARTS" -gt "$BEFORE_RESTARTS" ] && curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
+              echo "web restarted by the policy ($BEFORE_START -> $START, restarts $BEFORE_RESTARTS -> $RESTARTS); readiness restored"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::web did not automatically recover"
+          docker compose --env-file ops/staging/.env.staging logs --no-color web | tail -100
+          exit 1
+      # RPC outage: pausing the anvil container is the infrastructure fault (the node is
+      # unreachable). /api/health must degrade (rpc.ok=false) WITHOUT signing anything;
+      # unpausing restores readiness. No transaction can be produced while the chain is
+      # unreachable (fail closed), so confinement holds under the fault too.
+      - name: W08 RPC outage drill (anvil paused) and recovery
+        run: |
+          docker compose --env-file ops/staging/.env.staging pause anvil
+          sleep 3
+          DEGRADED=$(curl -s http://127.0.0.1:3000/api/health)
+          echo "health during the RPC outage: $DEGRADED"
+          echo "$DEGRADED" | grep -q '"rpc":{"ok":false}' || { echo "::error::health did not expose the RPC outage"; docker compose --env-file ops/staging/.env.staging unpause anvil; exit 1; }
+          docker compose --env-file ops/staging/.env.staging unpause anvil
+          for _ in $(seq 1 24); do
+            if curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
+              echo "RPC restored; readiness recovered"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::readiness did not recover after the RPC came back"
+          exit 1
+      # Interrupted/drifted migration refusal: a database whose migration ledger names a
+      # checksum that differs from the built migrations must be REFUSED by the migrate
+      # role (verify mode) — nothing is half-applied, the app never serves from it.
+      - name: W08 migration drift refusal (verify refuses a tampered ledger)
+        run: |
+          PG_PW=$(grep '^POSTGRES_PASSWORD=' ops/staging/.env.staging | head -1 | cut -d= -f2)
+          docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_staging_drift
+          docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge forge_staging | docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift > /dev/null
+          docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -c "UPDATE schema_migrations SET checksum = '0000000000000000000000000000000000000000000000000000000000000000' WHERE name = '006_ops.sql'" 
+          if docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_drift" web pnpm exec tsx scripts/migrate.ts > /tmp/drift.log 2>&1; then
+            echo "::error::migrate accepted a drifted migration ledger"; tail -20 /tmp/drift.log; exit 1
+          fi
+          echo "migration drift refused (exit nonzero)"; tail -5 /tmp/drift.log
+          docker compose --env-file ops/staging/.env.staging exec -T postgres dropdb -U forge --force forge_staging_drift
       - name: down
         if: always()
         run: docker compose --env-file ops/staging/.env.staging down -v
