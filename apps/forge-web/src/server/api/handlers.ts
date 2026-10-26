@@ -3,7 +3,7 @@
  * integration tests alike, so acceptance runs the exact production path:
  * cookies, CSRF, sessions, validation, services.
  */
-import { dbHealth, indexerHealth, ledgerHealth, systemHealth, workerHealth } from "../ops/health";
+import { dbHealth, indexerHealth, ledgerHealth, rpcProbe, systemHealth, workerHealth } from "../ops/health";
 import { getAddress, isAddress, isHex, type Hex } from "viem";
 import type { AppContext } from "../context";
 import { ForgeError, refuse } from "../errors";
@@ -315,7 +315,7 @@ const publicConfig: Handler = async (ctx) =>
   });
 
 const health: Handler = async (ctx) => {
-  const block = await ctx.client.getBlockNumber({ cacheTime: 0 }).catch(() => null);
+  const block = await rpcProbe(ctx);
   // W06 defect, fixed in W07: revocationHealth used to be awaited OUTSIDE the
   // per-probe guards, so a database outage turned /api/health into an
   // unstructured HTTP 500. It is now guarded like every other probe and the
