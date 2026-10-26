@@ -139,12 +139,13 @@ jobs:
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge -Fc forge_staging > backup.dump
           docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_restore
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_restore -U forge -d forge_restore --no-owner < backup.dump
-          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps web pnpm exec tsx scripts/w06/staging-ops.ts snapshot /tmp/o.dump | tail -1)
-          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web pnpm exec tsx scripts/w06/staging-ops.ts snapshot /tmp/r.dump | tail -1)
+          # --entrypoint pnpm: the image entrypoint would otherwise read "pnpm" as a ROLE.
+          ORIG=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm web exec tsx scripts/w06/staging-ops.ts snapshot /tmp/o.dump)
+          REST=$(docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint pnpm -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_restore" web exec tsx scripts/w06/staging-ops.ts snapshot /tmp/r.dump)
           echo "original: $ORIG"
           echo "restored: $REST"
-          OD=$(echo "$ORIG" | grep -o '"ledgerDigest":"[^"]*"' | cut -d'"' -f4)
-          RD=$(echo "$REST" | grep -o '"ledgerDigest":"[^"]*"' | cut -d'"' -f4)
+          OD=$(echo "$ORIG" | grep -o '"ledgerDigest":"[^"]*"' | head -1 | cut -d'"' -f4)
+          RD=$(echo "$REST" | grep -o '"ledgerDigest":"[^"]*"' | head -1 | cut -d'"' -f4)
           [ -n "$OD" ] || { echo "::error::no ledger digest from the original database"; exit 1; }
           [ "$OD" = "$RD" ] || { echo "::error::ledger digest mismatch after restore ($OD vs $RD)"; exit 1; }
           echo "ledger digest agreement proven: $OD"
