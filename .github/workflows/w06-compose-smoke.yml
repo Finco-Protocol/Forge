@@ -87,7 +87,11 @@ jobs:
             RD=${RD:-000}
             OBSERVED="$OBSERVED $RD"
             IFS=' ' read -r RUNNING RESTARTS START <<< "$STATE"
-            [ -n "$RUNNING" ] && [ -n "$RESTARTS" ] && [ -n "$START" ] || { echo "unparseable worker state: '$STATE'"; sleep 5; continue; }
+            if [ -z "$RUNNING" ] || [ -z "$RESTARTS" ] || [ -z "$START" ]; then
+              echo "unparseable worker state: '$STATE'"
+              sleep 5
+              continue
+            fi
             if [ "$RUNNING" = "true" ] && [ "$START" != "$BEFORE_START" ] && [ "$RESTARTS" -gt "$BEFORE_RESTARTS" ] && [ "$RD" = "200" ]; then
               AFTER_COUNTS=$(DB_COUNTS)
               WH=$(curl -fsS -H "Authorization: Bearer $OPS_TOKEN" http://127.0.0.1:3000/api/ops/health | grep -o '"worker":{"ok":[a-z]*' | head -1)
