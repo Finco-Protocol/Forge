@@ -142,19 +142,7 @@ jobs:
       - name: W07 backup -> restore into a second database -> ledger digest agreement
         run: |
           PG_PW=$(grep '^POSTGRES_PASSWORD=' ops/staging/.env.staging | head -1 | cut -d= -f2)
-          cat > ops/staging/digest.sh <<'EOS'
-          set -eu
-          [ -f /sandbox/github.env ] || { echo "MISSING /sandbox/github.env (the fake-github service did not write the test credentials)" >&2; exit 3; }
-          set -a
-          . /sandbox/github.env
-          set +a
-          GITHUB_API_URL="${STAGING_GITHUB_API_URL:-${GITHUB_API_URL:-}}"
-          GITHUB_WEB_URL="${STAGING_GITHUB_WEB_URL:-${GITHUB_WEB_URL:-}}"
-          export GITHUB_API_URL GITHUB_WEB_URL
-          pnpm --silent staging:check
-          exec pnpm --silent exec tsx scripts/w06/staging-ops.ts digest
-          EOS
-          chmod +x ops/staging/digest.sh
+          # ops/staging/digest.sh is a committed repo file, baked into the image at build time
           # the digests must describe one settled database state
           docker compose --env-file ops/staging/.env.staging stop worker
           docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge -Fc forge_staging > backup.dump
