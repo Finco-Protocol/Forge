@@ -315,6 +315,9 @@ const publicConfig: Handler = async (ctx) =>
   });
 
 const health: Handler = async (ctx) => {
+  // Correction A (review finding): start systemHealth now so its internal bounded RPC
+  // probe runs concurrently with the one below (~5 s total, not ~10 s stacked).
+  const systemPromise = systemHealth(ctx);
   const block = await rpcProbe(ctx);
   // W06 defect, fixed in W07: revocationHealth used to be awaited OUTSIDE the
   // per-probe guards, so a database outage turned /api/health into an
@@ -336,11 +339,14 @@ const health: Handler = async (ctx) => {
     };
   });
   // W05: db latency/pool/migration version, indexer lag, worker heartbeats, ledger integrity.
-  const system = await systemHealth(ctx);
+  // W08 Correction A (review finding): the health RPC probe and systemHealth (whose
+  // indexerHealth runs its own bounded RPC probe) run CONCURRENTLY — sequentially they
+  // could stack two 5 s probes to ~10 s during an outage.
   // Operators alert on `revocations.breached` (oldest pending on-chain revocation older than the SLO),
   // `ledger.halted`, `db.ok=false` and `worker.ok=false` (no live heartbeat; expected with no worker running).
   // PUBLIC: booleans and the revocation lag only. Worker identities, database errors, migration state and ledger
   // halt reasons are operator data: GET /api/ops/health (bearer FORGE_OPS_TOKEN).
+  const system = await systemPromise;
   const ok = block !== null && system.db.ok && system.ledger.ok;
   const failing = [...(system.db.ok ? [] : ["db"]), ...(block === null ? ["rpc"] : []), ...(system.ledger.ok ? [] : ["ledger"])];
   return json(
