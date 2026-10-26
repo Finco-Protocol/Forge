@@ -102,13 +102,15 @@ jobs:
           docker inspect --format '{{json .State}}' "$WORKER"
           docker compose --env-file ops/staging/.env.staging logs --no-color worker | tail -100
           exit 1
-      # Correction A 4.3: persistence is proven by DATA, not by a 200 — key tables and
-      # the indexer checkpoint must be identical across the restart.
+      # Correction A 4.3 / B: persistence is proven by DATA, not by a 200. The row counts
+      # must be identical across the restart (no loss, no duplication); the indexer
+      # checkpoint is expected to ADVANCE — anvil mines every second and the reconnected
+      # worker keeps indexing — so it must be monotonic, never backwards.
       - name: W07 PostgreSQL restart (persistence proven by data equality)
         run: |
           SNAPSHOT() {
             docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc \
-              "SELECT (SELECT count(*) FROM chain_events) || ':' || (SELECT count(*) FROM indexer_checkpoints) || ':' || (SELECT count(*) FROM ledger_snapshots) || ':' || coalesce((SELECT max(last_block::text) FROM indexer_checkpoints),'0')"
+              "SELECT (SELECT count(*) FROM chain_events) || ':' || (SELECT count(*) FROM webhook_deliveries) || ':' || (SELECT count(*) FROM jobs) || ':' || coalesce((SELECT max(last_block::text) FROM indexer_checkpoints),'0')"
           }
           BEFORE=$(SNAPSHOT)
           [ "$BEFORE" != "0:0:0:0" ] || { echo "::error::nothing persisted before the restart"; exit 1; }
@@ -116,8 +118,11 @@ jobs:
           for _ in $(seq 1 36); do
             if curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
               AFTER=$(SNAPSHOT)
-              [ "$AFTER" = "$BEFORE" ] || { echo "::error::data changed across the postgres restart ($BEFORE -> $AFTER)"; exit 1; }
-              echo "postgres restarted; persistence proven ($AFTER); web+worker reconnected"
+              B_COUNTS=$(echo "$BEFORE" | cut -d: -f1-3); A_COUNTS=$(echo "$AFTER" | cut -d: -f1-3)
+              B_CP=$(echo "$BEFORE" | cut -d: -f4);   A_CP=$(echo "$AFTER" | cut -d: -f4)
+              [ "$A_COUNTS" = "$B_COUNTS" ] || { echo "::error::row counts changed across the postgres restart ($B_COUNTS -> $A_COUNTS)"; exit 1; }
+              [ "$A_CP" -ge "$B_CP" ] || { echo "::error::indexer checkpoint moved backwards ($B_CP -> $A_CP)"; exit 1; }
+              echo "postgres restarted; persistence proven (counts $A_COUNTS unchanged, checkpoint $B_CP -> $A_CP); web+worker reconnected"
               exit 0
             fi
             sleep 5
