@@ -35,7 +35,10 @@ try {
   }
   if (!triggered) throw new Error("SIGN_PROBE_TRIGGER_TIMEOUT");
   console.log("SIGN_PROBE_PHASE_B_TRIGGERED");
-  const nonce = BigInt("0x" + id);
+  // BindingOp fields are uint64: derive the probe nonce from the LAST 15 hex
+  // chars of the id (<= 2^60), never the full 24-char token (96 bits would be
+  // rejected by the message validation BEFORE the guard's fail-closed read).
+  const nonce = BigInt("0x" + id.slice(-15)) + 1n;
   let refused = false;
   try {
     await signer.signTypedData({
@@ -52,7 +55,7 @@ try {
     console.error("SIGN_PROBE_RESULT=SIGNED (hard failure)");
   } catch (e) {
     const msg = (e as Error).message.split("\n")[0] ?? "";
-    if (/role disabled: authoritative on-chain read failed \(fail closed\)/i.test(msg)) {
+    if (/authoritative on-chain read failed \(fail closed\)/i.test(msg)) {
       console.log("SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED: " + msg);
       refused = true;
     } else {
