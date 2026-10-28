@@ -98,9 +98,15 @@ evidence.setup = "github state seeded (user/repo/installation/admin)";
 // ── Phase A: real GitHub OAuth + wallet bind + repository admin proof ────
 const start = await api("GET", "/api/auth/github/start");
 if (start.status !== 302 && start.status !== 200) throw new Error(`oauth start -> ${start.status}`);
-const authorizeUrl = start.headers.get("location");
+const authorizeUrl = start.headers.get("location") ?? "";
 if (!authorizeUrl) throw new Error("oauth start returned no redirect");
-const authorize = await fetch(authorizeUrl, { redirect: "manual" });
+  // The app's redirect points at the fake-github address as seen from the HOST
+  // (127.0.0.1:8787, the published port). Inside the compose network the fake
+  // github is reachable at DRILL_FAKE_GITHUB — rewrite the origin.
+  const authorizeUrlInternal = new URL(authorizeUrl, WEB);
+  authorizeUrlInternal.protocol = new URL(GH).protocol;
+  authorizeUrlInternal.host = new URL(GH).host;
+  const authorize = await fetch(authorizeUrlInternal, { redirect: "manual" });
 const callback = authorize.headers.get("location");
 if (!callback) throw new Error("fake-github authorize returned no redirect");
 const cb = await api("GET", callback.replace(/^https?:\/\/[^/]+/, ""));
