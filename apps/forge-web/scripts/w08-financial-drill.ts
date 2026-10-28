@@ -42,6 +42,7 @@ const buyerWallet = createWalletClient({ chain: CHAIN, transport: http(ANVIL), a
 const cookies = new Map<string, string>();
 async function api(method: string, path: string, body?: unknown, opts: { csrf?: boolean } = {}): Promise<{ status: number; json: Record<string, unknown>; headers: Headers }> {
   const headers: Record<string, string> = {};
+  headers.origin = WEB; // the app's same-origin guard refuses requests without a matching Origin
   if (cookies.size) headers.cookie = [...cookies].map(([k, v]) => `${k}=${v}`).join("; ");
   if (opts.csrf !== false && cookies.get("forge_csrf")) headers["x-forge-csrf"] = decodeURIComponent(cookies.get("forge_csrf")!);
   if (body !== undefined) headers["content-type"] = "application/json";
