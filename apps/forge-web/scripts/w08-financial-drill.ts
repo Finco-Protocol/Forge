@@ -18,7 +18,7 @@
  * API. Test-only values (simulated GitHub, Anvil dev keys); never production.
  * Output: one JSON evidence payload on stdout; nonzero exit on any violation.
  */
-import { createPublicClient, createWalletClient, defineChain, http, zeroAddress, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, defineChain, http, zeroAddress, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 const pkToAccount = privateKeyToAccount;
 import { PgDb } from "../src/server/db";
@@ -40,7 +40,7 @@ const creatorWallet = createWalletClient({ chain: CHAIN, transport: http(ANVIL),
 const buyerWallet = createWalletClient({ chain: CHAIN, transport: http(ANVIL), account: buyer });
 
 const cookies = new Map<string, string>();
-async function api(method: string, path: string, body?: unknown, opts: { csrf?: boolean } = {}): Promise<{ status: number; json: Record<string, any>; headers: Headers }> {
+async function api(method: string, path: string, body?: unknown, opts: { csrf?: boolean } = {}): Promise<{ status: number; json: Record<string, unknown>; headers: Headers }> {
   const headers: Record<string, string> = {};
   if (cookies.size) headers.cookie = [...cookies].map(([k, v]) => `${k}=${v}`).join("; ");
   if (opts.csrf !== false && cookies.get("forge_csrf")) headers["x-forge-csrf"] = decodeURIComponent(cookies.get("forge_csrf")!);
@@ -53,8 +53,8 @@ async function api(method: string, path: string, body?: unknown, opts: { csrf?: 
     if (/Max-Age=0/i.test(c)) cookies.delete(name); else cookies.set(name, decodeURIComponent(value));
   }
   const text = await res.text();
-  let json: Record<string, any> = {};
-  try { if (text) json = JSON.parse(text); } catch { /* redirect/empty */ }
+  let json: Record<string, unknown> = {};
+  try { if (text) json = JSON.parse(text) as Record<string, unknown>; } catch { /* redirect/empty */ }
   return { status: res.status, json, headers: res.headers };
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -68,7 +68,7 @@ async function poll<T>(label: string, timeoutMs: number, f: () => Promise<T | nu
   }
   throw new Error(`drill timeout: ${label}`);
 }
-async function anvil(method: string, params: unknown[] = []): Promise<any> {
+async function anvil(method: string, params: unknown[] = []): Promise<unknown> {
   const r = await fetch(ANVIL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
   const j = (await r.json()) as { result?: unknown; error?: { message: string } };
   if (j.error) throw new Error(`anvil ${method}: ${j.error.message}`);
@@ -106,10 +106,11 @@ if (!callback) throw new Error("fake-github authorize returned no redirect");
 const cb = await api("GET", callback.replace(/^https?:\/\/[^/]+/, ""));
 if (cb.status !== 302) throw new Error(`oauth callback -> ${cb.status}`);
 const me = await api("GET", "/api/me");
-if (me.json.user?.login !== USER.login) throw new Error(`session is ${(me.json.user ?? {}).login}, expected ${USER.login}`);
+const myUser = me.json.user as { login?: string } | undefined;
+if (myUser?.login !== USER.login) throw new Error(`session is ${myUser?.login ?? "none"}, expected ${USER.login}`);
 const ch = await api("POST", "/api/wallet/challenge", { address: creator.address, chainId: 31337 });
 if (ch.status !== 200) throw new Error(`wallet challenge -> ${ch.status}`);
-const signature = await creatorWallet.signMessage({ message: ch.json.message });
+const signature = await creatorWallet.signMessage({ message: ch.json.message as string });
 const wv = await api("POST", "/api/wallet/verify", { message: ch.json.message, signature });
 if (wv.status !== 200) throw new Error(`wallet verify -> ${wv.status}: ${JSON.stringify(wv.json)}`);
 const vf = await api("POST", "/api/github/verify", { repoId: REPO_ID, installationId: INST_ID });
@@ -121,12 +122,12 @@ const draft = await api("POST", "/api/launch/drafts", { repoId: REPO_ID, install
 if (draft.status !== 201) throw new Error(`draft -> ${draft.status}: ${JSON.stringify(draft.json)}`);
 const auth = await api("POST", `/api/launch/drafts/${draft.json.id}/authorize`);
 if (auth.status !== 200) throw new Error(`authorize -> ${auth.status}: ${JSON.stringify(auth.json)}`);
-const typedData = reviveTypedData(auth.json.typedData);
+const typedData = reviveTypedData(auth.json.typedData as { domain: Record<string, unknown>; message: Record<string, unknown> });
 const consent = await creatorWallet.signTypedData(typedData as never);
 const signed = await api("POST", `/api/launch/intents/${auth.json.intentId}/signature`, { signature: consent });
 if (signed.status !== 200) throw new Error(`signature submit -> ${signed.status}: ${JSON.stringify(signed.json)}`);
 const args = reviveLaunchArgs(signed.json.tx as never);
-const launchHash = await creatorWallet.writeContract({ address: signed.json.tx.address, abi: ponsV2LaunchFactoryAbi as unknown as Abi, functionName: "launchToken", args: [args.params, args.launchConfigId, args.pairToken, args.exemptions], value: args.value } as never);
+const launchHash = await creatorWallet.writeContract({ address: (signed.json.tx as { address: Address }).address, abi: ponsV2LaunchFactoryAbi as unknown as Abi, functionName: "launchToken", args: [args.params, args.launchConfigId, args.pairToken, args.exemptions], value: args.value } as never);
 await pub.waitForTransactionReceipt({ hash: launchHash });
 const submitted = await api("POST", `/api/launch/intents/${auth.json.intentId}/submitted`, { txHash: launchHash });
 if (submitted.status !== 200) throw new Error(`submitted -> ${submitted.status}: ${JSON.stringify(submitted.json)}`);
@@ -150,10 +151,11 @@ const db = new PgDb(process.env.DATABASE_URL!, { max: 2, applicationName: "w08-d
 const chainEvents = async () => Number((await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events")).rows[0]!.n);
 const gradHash = await buy("25000000000000000000"); // 22 ETH crosses the 30 ETH threshold
 await pub.waitForTransactionReceipt({ hash: gradHash });
-const phase = await poll("graduation phase", 120_000, async () => {
+const gradPhase = await poll("graduation phase", 120_000, async () => {
   const t = (await (await fetch(`${WEB}/api/tokens/${token!.token}`)).json()) as { token: { phase: string } };
   return /graduation_initiated|graduated/.test(t.token.phase) ? t.token.phase : null;
 });
+void gradPhase;
 const factoryAddr = ((await (await fetch(`${WEB}/api/config`)).json()) as { addresses: { factory: Address } }).addresses.factory;
 await creatorWallet.writeContract({ address: factoryAddr, abi: ponsV2LaunchFactoryAbi as unknown as Abi, functionName: "createGraduatedPool", args: [token!.token] } as never);
 await poll("graduated pool", 120_000, async () => {
@@ -244,7 +246,7 @@ await poll("claim event indexed exactly once", 240_000, async () => {
 const indexedOnce = await claimEventsForTx();
 await sleep(10_000); // extra worker passes: must NOT add a second copy
 const indexedStill = await claimEventsForTx();
-const dup = await creatorWallet.writeContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "claim" } as never).then((h) => h).catch((e: Error) => { void e; return "reverted" as const; });
+const _dup = await creatorWallet.writeContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "claim" } as never).then((h) => h).catch((e: Error) => { void e; return "reverted" as const; });
 const creatorBalanceAfterDuplicate = await escrowCredit(creator.address);
 const rec2 = (await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "reconcile", args: [NATIVE] } as never)) as never as { deficit: bigint; surplus: bigint };
 const claimOk =
