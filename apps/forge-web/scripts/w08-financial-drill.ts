@@ -110,7 +110,7 @@ if (!authorizeUrl) throw new Error("oauth start returned no redirect");
 const callback = authorize.headers.get("location");
 if (!callback) throw new Error("fake-github authorize returned no redirect");
 const cb = await api("GET", callback.replace(/^https?:\/\/[^/]+/, ""));
-if (cb.status !== 302) throw new Error(`oauth callback -> ${cb.status}`);
+if (cb.status !== 302) throw new Error(`oauth callback -> ${cb.status}: ${JSON.stringify(cb.json).slice(0, 300)}`);
 const me = await api("GET", "/api/me");
 const myUser = me.json.user as { login?: string } | undefined;
 if (myUser?.login !== USER.login) throw new Error(`session is ${myUser?.login ?? "none"}, expected ${USER.login}`);
