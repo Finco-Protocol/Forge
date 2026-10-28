@@ -163,6 +163,10 @@ const buy = async (eth: string) => {
   await pub.waitForTransactionReceipt({ hash: h });
   return h;
 };
+// clear the anti-snipe window exactly like the e2e (J10): the launch-second
+// snipe tax would otherwise take the buyer's tokens down to the 1% floor.
+await anvil("evm_increaseTime", [30]);
+await anvil("evm_mine");
 await buy("10000000000000000000"); // 10 ETH
 const db = new PgDb(process.env.DATABASE_URL!, { max: 2, applicationName: "w08-drill" });
 const chainEvents = async () => Number((await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events")).rows[0]!.n);
@@ -286,3 +290,10 @@ if (fail) {
   process.exit(1);
 }
 console.log("W08_FINANCIAL_DRILL_OK");
+
+// viem contract errors dump the entire ABI when uncaught — print compactly instead.
+process.on("uncaughtException", (e) => {
+  const c = e as { message?: string; shortMessage?: string; name?: string; cause?: { message?: string; errorName?: string } };
+  console.error(`W08_FINANCIAL_DRILL_CRASH ${c.name}: ${c.shortMessage ?? c.message} | cause: ${c.cause?.errorName ?? c.cause?.message ?? "none"}`);
+  process.exit(1);
+});
