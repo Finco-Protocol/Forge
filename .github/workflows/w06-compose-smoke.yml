@@ -312,8 +312,10 @@ jobs:
       # = recovery). The drill refuses ANY financial assertion violation with exit 1.
       - name: W08 financial recovery drill (reorg near attestation + interrupted claim)
         run: |
-          PROBE_ID=$(openssl rand -hex 12)
-          docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T             -e "SIGN_PROBE_ID=$PROBE_ID" -e "SIGN_PROBE_WAIT_SECONDS=0"             --entrypoint /bin/sh web /repo/ops/staging/sign-probe.sh > /tmp/pre.log 2>&1             || { echo "::error::financial drill preconditions failed (context/DB/chain)"; tail -40 /tmp/pre.log; exit 1; }
+          # Preconditions: config validation + PostgreSQL + chain reads via the digest
+          # command (the full sign probe waits for a trigger file that only exists in the
+          # RPC-outage drill, so it must not run here).
+          docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web /repo/ops/staging/digest.sh > /tmp/pre.log 2>&1             || { echo "::error::financial drill preconditions failed (context/DB/chain)"; tail -40 /tmp/pre.log; exit 1; }
           timeout 890s docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T             --entrypoint pnpm web exec tsx scripts/w08-financial-drill.ts > /tmp/fin.log 2>&1 &
           DRILL_PID=$!
           # Phase G1: the drill asks for the worker to be stopped BEFORE it sends the
