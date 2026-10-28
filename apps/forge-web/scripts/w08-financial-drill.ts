@@ -28,6 +28,10 @@ import { ANVIL_KEYS } from "./sandbox-lib";
 import type { Abi } from "viem";
 
 const WEB = process.env.DRILL_WEB_ORIGIN ?? "http://web:3000";
+// The app's same-origin guard compares the Origin header against its configured
+// FORGE_PUBLIC_ORIGIN (http://localhost:3000 in compose) — NOT the container-to-
+// container address the drill fetches.
+const APP_ORIGIN = process.env.DRILL_APP_ORIGIN ?? "http://localhost:3000";
 const GH = process.env.DRILL_FAKE_GITHUB ?? "http://fake-github:8787";
 const ANVIL = process.env.DRILL_ANVIL ?? "http://anvil:8545";
 const CHAIN = defineChain({ id: 31337, name: "anvil", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [ANVIL] } } });
@@ -42,7 +46,7 @@ const buyerWallet = createWalletClient({ chain: CHAIN, transport: http(ANVIL), a
 const cookies = new Map<string, string>();
 async function api(method: string, path: string, body?: unknown, opts: { csrf?: boolean } = {}): Promise<{ status: number; json: Record<string, unknown>; headers: Headers }> {
   const headers: Record<string, string> = {};
-  headers.origin = WEB; // the app's same-origin guard refuses requests without a matching Origin
+  headers.origin = APP_ORIGIN; // the app's same-origin guard compares against FORGE_PUBLIC_ORIGIN
   if (cookies.size) headers.cookie = [...cookies].map(([k, v]) => `${k}=${v}`).join("; ");
   if (opts.csrf !== false && cookies.get("forge_csrf")) headers["x-forge-csrf"] = decodeURIComponent(cookies.get("forge_csrf")!);
   if (body !== undefined) headers["content-type"] = "application/json";
