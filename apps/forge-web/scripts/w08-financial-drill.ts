@@ -27,6 +27,18 @@ import { reviveLaunchArgs, reviveTypedData } from "../src/shared/launch-tx";
 import { ANVIL_KEYS } from "./sandbox-lib";
 import type { Abi } from "viem";
 
+// viem contract errors dump the entire ABI when uncaught — print compactly instead.
+process.on("uncaughtException", (e) => {
+  const c = e as { message?: string; shortMessage?: string; name?: string; cause?: { message?: string; errorName?: string } };
+  console.error(`W08_FINANCIAL_DRILL_CRASH ${c.name}: ${c.shortMessage ?? c.message} | cause: ${c.cause?.errorName ?? c.cause?.message ?? "none"}`);
+  process.exit(1);
+});
+process.on("unhandledRejection", (e) => {
+  const c = e as { message?: string; shortMessage?: string; name?: string; cause?: { message?: string; errorName?: string } };
+  console.error(`W08_FINANCIAL_DRILL_CRASH ${c.name}: ${c.shortMessage ?? c.message} | cause: ${c.cause?.errorName ?? c.cause?.message ?? "none"}`);
+  process.exit(1);
+});
+
 const WEB = process.env.DRILL_WEB_ORIGIN ?? "http://web:3000";
 // The app's same-origin guard compares the Origin header against its configured
 // FORGE_PUBLIC_ORIGIN (http://localhost:3000 in compose) — NOT the container-to-
@@ -291,9 +303,3 @@ if (fail) {
 }
 console.log("W08_FINANCIAL_DRILL_OK");
 
-// viem contract errors dump the entire ABI when uncaught — print compactly instead.
-process.on("uncaughtException", (e) => {
-  const c = e as { message?: string; shortMessage?: string; name?: string; cause?: { message?: string; errorName?: string } };
-  console.error(`W08_FINANCIAL_DRILL_CRASH ${c.name}: ${c.shortMessage ?? c.message} | cause: ${c.cause?.errorName ?? c.cause?.message ?? "none"}`);
-  process.exit(1);
-});
