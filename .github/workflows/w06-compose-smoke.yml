@@ -305,6 +305,44 @@ jobs:
           [ "$ORIG_COUNT" = "0" ] || { echo "::error::the ORIGINAL database was modified"; exit 1; }
           echo "migration drift refused with MIGRATION_DRIFT; no migration applied; original database untouched"
           docker compose --env-file ops/staging/.env.staging exec -T postgres dropdb -U forge --force forge_staging_drift
+      # Correction D: financial recovery drills (brief §2). Execution-backed: real HTTP
+      # auth flow, real EIP-712 consent, real launch/trade/graduation transactions, real
+      # worker attestation, a REAL reorg just past the attestation, and a REAL creator
+      # claim whose indexing is interrupted by stopping the worker mid-protocol (restart
+      # = recovery). The drill refuses ANY financial assertion violation with exit 1.
+      - name: W08 financial recovery drill (reorg near attestation + interrupted claim)
+        run: |
+          PROBE_ID=$(openssl rand -hex 12)
+          docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T             -e "SIGN_PROBE_ID=$PROBE_ID" -e "SIGN_PROBE_WAIT_SECONDS=0"             --entrypoint /bin/sh web /repo/ops/staging/sign-probe.sh > /tmp/pre.log 2>&1             || { echo "::error::financial drill preconditions failed (context/DB/chain)"; tail -40 /tmp/pre.log; exit 1; }
+          timeout 890s docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T             --entrypoint pnpm web exec tsx scripts/w08-financial-drill.ts > /tmp/fin.log 2>&1 &
+          DRILL_PID=$!
+          # Phase G1: the drill asks for the worker to be stopped BEFORE it sends the
+          # canonical claim (guaranteeing the interrupted-indexing window).
+          for _ in $(seq 1 60); do
+            grep -q "W08_CLAIM_WAITING" /tmp/fin.log && break
+            kill -0 "$DRILL_PID" 2>/dev/null || { echo "::error::drill exited before the claim phase"; tail -30 /tmp/fin.log; exit 1; }
+            sleep 5
+          done
+          grep -q "W08_CLAIM_WAITING" /tmp/fin.log || { echo "::error::drill never reached the claim phase"; tail -30 /tmp/fin.log; exit 1; }
+          docker compose --env-file ops/staging/.env.staging stop worker
+          docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -c "INSERT INTO w08_drill_control (id) VALUES ('claim_go') ON CONFLICT DO NOTHING" > /dev/null
+          # The claim is sent while the worker is down; wait for W08_CLAIM_TX then restore it.
+          for _ in $(seq 1 30); do
+            grep -q "W08_CLAIM_TX" /tmp/fin.log && break
+            kill -0 "$DRILL_PID" 2>/dev/null || { echo "::error::drill exited before sending the claim"; tail -30 /tmp/fin.log; exit 1; }
+            sleep 5
+          done
+          grep -q "W08_CLAIM_TX" /tmp/fin.log || { echo "::error::drill never sent the interrupted claim"; tail -30 /tmp/fin.log; exit 1; }
+          docker compose --env-file ops/staging/.env.staging start worker
+          docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -c "INSERT INTO w08_drill_control (id) VALUES ('claim_go2') ON CONFLICT DO NOTHING" > /dev/null
+          # Phase G2 + the rest: exactly-once ingestion, duplicate refusal, conservation.
+          wait "$DRILL_PID" || { echo "::error::financial recovery drill FAILED a financial assertion"; tail -40 /tmp/fin.log; exit 1; }
+          grep -q "W08_FINANCIAL_DRILL_OK" /tmp/fin.log || { echo "::error::drill finished without the success marker"; exit 1; }
+          grep -q '"reorg":{' /tmp/fin.log && grep -q '"claimRecovery":{' /tmp/fin.log || { echo "::error::evidence payload incomplete"; exit 1; }
+          EV=$(grep -o 'W08_FINANCIAL_EVIDENCE {.*' /tmp/fin.log | head -1 | cut -d' ' -f2-)
+          echo "financial drill evidence: $EV" | head -c 2000
+          echo
+          echo "$EV" | jq -e '.reorg.rollbackOk == true and .reorg.ceilingRolledBack == true and .reorg.noDoubleCount == true and .claimRecovery.exactlyOnce == true and .claimRecovery.duplicateReverted == true and .claimRecovery.noDoubleAllocation == true' > /dev/null || { echo "::error::drill evidence assertions failed"; exit 1; }
       - name: down
         if: always()
         run: docker compose --env-file ops/staging/.env.staging down -v
