@@ -94,6 +94,10 @@ const EnvSchema = z.object({
   GITHUB_WEBHOOK_SECRET: z.string().min(16),
   GITHUB_API_URL: z.string().url().default("https://api.github.com"),
   GITHUB_WEB_URL: z.string().url().default("https://github.com"),
+  // W08: OAuth token exchange endpoint override (staging compose: the fake github is
+  // browser-facing on the published host port but server-facing on the internal DNS
+  // name, so the authorize URL and the token exchange URL must differ).
+  GITHUB_TOKEN_URL: z.string().url().optional(),
   FORGE_ALLOW_PRIVATE_REPOS: bool(false),
   FORGE_ALLOW_FORK_REPOS: bool(false),
   FORGE_VERIFICATION_TTL_SECONDS: z.coerce.number().int().positive().default(15 * 60),
@@ -244,6 +248,7 @@ export function buildConfig(env: Record<string, string | undefined>) {
       webhookSecret: e.GITHUB_WEBHOOK_SECRET,
       apiUrl: e.GITHUB_API_URL.replace(/\/$/, ""),
       webUrl: e.GITHUB_WEB_URL.replace(/\/$/, ""),
+      tokenUrl: (e.GITHUB_TOKEN_URL ?? `${e.GITHUB_WEB_URL.replace(/\/$/, "")}/login/oauth/access_token`).replace(/\/$/, ""),
     },
     policy: {
       allowPrivateRepos: e.FORGE_ALLOW_PRIVATE_REPOS,

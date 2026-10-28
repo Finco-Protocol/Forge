@@ -17,6 +17,8 @@ export interface GithubConfig {
   clientSecret: string;
   apiUrl: string;
   webUrl: string;
+  /** OAuth token exchange endpoint; defaults to the web origin (production GitHub semantics). */
+  tokenUrl?: string;
 }
 
 export interface GhRepo {
@@ -296,7 +298,7 @@ export class GithubApp {
   async exchangeCode(code: string, redirectUri: string): Promise<{ accessToken: string; expiresIn: number | null }> {
     let res: Response;
     try {
-      res = await this.fetchImpl(`${this.cfg.webUrl}/login/oauth/access_token`, {
+      res = await this.fetchImpl(`${this.cfg.tokenUrl ?? `${this.cfg.webUrl}/login/oauth/access_token`}`, {
         method: "POST",
         headers: { accept: "application/json", "content-type": "application/json", "user-agent": "finco-forge-w03" },
         body: JSON.stringify({ client_id: this.cfg.clientId, client_secret: this.cfg.clientSecret, code, redirect_uri: redirectUri }),
