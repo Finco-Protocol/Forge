@@ -111,9 +111,13 @@ const callback = authorize.headers.get("location");
 if (!callback) throw new Error("fake-github authorize returned no redirect");
 const cb = await api("GET", callback.replace(/^https?:\/\/[^/]+/, ""));
 if (cb.status !== 302) throw new Error(`oauth callback -> ${cb.status}: ${JSON.stringify(cb.json).slice(0, 300)}`);
+const jarKeys = [...cookies.keys()].join(",");
 const me = await api("GET", "/api/me");
 const myUser = me.json.user as { login?: string } | undefined;
-if (myUser?.login !== USER.login) throw new Error(`session is ${myUser?.login ?? "none"}, expected ${USER.login}`);
+if (myUser?.login !== USER.login)
+  throw new Error(
+    `session is ${myUser?.login ?? "none"}, expected ${USER.login} (jar: ${jarKeys}; me.status ${me.status}; me.body ${JSON.stringify(me.json).slice(0, 200)})`,
+  );
 const ch = await api("POST", "/api/wallet/challenge", { address: creator.address, chainId: 31337 });
 if (ch.status !== 200) throw new Error(`wallet challenge -> ${ch.status}`);
 const signature = await creatorWallet.signMessage({ message: ch.json.message as string });
