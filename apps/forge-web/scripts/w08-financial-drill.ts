@@ -328,10 +328,26 @@ evidence.claimInterrupted = { claimTx: claimHash, payout: creatorCredit.toString
 console.log("W08_CLAIM_TX " + claimHash);
 await poll("claim_go2 marker (worker restarted)", 300_000, async () => (await marker("claim_go2")) ? true : null);
 const claimEventsForTx = async () => Number((await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events WHERE tx_hash = $1", [claimHash])).rows[0]!.n);
-await poll("claim event indexed exactly once", 240_000, async () => {
+const idxDiag = async () => {
+  try {
+    const cp = await db.query<{ last_block: string; updated_at: string }>("SELECT last_block::text, updated_at::text FROM indexer_checkpoints WHERE name LIKE 'forge:%'");
+    const ev = await db.query<{ n: string; maxb: string }>("SELECT count(*)::text n, coalesce(max(block_number),0)::text maxb FROM chain_events");
+    const hb = await db.query<{ worker_id: string; state: string; beat_at: string; last_error: string | null }>("SELECT worker_id, state, beat_at::text, last_error FROM worker_heartbeats ORDER BY beat_at DESC LIMIT 2");
+    console.log(`[w08-fin] indexer diag: cp=${JSON.stringify(cp.rows)} events=${JSON.stringify(ev.rows)} hb=${JSON.stringify(hb.rows)}`);
+  } catch (e) { console.log(`[w08-fin] indexer diag failed: ${(e as Error).message}`); }
+};
+const claimPollStart = Date.now();
+let claimIndexed: number | null = null;
+while (Date.now() - claimPollStart < 240_000) {
   const n = await claimEventsForTx();
-  return n >= 1 ? n : null;
-});
+  if (n >= 1) { claimIndexed = n; break; }
+  await sleep(20_000);
+  await idxDiag();
+}
+if (claimIndexed === null) {
+  await idxDiag();
+  throw new Error("drill timeout: claim event indexed exactly once");
+}
 setPhase("claim-recovery");
 const indexedOnce = await claimEventsForTx();
 await sleep(10_000); // extra worker passes: must NOT add a second copy
