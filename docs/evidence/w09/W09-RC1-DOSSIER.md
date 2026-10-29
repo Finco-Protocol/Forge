@@ -27,7 +27,7 @@ Method: `scripts/w09/rc1-dual-build.sh` executed against two independent fresh c
 | Web (`next build`) artifacts | **FUNCTIONALLY EQUIVALENT, not byte-identical**: all differences trace to Next.js's nondeterministic `BUILD_ID` (names the static-manifest dirs and client page chunks, renumbers server chunks, feeds manifests/types), the profiling `.next/trace`, and generated route `types/` — no source-level nondeterminism |
 | Totals | 565 hashed artifacts per build: 501 byte-identical; 49 differing + 15+15 single-build files, ALL in the two classified groups above |
 | Lockfile / submodule digests | `pnpm-lock.yaml` sha256 `478e467d44277f3ebbb3bfa064780368f154e1ca6ca7451f8c99da606e243864`; submodule `contractsV2/lib/forge-std` pinned `f3dae6e6ee381f25eb6a246f7da9b85c91a68219` |
-| Docker images | the compose stack image (`forge-staging:local`) is built inside the manual Compose acceptance on this PR's head; its digest is recorded with that run in the PR description (no local Docker daemon is available where this was written) |
+| Docker images | the compose stack image (`forge-staging:local`) BUILD SUCCEEDED inside the manual Compose acceptance on the candidate SHA (run 40961238381 @ `af2ac626`), but PER-IMAGE DIGEST CAPTURE WAS NOT PERFORMED — the workflow has no digest-inspection step. This is a known provenance limitation of the RC1 evidence, NOT evidence of a failed build; no digest is claimed or invented. Adding a digest-capture step to the compose workflow is follow-up release-engineering work, not part of this evidence-only PR. |
 
 ## 3. Exact-head regression (Class A matrix)
 
@@ -36,7 +36,7 @@ The complete Class A engineering matrix is validated by GitHub CI on THIS PR's e
 ## 4. Security snapshot
 
 - `release/security-findings.json` (15 entries) is unchanged by W09: F-01/F-02 fixed; F-03/F-04/F-05 remain `disclosed-owner-trust` (C03 governance review); F-07 (no external audit — C01) and F-09 (BUSL-1.1 — C04) remain `open`; W05/W06-era items unchanged. No new findings are introduced by W09 (the dependency fix is PR #9, already merged and audited by CI on its own SHA).
-- The Security Toolchain workflow (Slither + Aderyn, actionlint + zizmor, gitleaks, semgrep) and SonarQube run on this PR's exact head; results are CI check-runs, not locally edited claims.
+- Security Toolchain workflow on this PR's exact head: **PASS**. Its Solidity-specific job `security: Solidity (Slither + Aderyn)` is **SKIPPED on this PR** (the job's no-Solidity-changes condition — this PR's diff is Markdown/scripts only). Scanners that DID execute on this head and their actual check conclusions: gitleaks secret scan, actionlint + zizmor workflow lint, semgrep, and SonarQube (all `success`). The most recent Solidity scanner EXECUTIONS on the RC1 lineage are referenced at their own SHAs, never re-attributed to this candidate: `security: Solidity (Slither + Aderyn) = success` on the RC1 baseline `e09d0dc55124f180020eea38ae43f0b5f4a19889` (Security Toolchain run 40957627538) and on the W08 engineering HEAD `0f171ac4fb5264a6b45eb26a2dd638b71a7b89ab` (run 40914727925). No scanner condition, severity threshold or baseline was changed.
 - Baseline status is and remains `PROPOSED_BY_AGENT_PENDING_INDEPENDENT_REVIEW` — no scanner result is translated into external audit approval, and the baseline was not edited in W09.
 
 ## 5. Financial and production release freeze
