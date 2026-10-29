@@ -41,6 +41,14 @@ process.on("unhandledRejection", (e) => {
 });
 
 const WEB = process.env.DRILL_WEB_ORIGIN ?? "http://web:3000";
+let phase = "init";
+const crash = (e: unknown): never => {
+  const c = e as { message?: string; shortMessage?: string; name?: string; cause?: { message?: string; errorName?: string } };
+  console.error(`W08_FINANCIAL_DRILL_CRASH [${phase}] ${c.name}: ${c.shortMessage ?? c.message} | cause: ${c.cause?.errorName ?? c.cause?.message ?? "none"}`);
+  process.exit(1);
+};
+process.on("uncaughtException", crash);
+process.on("unhandledRejection", crash);
 // The app's same-origin guard compares the Origin header against its configured
 // FORGE_PUBLIC_ORIGIN (http://localhost:3000 in compose) — NOT the container-to-
 // container address the drill fetches.
@@ -106,6 +114,7 @@ const ctrl = async (action: string, body: unknown) => {
   const r = await fetch(`${GH}/__control/${action}`, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
   if (r.status !== 200) throw new Error(`fake-github control ${action} -> ${r.status}`);
 };
+phase = "seed";
 await ctrl("add-user", { id: USER.id, login: USER.login });
 await ctrl("add-repo", { id: REPO_ID, name: "w08-fin", owner: ORG });
 await ctrl("set-permission", { repoId: REPO_ID, userId: USER.id, perm: "admin" });
@@ -114,6 +123,7 @@ await ctrl("login-as", { userId: USER.id });
 evidence.setup = "github state seeded (user/repo/installation/admin)";
 
 // ── Phase A: real GitHub OAuth + wallet bind + repository admin proof ────
+phase = "oauth";
 const start = await api("GET", "/api/auth/github/start");
 if (start.status !== 302 && start.status !== 200) throw new Error(`oauth start -> ${start.status}`);
 const authorizeUrl = start.headers.get("location") ?? "";
@@ -138,6 +148,7 @@ if (myGithub?.login !== USER.login)
   throw new Error(
     `session is ${myGithub?.login ?? "none"}, expected ${USER.login} (jar: ${jarKeys}; me.status ${me.status}; me.body ${JSON.stringify(me.json).slice(0, 200)})`,
   );
+phase = "wallet";
 const ch = await api("POST", "/api/wallet/challenge", { address: creator.address, chainId: 31337 });
 if (ch.status !== 200) throw new Error(`wallet challenge -> ${ch.status}`);
 const signature = await creatorWallet.signMessage({ message: ch.json.message as string });
@@ -148,6 +159,7 @@ if (vf.status !== 200) throw new Error(`repository verify -> ${vf.status}: ${JSO
 evidence.auth = `signed in as ${USER.login}; wallet ${creator.address} bound; repository admin proven`;
 
 // ── Phase B: real launch (EIP-712 consent + real launch transaction) ─────
+phase = "launch-api";
 const draft = await api("POST", "/api/launch/drafts", { repoId: REPO_ID, installationId: INST_ID, name: "W08 Fin", symbol: "W08F", description: "W08 financial recovery drill (sandbox)", logo: "https://example.org/w08.png", socials: {}, launchConfigId: 0, creatorTaxBps: 100, buybackEnabled: false, snipeTaxExemptions: [] });
 if (draft.status !== 201) throw new Error(`draft -> ${draft.status}: ${JSON.stringify(draft.json)}`);
 const auth = await api("POST", `/api/launch/drafts/${draft.json.id}/authorize`);
@@ -157,6 +169,7 @@ const consent = await creatorWallet.signTypedData(typedData as never);
 const signed = await api("POST", `/api/launch/intents/${auth.json.intentId}/signature`, { signature: consent });
 if (signed.status !== 200) throw new Error(`signature submit -> ${signed.status}: ${JSON.stringify(signed.json)}`);
 const args = reviveLaunchArgs(signed.json.tx as never);
+phase = "launch-tx";
 const launchHash = await creatorWallet.writeContract({ address: (signed.json.tx as { address: Address }).address, abi: ponsV2LaunchFactoryAbi as unknown as Abi, functionName: "launchToken", args: [args.params, args.launchConfigId, args.pairToken, args.exemptions], value: args.value } as never);
 await pub.waitForTransactionReceipt({ hash: launchHash });
 const submitted = await api("POST", `/api/launch/intents/${auth.json.intentId}/submitted`, { txHash: launchHash });
@@ -186,6 +199,7 @@ const buy = async (eth: string) => {
 // snipe tax would otherwise take the buyer's tokens down to the 1% floor.
 await anvil("evm_increaseTime", [30]);
 await anvil("evm_mine");
+phase = "buy-10";
 await buy("10000000000000000000"); // 10 ETH (curve active, fees accrue pre-graduation)
 const db = new PgDb(process.env.DATABASE_URL!, { max: 2, applicationName: "w08-drill" });
 const chainEvents = async () => Number((await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events")).rows[0]!.n);
@@ -207,10 +221,12 @@ const cfgAddresses = ((await (await fetch(`${WEB}/api/config`)).json()) as { add
 const splitter = cfgAddresses.revenueSplitter as Address;
 const escrow = cfgAddresses.feeEscrow as Address;
 const NATIVE = zeroAddress as Address;
+phase = "snapshot";
 const snapshot = (await anvil("evm_snapshot")) as string;
 const eventsPreReorg = await chainEvents();
 const ceilingPreReorg = (await ceiling()).toString();
 const escrowPreReorg = (await escrowCredit(creator.address)).toString();
+phase = "buy-22-graduate";
 const gradHash = await buy("25000000000000000000"); // 22 ETH crosses the 30 ETH threshold
 await pub.waitForTransactionReceipt({ hash: gradHash });
 const gradPhase = await poll("graduation phase", 120_000, async () => {
@@ -219,6 +235,7 @@ const gradPhase = await poll("graduation phase", 120_000, async () => {
 });
 void gradPhase;
 const factoryAddr = ((await (await fetch(`${WEB}/api/config`)).json()) as { addresses: { factory: Address } }).addresses.factory;
+phase = "grad-pool";
 await creatorWallet.writeContract({ address: factoryAddr, abi: ponsV2LaunchFactoryAbi as unknown as Abi, functionName: "createGraduatedPool", args: [token!.token] } as never);
 await poll("graduated pool", 120_000, async () => {
   const t = (await (await fetch(`${WEB}/api/tokens/${token!.token}`)).json()) as { token: { phase: string } };
@@ -226,7 +243,9 @@ await poll("graduated pool", 120_000, async () => {
 });
 
 // ── Phase D: worker attestation of the swept protocol leg ────────────────
+phase = "attest-wait";
 await poll("attestation (verified headroom > 0)", 180_000, async () => ((await headroom()) > 0n ? true : null));
+phase = "read-ceiling";
 const ceilingBeforeReorg = await ceiling();
 const escrowBeforeReorg = await escrowCredit(creator.address);
 const eventsBeforeReorg = await chainEvents();
