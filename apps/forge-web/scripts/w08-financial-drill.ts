@@ -186,9 +186,24 @@ const buy = async (eth: string) => {
 // snipe tax would otherwise take the buyer's tokens down to the 1% floor.
 await anvil("evm_increaseTime", [30]);
 await anvil("evm_mine");
-await buy("10000000000000000000"); // 10 ETH
+await buy("10000000000000000000"); // 10 ETH (curve active, fees accrue pre-graduation)
 const db = new PgDb(process.env.DATABASE_URL!, { max: 2, applicationName: "w08-drill" });
 const chainEvents = async () => Number((await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events")).rows[0]!.n);
+const headroom = async () => pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "verifiedHeadroom", args: [NATIVE] } as never) as Promise<bigint>;
+const ceiling = async () => (await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "ledger", args: [NATIVE] } as never) as never as { eligibleCeiling: bigint }).eligibleCeiling;
+const escrowCredit = async (who: Address) => pub.readContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "balanceOf", args: [who] } as never) as Promise<bigint>;
+
+// The reorg snapshot goes HERE (pre-graduation): the 22 ETH buy crosses the threshold,
+// graduates (sweep credits the splitter and creator keys) and the worker attests —
+// then the revert orphans ALL of it, making the reorg land just past the attestation.
+const cfgAddresses = ((await (await fetch(`${WEB}/api/config`)).json()) as { addresses: Record<string, string> }).addresses;
+const splitter = cfgAddresses.revenueSplitter as Address;
+const escrow = cfgAddresses.feeEscrow as Address;
+const NATIVE = zeroAddress as Address;
+const snapshot = (await anvil("evm_snapshot")) as string;
+const eventsPreReorg = await chainEvents();
+const ceilingPreReorg = (await ceiling()).toString();
+const escrowPreReorg = (await escrowCredit(creator.address)).toString();
 const gradHash = await buy("25000000000000000000"); // 22 ETH crosses the 30 ETH threshold
 await pub.waitForTransactionReceipt({ hash: gradHash });
 const gradPhase = await poll("graduation phase", 120_000, async () => {
@@ -204,13 +219,6 @@ await poll("graduated pool", 120_000, async () => {
 });
 
 // ── Phase D: worker attestation of the swept protocol leg ────────────────
-const cfgAddresses = ((await (await fetch(`${WEB}/api/config`)).json()) as { addresses: Record<string, string> }).addresses;
-const splitter = cfgAddresses.revenueSplitter as Address;
-const escrow = cfgAddresses.feeEscrow as Address;
-const NATIVE = zeroAddress as Address;
-const headroom = async () => pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "verifiedHeadroom", args: [NATIVE] } as never) as Promise<bigint>;
-const ceiling = async () => (await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "ledger", args: [NATIVE] } as never) as never as { eligibleCeiling: bigint }).eligibleCeiling;
-const escrowCredit = async (who: Address) => pub.readContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "balanceOf", args: [who] } as never) as Promise<bigint>;
 await poll("attestation (verified headroom > 0)", 180_000, async () => ((await headroom()) > 0n ? true : null));
 const ceilingBeforeReorg = await ceiling();
 const escrowBeforeReorg = await escrowCredit(creator.address);
@@ -218,29 +226,30 @@ const eventsBeforeReorg = await chainEvents();
 evidence.attestation = `ceiling ${ceilingBeforeReorg.toString()} wei attested; splitter headroom > 0; creator escrow credit ${escrowBeforeReorg.toString()} wei`;
 
 // ── Phase E: REORG just past the attestation ─────────────────────────────
-const snapshot = (await anvil("evm_snapshot")) as string;
-await buy("5000000000000000000"); // 5 ETH of new fees after the snapshot
-await creatorWallet.writeContract({ address: curve, abi: ponsV2BondingCurveAbi as unknown as Abi, functionName: "sweepFees", args: [0n, false] } as never);
-await poll("post-reorg-sweep indexed (events grow)", 120_000, async () => ((await chainEvents()) > eventsBeforeReorg ? true : null));
+await poll("post-reorg-sweep indexed (events grow)", 120_000, async () => ((await chainEvents()) > eventsPreReorg ? true : null));
 const ceilingAtPeak = await ceiling();
-await anvil("evm_revert", [snapshot]);
 await poll("reorg rollback (events back to pre-reorg)", 180_000, async () => ((await chainEvents()) === eventsBeforeReorg ? true : null));
 const ceilingAfterReorg = await ceiling();
 const escrowAfterReorg = await escrowCredit(creator.address);
 const eventsAfterReorg = await chainEvents();
 const rec = (await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "reconcile", args: [NATIVE] } as never)) as never as { deficit: bigint; surplus: bigint };
+// The reorg orphans the graduation, the sweep credits AND the attestation
+// authorization: everything must return to the SNAPSHOT state exactly (the
+// orphaned authorization cannot survive, the credits cannot persist, the
+// indexed events cannot remain), and the ledger must reconcile cleanly.
 const reorgOk =
-  ceilingAfterReorg === ceilingBeforeReorg && // the orphaned attestation authorization was reverted on chain
-  escrowAfterReorg === escrowBeforeReorg &&   // the reorged sweep credit is gone from the escrow
-  eventsAfterReorg === eventsBeforeReorg &&   // indexed events rolled back (no duplicate/orphan retention)
-  rec.deficit === 0n && rec.surplus === 0n;   // the ledger reconciles with the chain exactly
+  ceilingAfterReorg === BigInt(ceilingPreReorg) &&
+  escrowAfterReorg === BigInt(escrowPreReorg) &&
+  eventsAfterReorg === eventsPreReorg &&
+  rec.deficit === 0n && rec.surplus === 0n;
 evidence.reorg = {
-  rollbackOk: eventsAfterReorg === eventsBeforeReorg,
-  ceilingRolledBack: ceilingAfterReorg === ceilingBeforeReorg,
+  rollbackOk: eventsAfterReorg === eventsPreReorg,
+  ceilingRolledBack: ceilingAfterReorg === BigInt(ceilingPreReorg),
   noDoubleCount: reorgOk,
   ceilingAtPeak: ceilingAtPeak.toString(),
-  ceilingAfterReorg: ceilingAfterReorg.toString(),
-  eventsBeforeReorg, eventsAfterReorg,
+  ceilingPreReorg, ceilingAfterReorg: ceilingAfterReorg.toString(),
+  eventsPreReorg, eventsAfterReorg,
+  escrowPreReorg, escrowAfterReorg: escrowAfterReorg.toString(),
   reconcile: { deficit: rec.deficit.toString(), surplus: rec.surplus.toString() },
 };
 if (!reorgOk) fail = "reorg recovery violated a financial assertion";
