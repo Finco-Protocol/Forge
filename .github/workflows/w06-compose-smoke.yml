@@ -17,7 +17,7 @@ env:
 jobs:
   compose-smoke:
     name: "w06/w07: staging compose smoke + recovery + backup/restore"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -173,7 +173,187 @@ jobs:
           OM=$(echo "$ORIG" | jq -cS '.migrations // []'); RM=$(echo "$REST" | jq -cS '.migrations // []')
           [ "$OM" = "$RM" ] || { echo "::error::applied migrations differ across restore"; exit 1; }
           echo "restore agreement proven: reference $O_LED, materialized $O_MAT, counts identical, migrations identical"
-          docker compose --env-file ops/staging/.env.staging start worker
+          # Raw docker start: `docker compose start` re-runs completed depends_on one-shots
+          # (deploy!) — the W08 drill caught it redeploying the whole contract set and
+          # swapping deployment.json under the live stack. deploy-sandbox.ts now refuses
+          # to regenerate an existing deployment, and this avoids the one-shots entirely.
+          docker start forge-staging-worker-1
+      # ── W08 fault-injection drills (beta recovery acceptance) ──────────────
+      # Web process crash: same host-SIGKILL mechanism as the worker drill; the
+      # restart policy must recreate the web container and readiness returns.
+      - name: W08 web crash drill (host-level SIGKILL) and automatic recovery
+        run: |
+          WEB=$(docker compose --env-file ops/staging/.env.staging ps -q web)
+          BEFORE_START=$(docker inspect --format '{{.State.StartedAt}}' "$WEB")
+          BEFORE_RESTARTS=$(docker inspect --format '{{.RestartCount}}' "$WEB")
+          sudo kill -9 "$(docker inspect --format '{{.State.Pid}}' "$WEB")"
+          sleep 5
+          for _ in $(seq 1 36); do
+            STATE=$(docker inspect --format '{{.State.Running}} {{.RestartCount}} {{.State.StartedAt}}' "$WEB")
+            IFS=' ' read -r RUNNING RESTARTS START <<< "$STATE"
+            if [ -z "$RUNNING" ]; then
+              echo "unparseable web state: '$STATE'"
+              sleep 5
+              continue
+            fi
+            if [ "$RUNNING" = "true" ] && [ "$START" != "$BEFORE_START" ] && [ "$RESTARTS" -gt "$BEFORE_RESTARTS" ] && curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
+              echo "web restarted by the policy ($BEFORE_START -> $START, restarts $BEFORE_RESTARTS -> $RESTARTS); readiness restored"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::web did not automatically recover"
+          docker compose --env-file ops/staging/.env.staging logs --no-color web | tail -100
+          exit 1
+      # RPC outage: pausing the anvil container is the infrastructure fault (the node is
+      # unreachable). /api/health must degrade (rpc.ok=false) WITHOUT signing anything;
+      # unpausing restores readiness. No transaction can be produced while the chain is
+      # unreachable (fail closed), so confinement holds under the fault too.
+      - name: W08 RPC outage drill (anvil paused) and recovery
+        run: |
+          set -euo pipefail
+          PROBE_ID=$(openssl rand -hex 12)
+          CORR="w08-$PROBE_ID"
+          READY="/sandbox/w08-sign-probe-$PROBE_ID.ready"
+          TRIGGER="/sandbox/w08-sign-probe-$PROBE_ID.go"
+          ALLOWED() {
+            docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM signer_audit WHERE decision = 'allowed'"
+          }
+          restore_anvil() {
+            docker compose --env-file ops/staging/.env.staging unpause anvil >/dev/null 2>&1 || true
+          }
+          trap restore_anvil EXIT
+          BEFORE_ALLOWED=$(ALLOWED)
+          # Phase A: initialize the real Postgres-backed signer with Anvil reachable.
+          timeout 170s docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T -e "SIGN_PROBE_ID=$PROBE_ID" --entrypoint /bin/sh web /repo/ops/staging/sign-probe.sh > /tmp/sign-probe.log 2>&1 &
+          PROBE_PID=$!
+          READY_SEEN=0
+          for _ in $(seq 1 90); do
+            if docker compose --env-file ops/staging/.env.staging exec -T web test -s "$READY"; then
+              READY_SEEN=1
+              break
+            fi
+            if ! kill -0 "$PROBE_PID" 2>/dev/null; then
+              wait "$PROBE_PID" || true
+              echo "::error::probe exited before Phase A initialization"
+              tail -30 /tmp/sign-probe.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$READY_SEEN" != "1" ]; then
+            echo "::error::probe did not initialize on the healthy chain"
+            tail -30 /tmp/sign-probe.log
+            exit 1
+          fi
+          echo "Phase A complete: guarded signer initialized on real PostgreSQL and healthy Anvil"
+          # Phase B: deterministic trigger; no sleep-based race with context initialization.
+          docker compose --env-file ops/staging/.env.staging pause anvil
+          DEGRADED=$(curl -s -m 20 http://127.0.0.1:3000/api/health)
+          echo "health during RPC outage: $DEGRADED"
+          echo "$DEGRADED" | grep -q '"failing":\["rpc"\]' || { echo "::error::RPC health did not degrade"; exit 1; }
+          docker compose --env-file ops/staging/.env.staging exec -T web touch "$TRIGGER"
+          if ! wait "$PROBE_PID"; then
+            echo "::error::guarded signing probe failed"
+            tail -30 /tmp/sign-probe.log
+            exit 1
+          fi
+          grep -q 'SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED' /tmp/sign-probe.log || { echo "::error::signing guard did not fail closed"; tail -30 /tmp/sign-probe.log; exit 1; }
+          AUDIT=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT (SELECT count(*) FROM signer_audit WHERE correlation_id = '$CORR' AND decision = 'denied' AND reason LIKE '%authoritative on-chain read failed (fail closed)%') || ':' || (SELECT count(*) FROM signer_audit WHERE correlation_id = '$CORR' AND decision = 'allowed') || ':' || (SELECT count(*) FROM signer_signatures WHERE correlation_id = '$CORR')")
+          [ "$AUDIT" = "1:0:0" ] || { echo "::error::signing audit mismatch $AUDIT (expected denied:allowed:signed = 1:0:0)"; exit 1; }
+          AFTER_ALLOWED=$(ALLOWED)
+          [ "$AFTER_ALLOWED" = "$BEFORE_ALLOWED" ] || { echo "::error::custody signature allowed during outage ($BEFORE_ALLOWED -> $AFTER_ALLOWED)"; exit 1; }
+          echo "Phase B complete: audited authoritative-chain fail-closed refusal; zero signatures"
+          restore_anvil
+          for _ in $(seq 1 24); do
+            if curl -fsS http://127.0.0.1:3000/api/ready >/dev/null; then
+              echo "RPC restored, readiness recovered"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::readiness did not recover after RPC restoration"
+          exit 1
+      # Migration-drift refusal (Correction A §4): a cloned staging database with EXACTLY
+      # ONE tampered migration checksum must be refused by the real migrate implementation
+      # with the SPECIFIC MIGRATION_DRIFT diagnostic — a control run against the untampered
+      # clone proves the invocation itself is sound; an unrelated failure (credentials,
+      # connection, shell) must not count as drift protection. No migration may be applied,
+      # and the original database stays untouched.
+      - name: W08 migration drift refusal (MIGRATION_DRIFT diagnostic on a tampered clone)
+        run: |
+          PG_PW=$(grep '^POSTGRES_PASSWORD=' ops/staging/.env.staging | head -1 | cut -d= -f2)
+          docker compose --env-file ops/staging/.env.staging exec -T postgres createdb -U forge forge_staging_drift
+          docker compose --env-file ops/staging/.env.staging exec -T postgres pg_dump -U forge forge_staging | docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift > /dev/null
+          # ops/staging/migrate-drill.sh is a committed repo file: it loads the sandbox
+          # credentials entrypoint-faithfully and runs the real migrate implementation.
+          BEFORE_ROWS=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations")
+          # Positive control: prove the REAL migrate command succeeds on an
+          # untouched clone, before its checksum is corrupted.
+          if ! docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:$PG_PW@postgres:5432/forge_staging_drift" web /repo/ops/staging/migrate-drill.sh > /tmp/drift-control.log 2>&1; then
+            echo "::error::untampered migration control failed"; tail -30 /tmp/drift-control.log; exit 1
+          fi
+          CONTROL_ROWS=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations")
+          [ "$CONTROL_ROWS" = "$BEFORE_ROWS" ] || { echo "::error::control modified migration ledger"; exit 1; }
+          echo "untampered migration control PASS"
+          docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -c "UPDATE schema_migrations SET checksum = '0000000000000000000000000000000000000000000000000000000000000000' WHERE name = '006_ops.sql'" > /dev/null
+          TAMPERED=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations WHERE name = '006_ops.sql' AND checksum = '0000000000000000000000000000000000000000000000000000000000000000'")
+          [ "$TAMPERED" = "1" ] || { echo "::error::the tampered row was not verifiably written"; exit 1; }
+          if docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh -e "DATABASE_URL=postgres://forge:${PG_PW}@postgres:5432/forge_staging_drift" web /repo/ops/staging/migrate-drill.sh > /tmp/drift.log 2>&1; then
+            echo "::error::migrate ACCEPTED a drifted migration ledger"; tail -20 /tmp/drift.log; exit 1
+          fi
+          grep -q "MIGRATION_DRIFT" /tmp/drift.log || { echo "::error::the refusal was not the specific MIGRATION_DRIFT diagnostic:"; tail -20 /tmp/drift.log; exit 1; }
+          AFTER_ROWS=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging_drift -tAc "SELECT count(*) FROM schema_migrations")
+          [ "$AFTER_ROWS" = "$BEFORE_ROWS" ] || { echo "::error::a migration was applied during the refusal ($BEFORE_ROWS -> $AFTER_ROWS)"; exit 1; }
+          ORIG_COUNT=$(docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -tAc "SELECT count(*) FROM schema_migrations WHERE name = '006_ops.sql' AND checksum = '0000000000000000000000000000000000000000000000000000000000000000'")
+          [ "$ORIG_COUNT" = "0" ] || { echo "::error::the ORIGINAL database was modified"; exit 1; }
+          echo "migration drift refused with MIGRATION_DRIFT; no migration applied; original database untouched"
+          docker compose --env-file ops/staging/.env.staging exec -T postgres dropdb -U forge --force forge_staging_drift
+      # Correction D: financial recovery drills (brief §2). Execution-backed: real HTTP
+      # auth flow, real EIP-712 consent, real launch/trade/graduation transactions, real
+      # worker attestation, a REAL reorg just past the attestation, and a REAL creator
+      # claim whose indexing is interrupted by stopping the worker mid-protocol (restart
+      # = recovery). The drill refuses ANY financial assertion violation with exit 1.
+      - name: W08 financial recovery drill (reorg near attestation + interrupted claim)
+        run: |
+          # Preconditions: config validation + PostgreSQL + chain reads via the digest
+          # command (the full sign probe waits for a trigger file that only exists in the
+          # RPC-outage drill, so it must not run here).
+          docker compose --env-file ops/staging/.env.staging run --rm --no-deps --entrypoint /bin/sh web /repo/ops/staging/digest.sh > /tmp/pre.log 2>&1             || { echo "::error::financial drill preconditions failed (context/DB/chain)"; tail -40 /tmp/pre.log; exit 1; }
+          timeout 1500s docker compose --env-file ops/staging/.env.staging run --rm --no-deps -T             --entrypoint pnpm web exec tsx scripts/w08-financial-drill.ts > /tmp/fin.log 2>&1 &
+          DRILL_PID=$!
+          # Phase G1: the drill asks for the worker to be stopped BEFORE it sends the
+          # canonical claim (guaranteeing the interrupted-indexing window).
+          for _ in $(seq 1 60); do
+            grep -q "W08_CLAIM_WAITING" /tmp/fin.log && break
+            kill -0 "$DRILL_PID" 2>/dev/null || { echo "::error::drill exited before the claim phase"; tail -30 /tmp/fin.log; docker compose --env-file ops/staging/.env.staging logs worker --tail 80 || true; exit 1; }
+            sleep 5
+          done
+          grep -q "W08_CLAIM_WAITING" /tmp/fin.log || { echo "::error::drill never reached the claim phase"; tail -30 /tmp/fin.log; exit 1; }
+          docker compose --env-file ops/staging/.env.staging stop worker
+          docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -c "INSERT INTO w08_drill_control (id) VALUES ('claim_go') ON CONFLICT DO NOTHING" > /dev/null
+          # The claim is sent while the worker is down; wait for W08_CLAIM_TX then restore it.
+          for _ in $(seq 1 30); do
+            grep -q "W08_CLAIM_TX" /tmp/fin.log && break
+            kill -0 "$DRILL_PID" 2>/dev/null || { echo "::error::drill exited before sending the claim"; tail -30 /tmp/fin.log; docker compose --env-file ops/staging/.env.staging logs worker --tail 80 || true; exit 1; }
+            sleep 5
+          done
+          grep -q "W08_CLAIM_TX" /tmp/fin.log || { echo "::error::drill never sent the interrupted claim"; tail -30 /tmp/fin.log; exit 1; }
+          # Raw docker start: `docker compose start` re-runs completed depends_on one-shots
+          # (deploy!) — the W08 drill caught it redeploying the whole contract set and
+          # swapping deployment.json under the live stack. deploy-sandbox.ts now refuses
+          # to regenerate an existing deployment, and this avoids the one-shots entirely.
+          docker start forge-staging-worker-1
+          docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -c "INSERT INTO w08_drill_control (id) VALUES ('claim_go2') ON CONFLICT DO NOTHING" > /dev/null
+          # Phase G2 + the rest: exactly-once ingestion, duplicate refusal, conservation.
+          wait "$DRILL_PID" || { echo "::error::financial recovery drill FAILED a financial assertion"; tail -40 /tmp/fin.log; docker compose --env-file ops/staging/.env.staging logs worker --tail 80 || true; exit 1; }
+          grep -q "W08_FINANCIAL_DRILL_OK" /tmp/fin.log || { echo "::error::drill finished without the success marker"; exit 1; }
+          grep -q '"reorg":{' /tmp/fin.log || { echo "::error::evidence payload incomplete (reorg)"; exit 1; }
+          grep -q '"claimRecovery":{' /tmp/fin.log || { echo "::error::evidence payload incomplete (claimRecovery)"; exit 1; }
+          EV=$(grep -o 'W08_FINANCIAL_EVIDENCE {.*' /tmp/fin.log | head -1 | cut -d' ' -f2-)
+          echo "financial drill evidence: $EV" | head -c 2000
+          echo
+          echo "$EV" | jq -e '.reorg.rollbackOk == true and .reorg.ceilingRolledBack == true and .reorg.noDoubleCount == true and .claimRecovery.exactlyOnce == true and .claimRecovery.duplicateReverted == true and .claimRecovery.noDoubleAllocation == true' > /dev/null || { echo "::error::drill evidence assertions failed"; exit 1; }
       - name: down
         if: always()
         run: docker compose --env-file ops/staging/.env.staging down -v

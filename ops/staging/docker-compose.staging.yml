@@ -22,6 +22,10 @@ x-forge-env: &forge-env
   FORGE_DEPLOYMENT_FILE: /sandbox/deployment.json
   STAGING_GITHUB_API_URL: http://fake-github:8787
   STAGING_GITHUB_WEB_URL: http://localhost:8787
+  # W08: the fake github is browser-facing on the published host port (127.0.0.1:8787,
+  # for the OAuth authorize hop) but server-facing on the internal DNS name. The app's
+  # authorize redirect and its server-side token exchange therefore need DIFFERENT URLs.
+  STAGING_GITHUB_TOKEN_URL: http://fake-github:8787/login/oauth/access_token
   DATABASE_URL: postgres://forge:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/forge_staging
   SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
   FORGE_OPS_TOKEN: ${FORGE_OPS_TOKEN:?set FORGE_OPS_TOKEN}

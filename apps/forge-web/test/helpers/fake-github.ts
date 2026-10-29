@@ -278,6 +278,11 @@ export class FakeGithub {
       if (action === "transfer") this.transfer(body.repoId, body.owner);
       else if (action === "set-permission") this.setPermission(body.repoId, body.userId, body.perm ?? null);
       else if (action === "uninstall") this.uninstall(body.id);
+      // W08 compose financial drill: seed the same scenario state the e2e harness
+      // creates in-process (test-only helper surface).
+      else if (action === "add-user") this.addUser(body.id, body.login);
+      else if (action === "add-repo") this.addRepo({ id: body.id, name: body.name, owner: body.owner });
+      else if (action === "install") this.install(body.id, body.account, body.repoIds);
       else return send(404, { message: "Not Found" });
       return send(200, { ok: true });
     }

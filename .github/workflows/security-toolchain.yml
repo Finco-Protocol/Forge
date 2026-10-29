@@ -33,7 +33,7 @@ env:
 jobs:
   changes:
     name: "security: change detection"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       solidity: ${{ steps.detect.outputs.solidity }}
       app: ${{ steps.detect.outputs.app }}
@@ -65,7 +65,7 @@ jobs:
     name: "security: Solidity (Slither + Aderyn)"
     needs: changes
     if: needs.changes.outputs.solidity == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     env:
@@ -120,7 +120,7 @@ jobs:
     name: "security: application (Semgrep CE)"
     needs: changes
     if: needs.changes.outputs.app == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -161,7 +161,7 @@ jobs:
 
   workflows:
     name: "security: GitHub Actions workflows (actionlint + zizmor, any finding fails)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -185,7 +185,7 @@ jobs:
     name: "security: SARIF upload to code scanning (no scanner runs here)"
     needs: [solidity, appsec]
     if: always() && (needs.solidity.result == 'success' || needs.appsec.result == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
@@ -243,7 +243,7 @@ jobs:
     name: "security: unified report + policy gate (new critical/high in Forge-owned code blocks)"
     needs: [changes, solidity, appsec]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: read

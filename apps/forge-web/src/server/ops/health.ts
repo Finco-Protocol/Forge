@@ -31,7 +31,7 @@ export async function dbHealth(ctx: AppContext) {
 export async function indexerHealth(ctx: AppContext) {
   try {
     const { rows } = await ctx.db.query<{ last_block: string; updated_at: Date }>("SELECT last_block::text, updated_at FROM indexer_checkpoints WHERE name = $1", [checkpointName(ctx)]);
-    const head = await ctx.client.getBlockNumber({ cacheTime: 0 }).catch(() => null);
+    const head = await rpcProbe(ctx);
     const last = rows[0] ? BigInt(rows[0].last_block) : null;
     const safeHead = head === null ? null : head - BigInt(ctx.cfg.confirmations);
     return {
@@ -84,6 +84,19 @@ export async function ledgerHealth(ctx: AppContext) {
   } catch (e) {
     return { ok: false, error: errMsg(e) };
   }
+}
+
+/**
+ * W08: the health/readiness RPC probe is BOUNDED (5 s). viem's default request
+ * timeout is tens of seconds, which made /api/health itself hang for most of a
+ * minute during an RPC outage (W08 compose drill evidence); a health endpoint
+ * must answer promptly precisely when things are broken.
+ */
+export async function rpcProbe(ctx: AppContext): Promise<bigint | null> {
+  return Promise.race([
+    ctx.client.getBlockNumber({ cacheTime: 0 }).catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+  ]);
 }
 
 export async function systemHealth(ctx: AppContext) {

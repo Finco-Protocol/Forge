@@ -18,7 +18,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { createPublicClient, createWalletClient, defineChain, getAddress, http, pad, parseAbi, toHex, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import manifest from "../../config/networks/robinhood-4663.json";
+import manifest from "../../config/networks/robinhood-4663.json" with { type: "json" };
 import { ANVIL_KEYS, deploySandbox, isLocalAnvilFork, type SandboxDeployment } from "../sandbox-lib";
 import { spawnAnvil, rpcCall, type AnvilProc } from "./anvil-proc";
 import {

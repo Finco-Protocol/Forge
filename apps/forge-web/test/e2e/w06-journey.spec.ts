@@ -4,7 +4,8 @@
  * worker/indexer.
  *
  * SIMULATED (never production evidence): the chain is a local Anvil with the
- * W02 sandbox contracts and the sandbox (mock) V4 pool; GitHub is the
+ * W02 sandbox contracts; default uses the W02 mock V4 pool, while the
+ * isolated W08_E2E_GENUINE_V4=true job uses genuine Uniswap V4; GitHub is the
  * in-process FakeGithub; the wallet is an EIP-1193 provider that forwards to
  * Anvil's unlocked dev accounts. The application has no trading screen
  * (trading is on-chain; the UI shows the observed curve state), so trades,
@@ -18,7 +19,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createHmac } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { decodeFunctionResult, encodeFunctionData, parseEther, type Hex } from "viem";
+import { decodeFunctionResult, encodeAbiParameters, encodeFunctionData, keccak256, parseAbi, parseEther, type Hex } from "viem";
 import { forgeBindingRegistryAbi, forgeProtocolRevenueSplitterAbi, ponsV2BondingCurveAbi, ponsV2LaunchFactoryAbi } from "../../src/shared/abis.generated";
 
 const CREATOR = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"; // anvil #9
@@ -152,7 +153,8 @@ let splitter = "";
 let registry = "";
 
 test.afterAll(() => {
-  writeFileSync(OBSERVED, JSON.stringify({ kind: "w06-journey-observed", simulated: ["chain: local Anvil + W02 sandbox contracts + sandbox (mock) V4 pool", "GitHub: in-process FakeGithub", "wallet: EIP-1193 provider forwarding to Anvil unlocked accounts"], steps: observed }, null, 2));
+  const v4 = process.env.E2E_V4_SOURCE === "GENUINE_UNISWAP_V4" ? "GENUINE Uniswap V4 PoolManager + PositionManager (runtime checked), LOCAL Anvil only" : "W02 sandbox mock V4 pool";
+  writeFileSync(OBSERVED, JSON.stringify({ kind: "w06-journey-observed", simulated: ["chain: local Anvil + W02 Forge contracts + " + v4, "GitHub: in-process FakeGithub", "wallet: EIP-1193 provider forwarding to Anvil unlocked accounts"], steps: observed }, null, 2));
 });
 
 test("J01-J09 connect wallet, GitHub auth, repository admin proof, binding, eligibility, configure, economics, authorized launch", async ({ page, baseURL }) => {
@@ -226,7 +228,7 @@ test("J10 bonding-curve trade is reflected after indexing; a transaction not yet
   note("J10 trade + indexer lag", "UI/API reflect a buy only after it is mined and indexed", `pending tx ${hash.slice(0, 10)}… not indexed after 3s; indexed ${lagMs} ms after mining`, "local chain, embedded worker interval 1.5s");
 });
 
-test("J11-J13 graduation (sandbox pool), Explore discovery and token detail", async ({ page, baseURL }) => {
+test("J11-J13 graduation, Explore discovery and token detail", async ({ page, baseURL }) => {
   await sendTx(BUYER, curve, encodeFunctionData({ abi: ponsV2BondingCurveAbi, functionName: "buy", args: [parseEther("25"), 0n, BUYER] }), parseEther("25"));
   const launched = (await rpc<Hex>("eth_call", [{ to: process.env.E2E_FACTORY, data: encodeFunctionData({ abi: ponsV2LaunchFactoryAbi, functionName: "getLaunchedToken", args: [token as Hex] }) }, "latest"])) as Hex;
   expect(launched.length).toBeGreaterThan(2);
@@ -240,10 +242,40 @@ test("J11-J13 graduation (sandbox pool), Explore discovery and token detail", as
   await expect.poll(phaseOf, { timeout: 60_000 }).toBe("graduation_initiated");
   await sendTx(BUYER, process.env.E2E_FACTORY!, encodeFunctionData({ abi: ponsV2LaunchFactoryAbi, functionName: "createGraduatedPool", args: [token as Hex] }));
   await expect.poll(phaseOf, { timeout: 60_000 }).toBe("graduated");
+  // Genuine V4 acceptance is an executable browser + backend + real contract
+  // invariant, not a label in the UI and not the W05 lower-level V4 suite.
+  if (process.env.W08_E2E_GENUINE_V4 === "true") {
+    expect(process.env.E2E_V4_SOURCE).toBe("GENUINE_UNISWAP_V4");
+    const stateView = process.env.E2E_V4_STATE_VIEW as Hex;
+    const poolManager = process.env.E2E_V4_POOL_MANAGER as Hex;
+    const positionManager = process.env.E2E_V4_POSITION_MANAGER as Hex;
+    const hook = process.env.E2E_V4_HOOK as Hex;
+    for (const [name, address] of [["PoolManager", poolManager], ["PositionManager", positionManager], ["StateView", stateView]] as const) {
+      const runtime = await rpc<Hex>("eth_getCode", [address, "latest"]);
+      expect(runtime.length, name + " must contain real deployed code").toBeGreaterThan(100);
+    }
+    const poolId = keccak256(encodeAbiParameters(
+      [{ type: "address" }, { type: "address" }, { type: "uint24" }, { type: "int24" }, { type: "address" }],
+      [NATIVE as Hex, token as Hex, 0, 10, hook],
+    ));
+    const viewAbi = parseAbi(["function getLiquidity(bytes32 poolId) view returns (uint128)"]);
+    const liquidityHex = await rpc<Hex>("eth_call", [{
+      to: stateView, data: encodeFunctionData({ abi: viewAbi, functionName: "getLiquidity", args: [poolId] }),
+    }, "latest"]);
+    const liquidity = decodeFunctionResult({ abi: viewAbi, functionName: "getLiquidity", data: liquidityHex });
+    expect(liquidity, "genuine PoolManager must have minted positive liquidity").toBeGreaterThan(0n);
+    const pmAbi = parseAbi(["function nextTokenId() view returns (uint256)"]);
+    const nextHex = await rpc<Hex>("eth_call", [{
+      to: positionManager, data: encodeFunctionData({ abi: pmAbi, functionName: "nextTokenId" }),
+    }, "latest"]);
+    const next = decodeFunctionResult({ abi: pmAbi, functionName: "nextTokenId", data: nextHex });
+    expect(next, "genuine PositionManager must mint a position NFT").toBeGreaterThan(1n);
+    note("J11 genuine V4 on-chain", "runtime-checked genuine PoolManager/PositionManager with minted liquidity", `poolId ${poolId}, liquidity ${liquidity}, nextPositionId ${next}`, "local 31337 Anvil and FakeGithub only");
+  }
   await page.goto(`/projects/${token}`);
   await expect(page.getByText(/held by the launch locker/)).toBeVisible();
   await shot(page, "J11-graduated-token-detail");
-  note("J11 graduation", "phase graduated, liquidity position locked", "project page shows 'V4 position … held by the launch locker'", "SANDBOX (mock) V4 pool; genuine Uniswap V4 graduation is evidenced by the test/v4 suite, not by this browser run");
+  note("J11 graduation", "phase graduated, liquidity position locked", "project page shows 'V4 position … held by the launch locker'", process.env.W08_E2E_GENUINE_V4 === "true" ? "GENUINE Uniswap V4, local Anvil; browser + RPC + runtime evidence" : "SANDBOX mock V4; genuine browser evidence requires dedicated W08 job");
 
   await page.goto("/");
   await expect(page.getByTestId("explore-table")).toContainText("Journey Token");
@@ -267,12 +299,27 @@ test("J14-J17 creator earnings, treasury allocation, prepare + send claim, canon
 
   await injectWallet(page, CREATOR);
   await page.goto("/dashboard");
-  const gh = page.getByRole("link", { name: "Connect GitHub" });
-  if (await gh.isVisible().catch(() => false)) {
-    await gh.click();
+  // W08 Correction A root-cause fix (J14–J17 flake): a momentary isVisible() probe raced
+  // the streamed dashboard render — when the signed-out prompt had not painted yet, the
+  // whole sign-in branch was silently skipped and the test then failed on a signed-out
+  // dashboard. WAIT for the signed-out state to appear (it always does on a fresh
+  // context: no session cookie), then sign in deterministically.
+  const githubConnect = page.getByRole("link", { name: "Connect GitHub" });
+  const signedOut = await githubConnect
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .then(() => true, () => false);
+  if (signedOut) {
+    await githubConnect.click();
     await page.waitForURL("**/launch");
     await page.goto("/dashboard");
   }
+  // Diagnostic assertion (Correction A §2.2): if this fails, the page is either still
+  // signed out (session/OAuth defect) or signed in as the wrong user — the snapshot
+  // names which, instead of a bare "creator-earnings not found".
+  await expect(
+    page.getByTestId("account-status"),
+    "the dashboard must be used signed in as the creator (carol-admin)",
+  ).toContainText("@carol-admin");
   await expect(page.getByTestId("creator-earnings")).toBeVisible();
   await expect(page.getByTestId("claimable-ETH")).not.toHaveText(/^0 ETH$/, { timeout: 30_000 });
   const claimable = (await page.getByTestId("claimable-ETH").innerText()).trim();

@@ -11,7 +11,8 @@ fi
 # Service-side API calls go over the internal network; the browser-facing authorize URL is the published loopback port.
 GITHUB_API_URL="${STAGING_GITHUB_API_URL:-${GITHUB_API_URL:-}}"
 GITHUB_WEB_URL="${STAGING_GITHUB_WEB_URL:-${GITHUB_WEB_URL:-}}"
-export GITHUB_API_URL GITHUB_WEB_URL
+GITHUB_TOKEN_URL="${STAGING_GITHUB_TOKEN_URL:-${GITHUB_TOKEN_URL:-}}"
+export GITHUB_API_URL GITHUB_WEB_URL GITHUB_TOKEN_URL
 role="${1:-web}"
 case "$role" in
   fake-github) ;;                                  # the simulated GitHub itself has no staging env to validate

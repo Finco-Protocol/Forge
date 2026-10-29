@@ -28,7 +28,7 @@ permissions:
 jobs:
   static:
     name: "w03: typecheck + lint + unit + dependency audit"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -57,7 +57,7 @@ jobs:
 
   secrets:
     name: "w03: secret scan (gitleaks, W03 commit range)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: .
@@ -81,7 +81,7 @@ jobs:
 
   contracts:
     name: "w03: build W02 forge profile + ABI drift check"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -120,7 +120,7 @@ jobs:
   integration:
     name: "w03: API/security integration + acceptance (Anvil, real W02 contracts)"
     needs: contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -146,7 +146,7 @@ jobs:
   e2e:
     name: "w03: browser E2E (Playwright, production build)"
     needs: contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -179,9 +179,53 @@ jobs:
             apps/forge-web/playwright-report
           retention-days: 14
 
+  # W08-1: independent browser/contract acceptance on local Anvil with the
+  # genuine Uniswap PoolManager / PositionManager / Permit2, never W02 mini mocks.
+  # Unconditional, required job; no continue-on-error or silent skip.
+  genuine-v4-browser:
+    name: "w08: genuine V4 browser graduation (local Anvil)"
+    needs: contracts
+    runs-on: ubuntu-24.04
+    env:
+      W08_E2E_GENUINE_V4: "true"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: forge-out
+          path: out/forge
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/forge-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - name: W08 genuine V4 full J01-J19 + adversarial browser journey
+        run: pnpm test:e2e -- w06-journey.spec.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: w08-genuine-v4-browser-evidence
+          path: |
+            apps/forge-web/.sandbox/e2e-genuine-v4-evidence.json
+            apps/forge-web/test-results
+            apps/forge-web/playwright-report
+          retention-days: 14
+
   robinhood-readonly:
     name: "w03: Robinhood Chain 4663 V4 wiring (read-only RPC)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
