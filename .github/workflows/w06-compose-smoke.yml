@@ -173,7 +173,11 @@ jobs:
           OM=$(echo "$ORIG" | jq -cS '.migrations // []'); RM=$(echo "$REST" | jq -cS '.migrations // []')
           [ "$OM" = "$RM" ] || { echo "::error::applied migrations differ across restore"; exit 1; }
           echo "restore agreement proven: reference $O_LED, materialized $O_MAT, counts identical, migrations identical"
-          docker compose --env-file ops/staging/.env.staging start worker
+          # Raw docker start: `docker compose start` re-runs completed depends_on one-shots
+          # (deploy!) — the W08 drill caught it redeploying the whole contract set and
+          # swapping deployment.json under the live stack. deploy-sandbox.ts now refuses
+          # to regenerate an existing deployment, and this avoids the one-shots entirely.
+          docker start forge-staging-worker-1
       # ── W08 fault-injection drills (beta recovery acceptance) ──────────────
       # Web process crash: same host-SIGKILL mechanism as the worker drill; the
       # restart policy must recreate the web container and readiness returns.
@@ -335,7 +339,11 @@ jobs:
             sleep 5
           done
           grep -q "W08_CLAIM_TX" /tmp/fin.log || { echo "::error::drill never sent the interrupted claim"; tail -30 /tmp/fin.log; exit 1; }
-          docker compose --env-file ops/staging/.env.staging start worker
+          # Raw docker start: `docker compose start` re-runs completed depends_on one-shots
+          # (deploy!) — the W08 drill caught it redeploying the whole contract set and
+          # swapping deployment.json under the live stack. deploy-sandbox.ts now refuses
+          # to regenerate an existing deployment, and this avoids the one-shots entirely.
+          docker start forge-staging-worker-1
           docker compose --env-file ops/staging/.env.staging exec -T postgres psql -U forge -d forge_staging -c "INSERT INTO w08_drill_control (id) VALUES ('claim_go2') ON CONFLICT DO NOTHING" > /dev/null
           # Phase G2 + the rest: exactly-once ingestion, duplicate refusal, conservation.
           wait "$DRILL_PID" || { echo "::error::financial recovery drill FAILED a financial assertion"; tail -40 /tmp/fin.log; docker compose --env-file ops/staging/.env.staging logs worker --tail 80 || true; exit 1; }
