@@ -194,8 +194,9 @@ const ceiling = async () => {
   // viem may decode a struct return as an object (named) or an array (positional);
   // AssetLedger.eligibleCeiling is the 7th field (index 6).
   const led = await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "ledger", args: [NATIVE] } as never) as unknown as { eligibleCeiling?: bigint } | unknown[];
-  const v = Array.isArray(led) ? led[6] : (led as { eligibleCeiling?: bigint }).eligibleCeiling;
-  return BigInt(v ?? 0);
+  const ledObj = led as { eligibleCeiling?: bigint } | unknown[];
+  const v = Array.isArray(ledObj) ? ledObj[6] : (ledObj as { eligibleCeiling?: bigint }).eligibleCeiling;
+  return BigInt((v ?? 0n) as string | number | bigint);
 };
 const escrowCredit = async (who: Address) => pub.readContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "balanceOf", args: [who] } as never) as Promise<bigint>;
 
