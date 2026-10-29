@@ -25,6 +25,7 @@ import { PgDb } from "../src/server/db";
 import { ponsV2LaunchFactoryAbi, ponsV2BondingCurveAbi, ponsV2FeeEscrowAbi, forgeProtocolRevenueSplitterAbi } from "../src/shared/abis.generated";
 import { reviveLaunchArgs, reviveTypedData } from "../src/shared/launch-tx";
 import { ANVIL_KEYS } from "./sandbox-lib";
+import { decodeErrorResult } from "viem";
 import type { Abi } from "viem";
 
 // viem contract errors dump the entire ABI when uncaught — print compactly instead.
@@ -171,9 +172,15 @@ evidence.launch = `token ${token!.token} launched (curve ${token!.curve})`;
 const curve = token!.curve as Address;
 const buy = async (eth: string) => {
   const v = BigInt(eth);
-  const h = await buyerWallet.writeContract({ address: curve, abi: ponsV2BondingCurveAbi as unknown as Abi, functionName: "buy", args: [v, 0n, buyer.address], value: v } as never);
-  await pub.waitForTransactionReceipt({ hash: h });
-  return h;
+  try {
+    const h = await buyerWallet.writeContract({ address: curve, abi: ponsV2BondingCurveAbi as unknown as Abi, functionName: "buy", args: [v, 0n, buyer.address], value: v } as never);
+    await pub.waitForTransactionReceipt({ hash: h });
+    return h;
+  } catch (e) {
+    const c = e as { cause?: { data?: string; message?: string }; shortMessage?: string; message?: string };
+    const decoded = c.cause?.data ? (() => { try { return decodeErrorResult({ abi: ponsV2BondingCurveAbi as unknown as Abi, data: c.cause!.data! }).errorName; } catch { return "undecoded"; } })() : "no-data";
+    throw new Error(`buy(${eth}) reverted: ${c.shortMessage ?? c.message} | raw: ${c.cause?.data ?? "none"} | decoded: ${decoded}`);
+  }
 };
 // clear the anti-snipe window exactly like the e2e (J10): the launch-second
 // snipe tax would otherwise take the buyer's tokens down to the 1% floor.
