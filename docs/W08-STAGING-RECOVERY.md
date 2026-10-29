@@ -19,12 +19,14 @@ Evidence class: SANDBOX / ISOLATED (local Anvil, fake GitHub, disposable compose
 
 The W08 two-phase signing probe initializes against **Compose PostgreSQL** and healthy Anvil before publishing a readiness marker; the workflow pauses Anvil **after readiness**, requires the explicit authoritative-chain fail-closed denial and the correlated `signer_audit` row (`denied:allowed:signed = 1:0:0`, `SIGN_PROBE_RESULT=REFUSED_FAIL_CLOSED`), and asserts zero allowed decisions/signatures. Migration drift has a successful untampered positive control, then requires the specific `MIGRATION_DRIFT` refusal and an unchanged original database. The financial recovery drill (Correction D, table above) runs last.
 
-**Evidence status: VERIFIED on the final W08 SHA — run 40911719094 @ `893da5d`, conclusion `success`, every step green.** The run also produced two engineering findings, both fixed in the same PR before the green run:
+**Evidence status: VERIFIED on the final W08 engineering SHA `0f171ac4fb5264a6b45eb26a2dd638b71a7b89ab` — manual Compose run 40914723992 @ that SHA, `conclusion: success`, every step green (including the Correction D financial recovery drill re-execution). The drill-specific evidence JSON (`W08_FINANCIAL_EVIDENCE`, `W08_FINANCIAL_DRILL_OK`, `fail: null`) was captured on run 40911719094 @ `893da5d`.** The run also produced two engineering findings, both fixed in the same PR before the green run:
 
 1. **Compose one-shot re-deploy defect (real, caught by the interrupted-claim drill).** `docker compose start <service>` re-runs completed `depends_on` one-shots, so every worker restart re-executed the `deploy` role — redeploying the whole contract set to NEW addresses and overwriting `/sandbox/deployment.json` under the live stack (run 40906452998 diagnostics: three `indexer_checkpoints` rows for three different factories; the restarted worker indexed the third deployment and permanently skipped the `Claimed` event emitted before the restart). Fixed in `scripts/deploy-sandbox.ts` (an existing deployment for the configured chain is never regenerated) and in the workflow (raw `docker start forge-staging-worker-1`).
 2. **Runner-image drift.** `ubuntu-latest` moved to Ubuntu 26.04 (Playwright 1.56.1 and `postgresql-client-16` unavailable); all workflows are now pinned to `ubuntu-24.04`.
 
 Earlier diagnostic runs on the drill itself (40902284086, 40906452998, 40910672393) are retained as the defect-discovery trail: each surfaced exactly one issue (missing `evm_revert`, wrong rollback target + positional `reconcile()` decode, one-shot re-deploy) before the green run.
+
+**Documentation-only delta (owner-approved exception):** any commit after the engineering HEAD `0f171ac4` that touches only the four W08 documentation files carries the engineering evidence above forward WITHOUT re-execution; CI/Compose execution is never attributed to a commit where it did not run. All production freeze flags, the open B01–B09/C01–C06 external requirements and Robinhood A07e `NOT_VERIFIED` are unchanged by this acceptance.
 
 ## Browser E2E repetition (Correction A §2.3)
 
