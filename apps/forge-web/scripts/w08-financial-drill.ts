@@ -190,7 +190,13 @@ await buy("10000000000000000000"); // 10 ETH (curve active, fees accrue pre-grad
 const db = new PgDb(process.env.DATABASE_URL!, { max: 2, applicationName: "w08-drill" });
 const chainEvents = async () => Number((await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events")).rows[0]!.n);
 const headroom = async () => pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "verifiedHeadroom", args: [NATIVE] } as never) as Promise<bigint>;
-const ceiling = async () => (await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "ledger", args: [NATIVE] } as never) as never as { eligibleCeiling: bigint }).eligibleCeiling;
+const ceiling = async () => {
+  // viem may decode a struct return as an object (named) or an array (positional);
+  // AssetLedger.eligibleCeiling is the 7th field (index 6).
+  const led = await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "ledger", args: [NATIVE] } as never) as unknown as { eligibleCeiling?: bigint } | unknown[];
+  const v = Array.isArray(led) ? led[6] : (led as { eligibleCeiling?: bigint }).eligibleCeiling;
+  return BigInt(v ?? 0);
+};
 const escrowCredit = async (who: Address) => pub.readContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "balanceOf", args: [who] } as never) as Promise<bigint>;
 
 // The reorg snapshot goes HERE (pre-graduation): the 22 ETH buy crosses the threshold,
