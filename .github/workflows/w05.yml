@@ -25,7 +25,7 @@ env:
 jobs:
   forge-security:
     name: "w05: forge security suites (emergency revocation, owner powers, attestor compromise)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -40,7 +40,7 @@ jobs:
 
   v4-local:
     name: "w05: genuine Uniswap V4 integration (local)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/forge-web
@@ -81,7 +81,7 @@ jobs:
 
   v4-fork-4663:
     name: "w05: Robinhood 4663 fork simulation (no broadcast)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       FORGE_FORK_RPC_URL: https://rpc.mainnet.chain.robinhood.com
     defaults:
@@ -122,7 +122,7 @@ jobs:
 
   postgres:
     name: "w05: PostgreSQL production-mode suite"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
@@ -173,7 +173,7 @@ jobs:
 
   release-gate:
     name: "w05: release-readiness gate (ENGINEERING_PASS only; never production-ready)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       checks: read

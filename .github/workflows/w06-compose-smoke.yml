@@ -17,7 +17,7 @@ env:
 jobs:
   compose-smoke:
     name: "w06/w07: staging compose smoke + recovery + backup/restore"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -348,7 +348,8 @@ jobs:
           # Phase G2 + the rest: exactly-once ingestion, duplicate refusal, conservation.
           wait "$DRILL_PID" || { echo "::error::financial recovery drill FAILED a financial assertion"; tail -40 /tmp/fin.log; docker compose --env-file ops/staging/.env.staging logs worker --tail 80 || true; exit 1; }
           grep -q "W08_FINANCIAL_DRILL_OK" /tmp/fin.log || { echo "::error::drill finished without the success marker"; exit 1; }
-          grep -q '"reorg":{' /tmp/fin.log && grep -q '"claimRecovery":{' /tmp/fin.log || { echo "::error::evidence payload incomplete"; exit 1; }
+          grep -q '"reorg":{' /tmp/fin.log || { echo "::error::evidence payload incomplete (reorg)"; exit 1; }
+          grep -q '"claimRecovery":{' /tmp/fin.log || { echo "::error::evidence payload incomplete (claimRecovery)"; exit 1; }
           EV=$(grep -o 'W08_FINANCIAL_EVIDENCE {.*' /tmp/fin.log | head -1 | cut -d' ' -f2-)
           echo "financial drill evidence: $EV" | head -c 2000
           echo

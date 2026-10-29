@@ -21,7 +21,7 @@ permissions:
 jobs:
   build-forge-stack:
     name: forge build (deployed + forge profiles)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -35,7 +35,7 @@ jobs:
 
   forge-authz-tests:
     name: M-ELIG adversarial authorization tests (17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -48,7 +48,7 @@ jobs:
 
   forge-lifecycle-tests:
     name: full lifecycle + snipe tax E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -61,7 +61,7 @@ jobs:
 
   w01-regression:
     name: W01 regression (87 tests, testable profile)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -74,7 +74,7 @@ jobs:
 
   v1-build:
     name: forge build (V1 generation)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -87,7 +87,7 @@ jobs:
 
   gates:
     name: formatter + lint + classifier + vendor gates
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

@@ -25,7 +25,7 @@ env:
 jobs:
   staging-acceptance:
     name: "w06: staging acceptance (separate web + worker processes, PostgreSQL)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
@@ -81,7 +81,7 @@ jobs:
 
   financial-acceptance:
     name: "w06: financial, governance and GitHub App acceptance"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -112,7 +112,7 @@ jobs:
 
   w07-reliability:
     name: "w07: operational reliability (monitoring, webhooks, health)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/forge-web
@@ -142,7 +142,7 @@ jobs:
 
   audit-dossier:
     name: "w06: audit dossier integrity (source manifest drift)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/forge-web

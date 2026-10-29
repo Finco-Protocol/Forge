@@ -28,7 +28,7 @@ permissions:
 jobs:
   static:
     name: "w03: typecheck + lint + unit + dependency audit"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -57,7 +57,7 @@ jobs:
 
   secrets:
     name: "w03: secret scan (gitleaks, W03 commit range)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: .
@@ -81,7 +81,7 @@ jobs:
 
   contracts:
     name: "w03: build W02 forge profile + ABI drift check"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -120,7 +120,7 @@ jobs:
   integration:
     name: "w03: API/security integration + acceptance (Anvil, real W02 contracts)"
     needs: contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -146,7 +146,7 @@ jobs:
   e2e:
     name: "w03: browser E2E (Playwright, production build)"
     needs: contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -185,7 +185,7 @@ jobs:
   genuine-v4-browser:
     name: "w08: genuine V4 browser graduation (local Anvil)"
     needs: contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       W08_E2E_GENUINE_V4: "true"
     steps:
@@ -225,7 +225,7 @@ jobs:
 
   robinhood-readonly:
     name: "w03: Robinhood Chain 4663 V4 wiring (read-only RPC)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

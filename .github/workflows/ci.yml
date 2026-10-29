@@ -25,7 +25,7 @@ jobs:
   # deliberately NOT reformatted; their formatting is inherited as-is.
   fmt-forge-code:
     name: forge fmt --check (test/, required)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -39,7 +39,7 @@ jobs:
   # ── REQUIRED: the passing harness ────────────────────────────────────────
   build-and-test:
     name: forge build + test (testable profile)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -54,7 +54,7 @@ jobs:
   # ── REQUIRED: V1 generation compiles ─────────────────────────────────────
   v1-build:
     name: forge build (V1 generation)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -68,7 +68,7 @@ jobs:
   # ── REQUIRED: vendored dependency integrity + negative tests ─────────────
   dep-integrity:
     name: vendored dependency integrity (pinned evidence)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -93,7 +93,7 @@ jobs:
   # product remains PRODUCTION_BLOCKED (F-01/F-02).
   canary-full-build:
     name: "canary: full V2 build — UPSTREAM_V2_FACTORY_BLOCKED (F-01, expected; not a passing build)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -134,7 +134,7 @@ jobs:
   # Two separately classified scopes; failures are never silently swallowed.
   static-analysis:
     name: forge lint (test/ required-zero; upstream advisory)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
