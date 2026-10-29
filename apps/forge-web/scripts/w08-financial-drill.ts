@@ -178,7 +178,7 @@ const buy = async (eth: string) => {
     return h;
   } catch (e) {
     const c = e as { cause?: { data?: string; message?: string }; shortMessage?: string; message?: string };
-    const decoded = c.cause?.data ? (() => { try { return decodeErrorResult({ abi: ponsV2BondingCurveAbi as unknown as Abi, data: c.cause!.data! }).errorName; } catch { return "undecoded"; } })() : "no-data";
+    const decoded = c.cause?.data ? (() => { try { return decodeErrorResult({ abi: ponsV2BondingCurveAbi as unknown as Abi, data: c.cause!.data as `0x${string}` }).errorName; } catch { return "undecoded"; } })() : "no-data";
     throw new Error(`buy(${eth}) reverted: ${c.shortMessage ?? c.message} | raw: ${c.cause?.data ?? "none"} | decoded: ${decoded}`);
   }
 };
