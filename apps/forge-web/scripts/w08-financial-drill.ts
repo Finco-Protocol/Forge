@@ -29,17 +29,6 @@ import { decodeErrorResult } from "viem";
 import type { Abi } from "viem";
 
 // viem contract errors dump the entire ABI when uncaught — print compactly instead.
-process.on("uncaughtException", (e) => {
-  const c = e as { message?: string; shortMessage?: string; name?: string; cause?: { message?: string; errorName?: string } };
-  console.error(`W08_FINANCIAL_DRILL_CRASH ${c.name}: ${c.shortMessage ?? c.message} | cause: ${c.cause?.errorName ?? c.cause?.message ?? "none"}`);
-  process.exit(1);
-});
-process.on("unhandledRejection", (e) => {
-  const c = e as { message?: string; shortMessage?: string; name?: string; cause?: { message?: string; errorName?: string } };
-  console.error(`W08_FINANCIAL_DRILL_CRASH ${c.name}: ${c.shortMessage ?? c.message} | cause: ${c.cause?.errorName ?? c.cause?.message ?? "none"}`);
-  process.exit(1);
-});
-
 const WEB = process.env.DRILL_WEB_ORIGIN ?? "http://web:3000";
 let phase = "init";
 const crash = (e: unknown): never => {
@@ -49,6 +38,10 @@ const crash = (e: unknown): never => {
 };
 process.on("uncaughtException", crash);
 process.on("unhandledRejection", crash);
+const setPhase = (p: string, detail = "") => {
+  phase = p;
+  console.log(`[w08-fin] phase ${p}${detail ? ` — ${detail}` : ""}`);
+};
 // The app's same-origin guard compares the Origin header against its configured
 // FORGE_PUBLIC_ORIGIN (http://localhost:3000 in compose) — NOT the container-to-
 // container address the drill fetches.
@@ -114,7 +107,7 @@ const ctrl = async (action: string, body: unknown) => {
   const r = await fetch(`${GH}/__control/${action}`, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
   if (r.status !== 200) throw new Error(`fake-github control ${action} -> ${r.status}`);
 };
-phase = "seed";
+setPhase("seed");
 await ctrl("add-user", { id: USER.id, login: USER.login });
 await ctrl("add-repo", { id: REPO_ID, name: "w08-fin", owner: ORG });
 await ctrl("set-permission", { repoId: REPO_ID, userId: USER.id, perm: "admin" });
@@ -123,7 +116,7 @@ await ctrl("login-as", { userId: USER.id });
 evidence.setup = "github state seeded (user/repo/installation/admin)";
 
 // ── Phase A: real GitHub OAuth + wallet bind + repository admin proof ────
-phase = "oauth";
+setPhase("oauth");
 const start = await api("GET", "/api/auth/github/start");
 if (start.status !== 302 && start.status !== 200) throw new Error(`oauth start -> ${start.status}`);
 const authorizeUrl = start.headers.get("location") ?? "";
@@ -148,7 +141,7 @@ if (myGithub?.login !== USER.login)
   throw new Error(
     `session is ${myGithub?.login ?? "none"}, expected ${USER.login} (jar: ${jarKeys}; me.status ${me.status}; me.body ${JSON.stringify(me.json).slice(0, 200)})`,
   );
-phase = "wallet";
+setPhase("wallet");
 const ch = await api("POST", "/api/wallet/challenge", { address: creator.address, chainId: 31337 });
 if (ch.status !== 200) throw new Error(`wallet challenge -> ${ch.status}`);
 const signature = await creatorWallet.signMessage({ message: ch.json.message as string });
@@ -159,7 +152,7 @@ if (vf.status !== 200) throw new Error(`repository verify -> ${vf.status}: ${JSO
 evidence.auth = `signed in as ${USER.login}; wallet ${creator.address} bound; repository admin proven`;
 
 // ── Phase B: real launch (EIP-712 consent + real launch transaction) ─────
-phase = "launch-api";
+setPhase("launch-api");
 const draft = await api("POST", "/api/launch/drafts", { repoId: REPO_ID, installationId: INST_ID, name: "W08 Fin", symbol: "W08F", description: "W08 financial recovery drill (sandbox)", logo: "https://example.org/w08.png", socials: {}, launchConfigId: 0, creatorTaxBps: 100, buybackEnabled: false, snipeTaxExemptions: [] });
 if (draft.status !== 201) throw new Error(`draft -> ${draft.status}: ${JSON.stringify(draft.json)}`);
 const auth = await api("POST", `/api/launch/drafts/${draft.json.id}/authorize`);
@@ -169,7 +162,7 @@ const consent = await creatorWallet.signTypedData(typedData as never);
 const signed = await api("POST", `/api/launch/intents/${auth.json.intentId}/signature`, { signature: consent });
 if (signed.status !== 200) throw new Error(`signature submit -> ${signed.status}: ${JSON.stringify(signed.json)}`);
 const args = reviveLaunchArgs(signed.json.tx as never);
-phase = "launch-tx";
+setPhase("launch-tx");
 const launchHash = await creatorWallet.writeContract({ address: (signed.json.tx as { address: Address }).address, abi: ponsV2LaunchFactoryAbi as unknown as Abi, functionName: "launchToken", args: [args.params, args.launchConfigId, args.pairToken, args.exemptions], value: args.value } as never);
 await pub.waitForTransactionReceipt({ hash: launchHash });
 const submitted = await api("POST", `/api/launch/intents/${auth.json.intentId}/submitted`, { txHash: launchHash });
@@ -199,20 +192,31 @@ const buy = async (eth: string) => {
 // snipe tax would otherwise take the buyer's tokens down to the 1% floor.
 await anvil("evm_increaseTime", [30]);
 await anvil("evm_mine");
-phase = "buy-10";
+setPhase("buy-10");
 await buy("10000000000000000000"); // 10 ETH (curve active, fees accrue pre-graduation)
 const db = new PgDb(process.env.DATABASE_URL!, { max: 2, applicationName: "w08-drill" });
 const chainEvents = async () => Number((await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events")).rows[0]!.n);
-const headroom = async () => pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "verifiedHeadroom", args: [NATIVE] } as never) as Promise<bigint>;
+// every uint256 read is coerced through BigInt so a degenerate decode can
+// never crash the drill mid-flow; a wrong value surfaces in the assertions.
+const asBig = (v: unknown): bigint => BigInt((v ?? 0n) as string | number | bigint);
+const headroom = async () => asBig(await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "verifiedHeadroom", args: [NATIVE] } as never));
 const ceiling = async () => {
   // viem may decode a struct return as an object (named) or an array (positional);
   // AssetLedger.eligibleCeiling is the 7th field (index 6).
   const led = await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "ledger", args: [NATIVE] } as never) as unknown as { eligibleCeiling?: bigint } | unknown[];
   const ledObj = led as { eligibleCeiling?: bigint } | unknown[];
   const v = Array.isArray(ledObj) ? ledObj[6] : (ledObj as { eligibleCeiling?: bigint }).eligibleCeiling;
-  return BigInt((v ?? 0n) as string | number | bigint);
+  return asBig(v);
 };
-const escrowCredit = async (who: Address) => pub.readContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "balanceOf", args: [who] } as never) as Promise<bigint>;
+const escrowCredit = async (who: Address) => asBig(await pub.readContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "balanceOf", args: [who] } as never));
+// reconcile returns (balance, accounted, surplus, deficit) as a named tuple; viem may
+// decode it positionally (same trap as `ledger` above), so read both shapes.
+const recFields = (r: unknown): { surplus: bigint; deficit: bigint } => {
+  const o = r as { surplus?: bigint; deficit?: bigint } | unknown[];
+  if (Array.isArray(o)) return { surplus: BigInt((o[2] ?? 0n) as string | number | bigint), deficit: BigInt((o[3] ?? 0n) as string | number | bigint) };
+  const n = o as { surplus?: bigint; deficit?: bigint };
+  return { surplus: BigInt(n.surplus ?? 0n), deficit: BigInt(n.deficit ?? 0n) };
+};
 
 // The reorg snapshot goes HERE (pre-graduation): the 22 ETH buy crosses the threshold,
 // graduates (sweep credits the splitter and creator keys) and the worker attests —
@@ -221,12 +225,13 @@ const cfgAddresses = ((await (await fetch(`${WEB}/api/config`)).json()) as { add
 const splitter = cfgAddresses.revenueSplitter as Address;
 const escrow = cfgAddresses.feeEscrow as Address;
 const NATIVE = zeroAddress as Address;
-phase = "snapshot";
+setPhase("snapshot");
 const snapshot = (await anvil("evm_snapshot")) as string;
 const eventsPreReorg = await chainEvents();
 const ceilingPreReorg = (await ceiling()).toString();
 const escrowPreReorg = (await escrowCredit(creator.address)).toString();
-phase = "buy-22-graduate";
+console.log(`[w08-fin] snapshot baselines: events=${eventsPreReorg} ceiling=${ceilingPreReorg} escrow=${escrowPreReorg}`);
+setPhase("buy-22-graduate");
 const gradHash = await buy("25000000000000000000"); // 22 ETH crosses the 30 ETH threshold
 await pub.waitForTransactionReceipt({ hash: gradHash });
 const gradPhase = await poll("graduation phase", 120_000, async () => {
@@ -235,7 +240,7 @@ const gradPhase = await poll("graduation phase", 120_000, async () => {
 });
 void gradPhase;
 const factoryAddr = ((await (await fetch(`${WEB}/api/config`)).json()) as { addresses: { factory: Address } }).addresses.factory;
-phase = "grad-pool";
+setPhase("grad-pool");
 await creatorWallet.writeContract({ address: factoryAddr, abi: ponsV2LaunchFactoryAbi as unknown as Abi, functionName: "createGraduatedPool", args: [token!.token] } as never);
 await poll("graduated pool", 120_000, async () => {
   const t = (await (await fetch(`${WEB}/api/tokens/${token!.token}`)).json()) as { token: { phase: string } };
@@ -243,22 +248,23 @@ await poll("graduated pool", 120_000, async () => {
 });
 
 // ── Phase D: worker attestation of the swept protocol leg ────────────────
-phase = "attest-wait";
+setPhase("attest-wait");
 await poll("attestation (verified headroom > 0)", 180_000, async () => ((await headroom()) > 0n ? true : null));
-phase = "read-ceiling";
+setPhase("read-ceiling");
 const ceilingBeforeReorg = await ceiling();
 const escrowBeforeReorg = await escrowCredit(creator.address);
-const eventsBeforeReorg = await chainEvents();
 evidence.attestation = `ceiling ${ceilingBeforeReorg.toString()} wei attested; splitter headroom > 0; creator escrow credit ${escrowBeforeReorg.toString()} wei`;
 
 // ── Phase E: REORG just past the attestation ─────────────────────────────
 await poll("post-reorg-sweep indexed (events grow)", 120_000, async () => ((await chainEvents()) > eventsPreReorg ? true : null));
 const ceilingAtPeak = await ceiling();
-await poll("reorg rollback (events back to pre-reorg)", 180_000, async () => ((await chainEvents()) === eventsBeforeReorg ? true : null));
+setPhase("reorg-revert", `peak ceiling ${ceilingAtPeak.toString()} wei; reverting to snapshot ${snapshot}`);
+await anvil("evm_revert", [snapshot]);
+await poll("reorg rollback (events back to pre-reorg)", 180_000, async () => ((await chainEvents()) === eventsPreReorg ? true : null));
 const ceilingAfterReorg = await ceiling();
 const escrowAfterReorg = await escrowCredit(creator.address);
 const eventsAfterReorg = await chainEvents();
-const rec = (await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "reconcile", args: [NATIVE] } as never)) as never as { deficit: bigint; surplus: bigint };
+const rec = recFields(await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "reconcile", args: [NATIVE] } as never));
 // The reorg orphans the graduation, the sweep credits AND the attestation
 // authorization: everything must return to the SNAPSHOT state exactly (the
 // orphaned authorization cannot survive, the credits cannot persist, the
@@ -280,13 +286,20 @@ evidence.reorg = {
 };
 if (!reorgOk) fail = "reorg recovery violated a financial assertion";
 
-// ── Phase F: recovery — fresh attestation after the reorg ────────────────
+// ── Phase F: recovery — canonical re-execution + fresh attestation ───────
+// The revert orphaned the graduation, the sweep credits and the attestation
+// authorization; the attestor only ever attests CANONICAL indexed revenue, so
+// the curve (back at its snapshot reserve) must re-cross the threshold: the
+// same buy re-executes graduation + sweep in in-window blocks and the worker
+// re-derives eligible revenue and re-attests with fresh evidence.
+setPhase("re-attest");
+await buy("25000000000000000000");
 const c2 = (await poll("post-reorg ceiling re-attestable", 240_000, async () => {
   const h = await headroom().catch(() => 0n);
   return h > 0n && (await ceiling()) >= ceilingBeforeReorg ? true : null;
 })) === true;
 evidence.attestationRecovery = c2
-  ? "fresh canonical evidence re-attested after the reorg (ceiling recovered with in-window block hashes)"
+  ? "graduation + sweep re-executed canonically after the reorg; fresh eligible-revenue attestation recovered the ceiling with in-window block hashes"
   : "RE-ATTESTATION PENDING (worker will retry with fresh canonical evidence)";
 if (!c2) fail = fail || "post-reorg re-attestation did not recover";
 
@@ -302,6 +315,7 @@ const marker = async (id: string) => {
   return Number((t as { rows: Array<{ n: string }> }).rows[0]?.n ?? 0) > 0;
 };
 const creatorCredit = await escrowCredit(creator.address);
+setPhase("claim-interrupted");
 console.log("W08_CLAIM_WAITING (worker must be stopped now)");
 await poll("claim_go marker (worker stopped)", 300_000, async () => (await marker("claim_go")) ? true : null);
 const claimHash = await creatorWallet.writeContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "claim" } as never);
@@ -318,12 +332,13 @@ await poll("claim event indexed exactly once", 240_000, async () => {
   const n = await claimEventsForTx();
   return n >= 1 ? n : null;
 });
+setPhase("claim-recovery");
 const indexedOnce = await claimEventsForTx();
 await sleep(10_000); // extra worker passes: must NOT add a second copy
 const indexedStill = await claimEventsForTx();
 const _dup = await creatorWallet.writeContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "claim" } as never).then((h) => h).catch((e: Error) => { void e; return "reverted" as const; });
 const creatorBalanceAfterDuplicate = await escrowCredit(creator.address);
-const rec2 = (await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "reconcile", args: [NATIVE] } as never)) as never as { deficit: bigint; surplus: bigint };
+const rec2 = recFields(await pub.readContract({ address: splitter, abi: forgeProtocolRevenueSplitterAbi as unknown as Abi, functionName: "reconcile", args: [NATIVE] } as never));
 const claimOk =
   indexedOnce === 1 && indexedStill === 1 && // exactly-once ingestion across worker restart + extra passes
   creatorBalanceAfterPayout === 0n && creatorBalanceAfterDuplicate === 0n && // no double allocation
