@@ -319,7 +319,8 @@ setPhase("claim-interrupted");
 console.log("W08_CLAIM_WAITING (worker must be stopped now)");
 await poll("claim_go marker (worker stopped)", 300_000, async () => (await marker("claim_go")) ? true : null);
 const claimHash = await creatorWallet.writeContract({ address: escrow, abi: ponsV2FeeEscrowAbi as unknown as Abi, functionName: "claim" } as never);
-await pub.waitForTransactionReceipt({ hash: claimHash });
+const claimReceipt = await pub.waitForTransactionReceipt({ hash: claimHash });
+console.log(`[w08-fin] claim tx mined in block ${claimReceipt.blockNumber} (status ${claimReceipt.status}, logs ${claimReceipt.logs.length})`);
 const creatorBalanceAfterPayout = await escrowCredit(creator.address);
 if (creatorBalanceAfterPayout !== 0n) { fail = "escrow did not drain the creator credit exactly"; }
 const unindexed = (await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events WHERE tx_hash = $1", [claimHash])).rows[0]!.n;
@@ -328,12 +329,18 @@ evidence.claimInterrupted = { claimTx: claimHash, payout: creatorCredit.toString
 console.log("W08_CLAIM_TX " + claimHash);
 await poll("claim_go2 marker (worker restarted)", 300_000, async () => (await marker("claim_go2")) ? true : null);
 const claimEventsForTx = async () => Number((await db.query<{ n: string }>("SELECT count(*)::text n FROM chain_events WHERE tx_hash = $1", [claimHash])).rows[0]!.n);
+const indexerCpName = `forge:31337:${(cfgAddresses.factory as string).toLowerCase()}`;
+const claimBlock = claimReceipt.blockNumber;
 const idxDiag = async () => {
   try {
-    const cp = await db.query<{ last_block: string; updated_at: string }>("SELECT last_block::text, updated_at::text FROM indexer_checkpoints WHERE name LIKE 'forge:%'");
+    const cps = await db.query<{ name: string; last_block: string; updated_at: string }>("SELECT name, last_block::text, updated_at::text FROM indexer_checkpoints ORDER BY name");
+    const exact = await db.query<{ last_block: string; last_block_hash: string | null; updated_at: string }>("SELECT last_block::text, last_block_hash, updated_at::text FROM indexer_checkpoints WHERE name = $1", [indexerCpName]);
     const ev = await db.query<{ n: string; maxb: string }>("SELECT count(*)::text n, coalesce(max(block_number),0)::text maxb FROM chain_events");
+    const recent = await db.query<{ block_number: string; event_name: string; tx_hash: string }>("SELECT block_number::text, event_name, tx_hash FROM chain_events ORDER BY block_number DESC LIMIT 6");
     const hb = await db.query<{ worker_id: string; state: string; beat_at: string; last_error: string | null }>("SELECT worker_id, state, beat_at::text, last_error FROM worker_heartbeats ORDER BY beat_at DESC LIMIT 2");
-    console.log(`[w08-fin] indexer diag: cp=${JSON.stringify(cp.rows)} events=${JSON.stringify(ev.rows)} hb=${JSON.stringify(hb.rows)}`);
+    const head = await pub.getBlockNumber().catch(() => null);
+    const claimLogs = await pub.getLogs({ address: escrow, fromBlock: claimBlock - 10n, toBlock: "latest" }).catch((e: Error) => `getLogs failed: ${e.message.split("\n")[0]}`);
+    console.log(`[w08-fin] indexer diag: head=${head} indexerCp(${indexerCpName.slice(0, 20)}…)=${JSON.stringify(exact.rows)} allCps=${JSON.stringify(cps.rows)} events=${JSON.stringify(ev.rows)} recent=${JSON.stringify(recent.rows)} hb=${JSON.stringify(hb.rows)} claimLogs=${Array.isArray(claimLogs) ? `${claimLogs.length} logs, first block ${claimLogs[0]?.blockNumber}` : claimLogs}`);
   } catch (e) { console.log(`[w08-fin] indexer diag failed: ${(e as Error).message}`); }
 };
 const claimPollStart = Date.now();
