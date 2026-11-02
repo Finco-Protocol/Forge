@@ -1,0 +1,8 @@
+{
+  "sha": "e09d0dc55124f180020eea38ae43f0b5f4a19889",
+  "tree": "8cb75ff10773ec624c329b812dc884acdf9db580",
+  "toolchain": {"node": "v24.21.0", "pnpm": "10.28.0", "foundry": "1.8.5", "os": "MINGW64_NT-10.0-26200"},
+  "submodules": "contractsV2/lib/forge-std@f3dae6e6ee381f25eb6a246f7da9b85c91a68219",
+  "lockfileSha256": "478e467d44277f3ebbb3bfa064780368f154e1ca6ca7451f8c99da606e243864",
+  "artifactCount": 565
+}
