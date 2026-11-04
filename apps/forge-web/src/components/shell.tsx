@@ -6,6 +6,7 @@ import { useAccount } from "wagmi";
 import type { ReactNode } from "react";
 import { useForge } from "./providers";
 import { short } from "./api";
+import { GitHubMark } from "./forge-ui";
 
 /** W05: what repository verification does and does NOT establish. Shown wherever a launch or token is presented. */
 export function VerificationDisclosure({ compact = false }: { compact?: boolean }) {
@@ -47,8 +48,17 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
       <header className="top">
         <div className="container row">
-          <Link href="/" className="brand">
-            FINCO <span>Forge</span>
+          <Link href="/" className="brand" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+            <span
+              aria-hidden="true"
+              style={{ width: 32, height: 32, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "50%", color: "var(--accent)", font: "11px var(--mono)" }}
+            >
+              F
+            </span>
+            <span>
+              FINCO <span>Forge</span>
+              <small style={{ display: "block", color: "var(--muted)", font: "8px var(--mono)", letterSpacing: "0.13em" }}>BUILDER LAUNCHPAD</small>
+            </span>
           </Link>
           <nav className="main" aria-label="Primary">
             {nav.map(([href, label]) => (
@@ -59,7 +69,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </nav>
           <div className="status-chips" data-testid="account-status" role="status" aria-live="polite" aria-label="Connection status">
             <span className={`chip ${me?.github ? "ok" : ""}`}>
-              <span className="dot" /> {me?.github ? `@${me.github.login}` : "GitHub not connected"}
+              {me?.github ? <GitHubMark size={12} /> : <span className="dot" />} {me?.github ? `@${me.github.login}` : "GitHub not connected"}
             </span>
             <span className={`chip ${mismatch || wrongChain ? "bad" : isConnected ? "ok" : ""}`}>
               <span className="dot" />
