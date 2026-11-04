@@ -6,6 +6,7 @@ import { api, ago, short } from "@/components/api";
 import { useForge } from "@/components/providers";
 import { PhaseBadge, TxLink } from "@/components/shell";
 import { CreatorEarnings } from "@/components/earnings";
+import { ForgeButton, ForgeHeading, ForgeLinkButton, ForgePanel, GitHubMark, Plus, Unplug } from "@/components/forge-ui";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -20,12 +21,19 @@ export default function DashboardPage() {
 
   if (!me?.github) {
     return (
-      <div className="panel empty">
-        <p>Connect GitHub to see your creator dashboard.</p>
-        <a className="btn" href="/api/auth/github/start">
-          Connect GitHub
-        </a>
-      </div>
+      <>
+        <ForgeHeading eyebrow="BUILDER WORKSPACE · SIGNED OUT" title="Builder workspace">
+          Connect GitHub to see your launched tokens, launch drafts, verification evidence and on-chain registry operations.
+        </ForgeHeading>
+        <div className="panel empty" data-testid="dashboard-signed-out">
+          <p>
+            <GitHubMark size={16} /> Connect GitHub to load your builder workspace.
+          </p>
+          <a className="forge-button forge-button-primary" href="/api/auth/github/start" style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <GitHubMark size={14} /> Connect GitHub
+          </a>
+        </div>
+      </>
     );
   }
   if (error) return <div className="alert error">{error}</div>;
@@ -44,27 +52,35 @@ export default function DashboardPage() {
 
   return (
     <>
-      <h1>Creator dashboard</h1>
-      <p className="sub">
-        @{d.github.login} · {d.wallet ? <>bound wallet <code>{d.wallet.address}</code></> : "no wallet bound"}
-      </p>
-      <div className="actions" style={{ marginTop: 0, marginBottom: 18 }}>
-        <Link className="btn" href="/launch">
-          New launch
-        </Link>
-        {d.wallet && (
-          <button className="danger" onClick={unbind}>
-            Revoke wallet binding
-          </button>
+      <ForgeHeading
+        eyebrow="BUILDER WORKSPACE · SERVER-AUTHORITATIVE STATE"
+        title="Creator dashboard"
+        right={
+          <>
+            <ForgeLinkButton href="/launch" primary>
+              <Plus size={14} /> New launch
+            </ForgeLinkButton>
+            {d.wallet && (
+              <ForgeButton className="forge-button" onClick={unbind}>
+                <Unplug size={14} /> Revoke wallet binding
+              </ForgeButton>
+            )}
+            <ForgeButton onClick={logoutAll}>Sign out everywhere</ForgeButton>
+          </>
+        }
+      >
+        @{d.github.login} ·{" "}
+        {d.wallet ? (
+          <>
+            bound wallet <code>{d.wallet.address}</code>
+          </>
+        ) : (
+          "no wallet bound"
         )}
-        <button className="secondary" onClick={logoutAll}>
-          Sign out everywhere
-        </button>
-      </div>
+      </ForgeHeading>
 
-      <div className="grid cols-2">
-        <section className="panel">
-          <h2>Launched tokens</h2>
+      <div className="forge-grid">
+        <ForgePanel className="forge-col-6" eyebrow="LAUNCHED TOKENS" title="Launched tokens">
           {d.tokens.length === 0 ? (
             <p className="hint">None yet.</p>
           ) : (
@@ -86,10 +102,9 @@ export default function DashboardPage() {
               </tbody>
             </table>
           )}
-        </section>
+        </ForgePanel>
 
-        <section className="panel">
-          <h2>Launch drafts</h2>
+        <ForgePanel className="forge-col-6" eyebrow="LAUNCH DRAFTS · SERVER STATE" title="Launch drafts">
           {d.drafts.length === 0 ? (
             <p className="hint">No drafts.</p>
           ) : (
@@ -109,10 +124,9 @@ export default function DashboardPage() {
               </tbody>
             </table>
           )}
-        </section>
+        </ForgePanel>
 
-        <section className="panel">
-          <h2>GitHub verifications</h2>
+        <ForgePanel className="forge-col-6" eyebrow="REPOSITORY AUTHORITY · FRESHNESS IS PART OF THE PROOF" title="GitHub verifications">
           <table className="list">
             <tbody>
               {d.verifications.map((v: any) => {
@@ -132,10 +146,9 @@ export default function DashboardPage() {
               })}
             </tbody>
           </table>
-        </section>
+        </ForgePanel>
 
-        <section className="panel">
-          <h2>On-chain registry operations</h2>
+        <ForgePanel className="forge-col-6" eyebrow="ON-CHAIN REGISTRY OPERATIONS" title="Registry operations">
           {d.registryOps.length === 0 ? (
             <p className="hint">None.</p>
           ) : (
@@ -157,7 +170,7 @@ export default function DashboardPage() {
             </table>
           )}
           <p className="hint">Wallet {short(d.wallet?.address)} · bindings are revoked automatically when eligibility is lost.</p>
-        </section>
+        </ForgePanel>
       </div>
       {d.wallet ? <CreatorEarnings /> : <div className="alert">Bind a wallet to see earnings: fees belong to the wallet that is the escrow recipient.</div>}
     </>

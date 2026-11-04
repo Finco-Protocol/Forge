@@ -35,9 +35,10 @@ export default function ProjectPage({ params }: { params: Promise<{ token: strin
   const repoUrl = d.repository ? `https://github.com/${d.repository.full_name}` : null;
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
-        <div>
-          <h1 data-testid="project-title">
+      <div className="forge-heading">
+        <div style={{ minWidth: 0 }}>
+          <div className="forge-eyebrow">PROJECT · CANONICAL ON-CHAIN IDENTITY · INDEXED CHAIN EVENTS ONLY</div>
+          <h1 data-testid="project-title" style={{ fontFamily: "var(--f-display)", letterSpacing: "-0.03em", margin: "8px 0 9px" }}>
             {t.name} <span className="hint">${t.symbol}</span>
           </h1>
           <p className="sub" style={{ marginBottom: 8 }}>
@@ -53,6 +54,7 @@ export default function ProjectPage({ params }: { params: Promise<{ token: strin
               <>Repository id {t.repo_id ?? "unknown"}</>
             )}
           </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <PhaseBadge phase={t.phase} error={t.reconcile_error} />{" "}
           {svc && !retracted ? (
             <span className="chip ok" data-testid="verified-badge">
@@ -62,6 +64,7 @@ export default function ProjectPage({ params }: { params: Promise<{ token: strin
             <span className="chip warn">No service evidence</span>
           )}
           {d.repository?.ineligible_reason && <span className="chip bad">Eligibility since revoked: {d.repository.ineligible_reason}</span>}
+          </div>
         </div>
       </div>
 
@@ -73,6 +76,7 @@ export default function ProjectPage({ params }: { params: Promise<{ token: strin
 
       <div className="grid cols-2" style={{ marginTop: 18 }}>
         <section className="panel">
+          <div className="forge-eyebrow" style={{ marginBottom: 8 }}>REAL RESERVE · INDEXED EVENTS</div>
           <h3>Lifecycle</h3>
           <div className="stepper compact" style={{ marginBottom: 12 }}>
             {PHASE_ORDER.map((p, i) => (

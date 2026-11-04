@@ -10,6 +10,7 @@ import { reviveLaunchArgs, reviveTypedData, type LaunchTxJson } from "@/shared/l
 import { api, ApiError, bps, formatUnits18, short } from "@/components/api";
 import { useForge } from "@/components/providers";
 import { TxLink, VerificationDisclosure } from "@/components/shell";
+import { Check, ForgeHeading, ForgePanel, GitHubMark, ShieldCheck, Wallet } from "@/components/forge-ui";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const STEPS = ["Connect", "Configure", "Economics", "Authorize", "Launch"];
@@ -232,9 +233,10 @@ function Wizard() {
 
   return (
     <>
-      <h1>Launch a verified builder token</h1>
+      <ForgeHeading eyebrow="LAUNCH · FIVE REVIEWED STEPS · PRODUCTION GATED" title="Launch a verified builder token">
+        Your GitHub administration and your wallet are proven separately; both are required. Nothing is signed or sent without your explicit action.
+      </ForgeHeading>
       <VerificationDisclosure />
-      <p className="sub">Your GitHub administration and your wallet are proven separately; both are required. Nothing is signed or sent without your explicit action.</p>
       <div className="stepper" data-testid="stepper">
         {STEPS.map((s, i) => (
           <button
@@ -343,6 +345,47 @@ function Wizard() {
               </button>
             </div>
           </section>
+        </div>
+      )}
+
+      {step === 0 && (
+        <div className="forge-grid" data-testid="verification-map">
+          <ForgePanel className="forge-col-7" eyebrow="ORDERED PROOF MAP · REAL SERVER CHECKS" title="From identity to a server-side decision">
+            {[
+              ["01", "GitHub authorization", "GET /api/auth/github/start → callback: session-bound, single-use state with a 10-minute lifetime; the callback validates state and rotates the session."],
+              ["02", "Repository selection + discovery", "GET /api/github/repositories lists candidates visible to the Forge App installation. Discovery is only a candidate list — it is not proof."],
+              ["03", "Independent admin checks", "POST /api/github/verify requires BOTH your user token to report admin for the canonical numeric repository ID AND the App installation's collaborator view to report admin for the same numeric GitHub user. An installation token alone is never proof. Private/fork eligibility follows policy flags."],
+              ["04", "Wallet consent challenge", "POST /api/wallet/challenge issues a one-time SIWE challenge bound to session, GitHub identity, domain, URI and chain, expiring in five minutes; POST /api/wallet/verify checks the signature."],
+              ["05", "Binding + on-chain registration", "The verified repository is bound on chain by the relayer with an epoch-scoped binding operation; the binding is rechecked for freshness, transfer and revocation."],
+              ["06", "Eligibility evidence", "An eligibility attestation and evidence receipt tie the repository, verification, wallet binding and launch transaction together cryptographically."],
+            ].map(([number, title, detail], index) => (
+              <div key={number} style={{ display: "grid", gridTemplateColumns: "34px minmax(0,1fr)", gap: 12, padding: "13px 0", borderTop: "1px solid var(--border)" }}>
+                <span className="forge-avatar" style={{ width: 30, height: 30, fontSize: 10 }}>{number}</span>
+                <div>
+                  <div className="forge-kicker">{index < 2 ? "REPOSITORY AUTHORITY" : index < 4 ? "WALLET CONSENT" : "SERVER DECISION"}</div>
+                  <b style={{ display: "block", margin: "3px 0 4px", fontSize: 13.5 }}>{title}</b>
+                  <span className="hint" style={{ lineHeight: 1.7, display: "block" }}>{detail}</span>
+                </div>
+              </div>
+            ))}
+          </ForgePanel>
+          <ForgePanel className="forge-col-5" eyebrow="EVIDENCE BOUNDARY" title="Consent is not authority">
+            <div className="forge-state-banner" role="note">
+              <ShieldCheck size={17} />
+              <span>
+                <b>PROOF CLASSES ARE SEPARATE.</b> GitHub ownership verification is not a code audit, KYC or financial endorsement; a wallet signature proves consent only; on-chain binding and launch eligibility are distinct server/chain decisions.
+              </span>
+            </div>
+            <ul className="forge-checklist" style={{ margin: "14px 0 0" }}>
+              <li><GitHubMark size={14} /> GitHub ownership — two independent admin checks must agree.</li>
+              <li><Wallet size={14} /> Wallet ownership — fresh, session-bound SIWE challenge.</li>
+              <li><Check size={14} /> On-chain binding — epoch-scoped registry operation.</li>
+              <li><Check size={14} /> Launch eligibility — eligibility evidence at authorization time.</li>
+            </ul>
+            <div className="forge-disabled-note">
+              Every step above is a real server check in this app. Presentation in this wizard never substitutes a server result, and no step can be satisfied by pasting a URL or a client-side label.
+            </div>
+          </ForgePanel>
         </div>
       )}
 

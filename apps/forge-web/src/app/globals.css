@@ -1,26 +1,29 @@
+/* WEB-03: palette ported from the WEB-02 Replit Forge design handover
+   (dark green-black surfaces, mint/teal accents, gold warnings). Class names,
+   selectors and layout rules below are unchanged. */
 :root {
-  --bg: #0b0d12;
-  --panel: #121621;
-  --panel-2: #181d2a;
-  --border: #252b3b;
-  --text: #e6e9f2;
-  --muted: #8b93a7;
-  --accent: #7c5cff;
-  --accent-2: #19c3a1;
-  --warn: #f5a524;
-  --danger: #f05252;
-  --ok: #22c55e;
-  --radius: 12px;
+  --bg: #101715;
+  --panel: #17201e;
+  --panel-2: #202b28;
+  --border: #35433f;
+  --text: #e6efea;
+  --muted: #a5b4ad;
+  --accent: #a8d8ba;
+  --accent-2: #57c1b1;
+  --warn: #d1b16d;
+  --danger: #e07070;
+  --ok: #7fd6a0;
+  --radius: 4px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-a { color: #a99bff; text-decoration: none; }
+a { color: #b9e0c6; text-decoration: none; }
 a:hover { text-decoration: underline; }
 code, .mono { font-family: var(--mono); font-size: 0.88em; word-break: break-all; }
 .container { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
-.banner { background: #2a1d05; color: #ffd48a; border-bottom: 1px solid #4a3410; font-size: 13px; padding: 6px 0; text-align: center; }
+.banner { background: #28251e; color: #e2ca94; border-bottom: 1px solid #65563a; font: 12px/1.5 var(--mono); letter-spacing: 0.02em; padding: 6px 0; text-align: center; }
 header.top { border-bottom: 1px solid var(--border); background: rgba(11, 13, 18, 0.9); position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); }
 header.top .row { display: flex; align-items: center; gap: 20px; min-height: 60px; flex-wrap: wrap; padding: 8px 16px; }
 .brand { font-weight: 800; letter-spacing: 0.02em; color: var(--text); }
@@ -47,7 +50,7 @@ h3 { font-size: 15px; margin: 0 0 8px; color: var(--muted); text-transform: uppe
 .kv { display: grid; grid-template-columns: minmax(140px, 38%) 1fr; gap: 8px 14px; font-size: 14px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
-button, .btn { appearance: none; border: 1px solid var(--accent); background: var(--accent); color: white; font-weight: 700; padding: 9px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
+button, .btn { appearance: none; border: 1px solid var(--accent); background: var(--accent); color: #101815; font-weight: 700; padding: 9px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
 button.secondary, .btn.secondary { background: transparent; color: var(--text); border-color: var(--border); }
 button.danger { background: transparent; color: var(--danger); border-color: #5b1e1e; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -61,7 +64,7 @@ label.field > span { display: block; font-size: 13px; color: var(--muted); margi
 .alert.error { background: #240f0f; border-color: #5b1e1e; color: #ffc2c2; }
 .alert.warn { background: #241b08; border-color: #5a4212; color: #ffd48a; }
 .alert.ok { background: #0f2418; border-color: #1e5b36; color: #b8f5cc; }
-.alert.info { background: #121a2e; border-color: #263a66; color: #c3d3ff; }
+.alert.info { background: #16241f; border-color: #3c5c47; color: #c6decb; }
 .stepper { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .step { flex: 1; min-width: 120px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--muted); font-size: 13px; }
 .step b { display: block; color: var(--text); font-size: 14px; }
@@ -73,13 +76,13 @@ table.list th { text-align: left; color: var(--muted); font-weight: 600; font-si
 table.list td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .table-wrap { overflow-x: auto; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; border: 1px solid var(--border); }
-.badge.phase-launched { color: #c3d3ff; border-color: #263a66; }
+.badge.phase-launched { color: #c6decb; border-color: #3c5c47; }
 .badge.phase-bonding_curve_active { color: #b8f5cc; border-color: #1e5b36; }
 .badge.phase-graduation_initiated { color: #ffd48a; border-color: #5a4212; }
-.badge.phase-liquidity_seeded, .badge.phase-graduated { color: #d8ccff; border-color: #4b3a99; background: #1a1433; }
+.badge.phase-liquidity_seeded, .badge.phase-graduated { color: #b9e0c6; border-color: #4a6b58; background: #1c2f25; }
 .badge.phase-blocked, .badge.phase-error { color: #ffc2c2; border-color: #5b1e1e; }
 .progress { height: 8px; background: var(--panel-2); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
-.progress > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.progress > div { height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
 .repo-cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .repo-card { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); cursor: pointer; text-align: left; color: var(--text); font-weight: 500; display: block; width: 100%; }
 .repo-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
@@ -93,7 +96,7 @@ footer { border-top: 1px solid var(--border); color: var(--muted); font-size: 12
 .skip-link { position: absolute; left: -9999px; top: 0; background: var(--accent); color: #fff; padding: 10px 14px; border-radius: 0 0 8px 0; z-index: 100; font-weight: 700; }
 .skip-link:focus { left: 0; text-decoration: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-:focus-visible { outline: 2px solid #c3b8ff; outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 main:focus { outline: none; }
 button:disabled[aria-busy="true"] { cursor: progress; }
 @media (max-width: 760px) { button, .btn, input, select { min-height: 44px; } nav.main a { padding: 8px 4px; } .chip { white-space: normal; max-width: 100%; } .banner { overflow-wrap: anywhere; padding-left: 12px; padding-right: 12px; } header.top .row > * { min-width: 0; max-width: 100%; } }

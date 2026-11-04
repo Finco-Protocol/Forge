@@ -53,7 +53,12 @@ export default function TreasuryPage() {
 
   return (
     <>
-      <h1>Treasury &amp; revenue</h1>
+      <div className="forge-heading">
+        <div style={{ minWidth: 0 }}>
+          <div className="forge-eyebrow">PROTOCOL FINANCE · SERVER-AUTHORITATIVE · SANDBOX</div>
+          <h1 style={{ fontFamily: "var(--f-display)", letterSpacing: "-0.03em", margin: "8px 0 9px" }}>Treasury &amp; revenue</h1>
+        </div>
+      </div>
       <p className="sub">
         Forge protocol revenue under policy v{t.policy.version}: the protocol leg of eligible base fees ({bps(t.policy.protocolShareOfBaseFeeBps)}) is split{" "}
         {t.policy.treasuryParts}:{t.policy.reserveParts} between the Forge treasury and the FINCO reserve ({t.policy.rounding}).

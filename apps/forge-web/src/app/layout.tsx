@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import "./forge-ui.css";
 import { Providers } from "@/components/providers";
 import { Shell } from "@/components/shell";
 
